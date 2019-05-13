@@ -1,3 +1,3 @@
-[submodule "ga_preprocess"]
-	path = ga_preprocess
-	url = ../ga_preprocess.git
+[submodule "preprocess"]
+	path = preprocess
+	url = https://hossay@bitbucket.org/hossay/ga_preprocess.git
