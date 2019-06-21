@@ -40,6 +40,8 @@ class C3DNet:
         conv1 = conv3d('conv1', inputs, self._weights['wc1'], self._biases['bc1'])
         conv1 = tf.nn.relu(conv1, 'relu1')
         pool1 = max_pool('pool1', conv1, k=1)
+        
+        return pool1
 
         # Convolution Layer
         conv2 = conv3d('conv2', pool1, self._weights['wc2'], self._biases['bc2'])

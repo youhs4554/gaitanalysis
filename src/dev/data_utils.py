@@ -76,6 +76,7 @@ def extract_features(stacked_arr, feature_extraction_model,
         clip = preprocess_clip(clip)
         
         feature = feature_extraction_model.run(clip)[0]
+        set_trace()
         res.append(feature)
 
         # move to next slice !
