@@ -4,3 +4,5 @@
 *.pkl
 *.txt
 .ipynb_checkpoints
+*.dirlock
+*feats_viz

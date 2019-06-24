@@ -20,7 +20,7 @@ from natsort import natsorted
 import collections
 from IPython import display
 import pylab as pl
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from sklearn.metrics.regression import mean_absolute_error, mean_squared_error, r2_score, explained_variance_score
 import numpy as np
 from torch import nn
@@ -156,7 +156,7 @@ def filter_target_df_with_vids(df, vids):
     target_ids = [ vid2pid(vid) for vid in vids ]
     return df.loc[target_ids]
 
-def split_dataset_with_vids(input_df, target_df, vids, test_size=0.3, random_state=42):
+def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_state=42):
     train_vids, test_vids = train_test_split(vids, test_size=test_size, random_state=random_state)
 
     train_X, train_y = filter_input_df_with_vids(input_df,train_vids), filter_target_df_with_vids(target_df,train_vids)
@@ -223,7 +223,7 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
     fig.subplots_adjust(top=0.88)
     
     plt.savefig(f'status_{phase}.png')
-    plt.cla()    
+    plt.close(fig)
     
 def prepare_dataset(input_file, target_file, feature_extraction_model=None, layer='conv1'):
     # data prepare first !!
@@ -237,11 +237,11 @@ def prepare_dataset(input_file, target_file, feature_extraction_model=None, laye
                       feats_maxlen=FEATS_MAXLEN, layer=layer)
     
     # split dataset (train/test)
-    train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(input_df, target_df, possible_vids, test_size=0.3, random_state=42)
+    train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(input_df, target_df, possible_vids, test_size=0.2, random_state=42)
     
-    # # target scaler
-    scaler = StandardScaler()
-    train_y.loc[:,:] = scaler.fit_transform(train_y.values)
+    # # target scaler    
+    scaler = StandardScaler().fit(target_df.values)
+    scaler.fit(target_df.values)
 
     # scaler = None
     
@@ -294,7 +294,7 @@ class GAITDataset_Regression(Dataset):
         self.y = y
         self.vids = list(set(X.vids))
         
-        self.feats_save_dir = os.path.join(feats_save_dir, 'fc1')
+        self.feats_save_dir = os.path.join(feats_save_dir, 'conv5')
         self.name = name
         
         if scaler:
@@ -308,10 +308,13 @@ class GAITDataset_Regression(Dataset):
         
         vid = self.vids[idx]
         
+        
         feats = np.load(os.path.join(self.feats_save_dir, vid) + '.npy')
+        # 512,20,4,4
+        feats = np.pad(feats, ((0,0),(0,20-feats.shape[1]),(0,0),(0,0)), 'constant')        
         #feats = np.pad(feats, ((0,0),(0,320-feats.shape[1]),(0,0),(0,0)), 'constant')
         #feats = np.pad(feats, ((0,20-feats.shape[0]),(0,0)), 'constant')
-        feats = np.mean(feats, axis=0)
+        #feats = np.mean(feats, axis=0)
         
         targets = self.y.loc[vid2pid(vid)].values
         
