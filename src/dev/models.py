@@ -43,14 +43,15 @@ from params import *
 class TF_Model:
     def __init__(self, batch_size=BATCH_SIZE_OF_TFMODEL, model_path=MODEL_PATH, mean_file=MEAN_FILE):
         # define graph
-        net = c3d_wrapper.C3DNet(
+        self.net = c3d_wrapper.C3DNet(
             pretrained_model_path=model_path, trainable=False,
             batch_size=batch_size)
 
         self.tf_video_clip = tf.placeholder(tf.float32,
                                        [batch_size, None, 112, 112, 3],
                                        name='tf_video_clip')  # (batch,num_frames,112,112,3)
-        self.tf_output = net(inputs=self.tf_video_clip)
+        
+        self.net(inputs=self.tf_video_clip)
         
         self.mean_val = np.load(mean_file).transpose(1,2,3,0)
 
@@ -62,9 +63,8 @@ class TF_Model:
         self.sess = tf.Session(config=config)
         self.sess.run(tf.global_variables_initializer())
     
-    def run(self, X):
-        return self.sess.run(self.tf_output, feed_dict={self.tf_video_clip: [X]})
-    
+    def run(self, X, layer):
+        return self.sess.run(self.net.feats_dict[layer], feed_dict={self.tf_video_clip: [X]})[0]    
     
 class Decoder(nn.Module):
     def __init__(self, num_filters = [512,256,128,64,1]):
@@ -252,6 +252,16 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
+class GAP(nn.Module):
+    def __init__(self):
+        super(GAP, self).__init__()
+    def forward(self, x):
+        '''
+        
+            x : size = (N,C,D,H,W)
+        '''
+        return torch.mean(x, (2,3,4))
+
     
 class Residual(nn.Module):
     def __init__(self, C_in, C_out):
@@ -284,32 +294,54 @@ class Regression_pretrained(nn.Module):
     def __init__(self):
         super(Regression_pretrained, self).__init__()
         
-        # input_shape = (b,512,20,4,4)
+        # input_shape = (b,64,320,56,56)
         
         self.model = nn.Sequential(
-#             Residual(C_in=512, C_out=512),
+#             # (b,64,320,56,56)
+#             Residual(C_in=64, C_out=64),
             
-#             # (b,512,10,4,4)
-#             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
-            
-#             Residual(C_in=512, C_out=512),
-            
-#             # (b,512,5,4,4)
-#             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
+#             # (b,64,160,28,28)
+#             nn.MaxPool3d(kernel_size=4, stride=2, padding=1),
 
-#             Residual(C_in=512, C_out=512),
+#             # (b,64,160,28,28)
+#             Residual(C_in=64, C_out=64),
             
-#             # (b,512,2,4,4)
+#             # (b,64,80,14,14)
+#             nn.MaxPool3d(kernel_size=4, stride=2, padding=1),
+            
+#             # (b,128,80,14,14)
+#             Residual(C_in=64, C_out=128),
+            
+#             # (b,128,40,7,7)
+#             nn.MaxPool3d(kernel_size=4, stride=2, padding=1),
+            
+#             Residual(C_in=128, C_out=128),
+            
+#             # (b,128,20,7,7)
 #             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-#             Residual(C_in=512, C_out=512),
+#             Residual(C_in=128, C_out=128),
             
-#             # (b,512,1,4,4)
+#             # (b,128,10,7,7)
 #             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-            View(-1,4096*20),
+#             # (b,256,10,7,7)
+#             Residual(C_in=128, C_out=256),
             
-            nn.Linear(4096*20, 2),
+#             # (b,256,5,7,7)
+#             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
+            
+            View(-1,4096*1),
+            #GAP(),
+            nn.Linear(1*4096, 4096),
+            nn.BatchNorm1d(4096),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(4096, 4096),
+            nn.BatchNorm1d(4096),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(4096, 15),
         
         )
         

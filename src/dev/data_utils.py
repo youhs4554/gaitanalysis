@@ -26,6 +26,7 @@ import numpy as np
 from torch import nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
+from torchvision.utils import save_image
 
 from skorch import NeuralNetRegressor
 from skorch.helper import predefined_split
@@ -48,10 +49,41 @@ def vid2pid(vid):
     split = vid.split('_')
     return '_'.join([split[0], split[2], split[4]])
 
+def visualize_conv_featsmap(vid, feature_extraction_model,
+                  frame_home=FRAME_HOME,
+                  frames_per_clip=FRAMES_PER_CLIP, 
+                  feats_maxlen=FEATS_MAXLEN,
+                  layer='conv1',
+                  save_dir = './feats_viz'):
+    
+    if os.path.exists(save_dir):
+        os.system(f'rm -rf {save_dir}')
+    os.makedirs(save_dir)
+
+    stacked_arr = np.load(os.path.join(frame_home, vid) + '.npy')
+    feats = extract_features(stacked_arr, feature_extraction_model,
+                             frame_home,
+                             frames_per_clip, 
+                             feats_maxlen, layer=layer)
+
+    # normalize (0-1)
+    feats /= feats.max() # --> because mininum is 0 (relued)
+    for t in range(feats.shape[1]):
+        fms = feats[:,t,:,:]   # (C, H, W)
+        to_save = []
+        for fm in fms:
+            # fm : (H,W,3)
+            fm = cv2.applyColorMap((fm*255).astype(np.uint8), cv2.COLORMAP_JET) # change color map
+            fm = cv2.resize(cv2.cvtColor(fm, cv2.COLOR_BGR2RGB), (64,64))
+            to_save.append(TF.to_tensor(fm))  # (3,H,W)
+        to_save = torch.stack(to_save) # (C,3,H,W)
+        
+        save_image(to_save, os.path.join(save_dir, f'frame-{t}.png'))
+
 def extract_features(stacked_arr, feature_extraction_model,
                      frame_home,
                      frames_per_clip, 
-                     feats_maxlen):
+                     feats_maxlen, layer):
 
     def preprocess_clip(clip):
         vid = []
@@ -64,48 +96,56 @@ def extract_features(stacked_arr, feature_extraction_model,
 
         vid = vid - feature_extraction_model.mean_val[:leng]
         vid = vid[:, 8:120, 30:142, :]
+        
+        # (16, 112, 112, 3)
+        vid = np.pad(vid, ((frames_per_clip-leng,0),(0,0),(0,0),(0,0)), 'constant')
 
         return vid
 
     res = []
-
+    feats_len_per_clip = None
+    
     while True:
         clip = stacked_arr[:frames_per_clip]
         if len(clip) == 0: break
 
         clip = preprocess_clip(clip)
         
-        feature = feature_extraction_model.run(clip)[0]
-        set_trace()
+        feature = feature_extraction_model.run(clip, layer)
+        if 'conv' in layer:
+            feature = feature.transpose(3,0,1,2)   # (C,D,H,W)
+            feats_len_per_clip = feature.shape[1]
+        
         res.append(feature)
 
         # move to next slice !
         stacked_arr = stacked_arr[frames_per_clip:]
 
-    # zero padding for feature sequence
-    res = np.pad(res, ((0,feats_maxlen-len(res)),(0,0)), 'constant')
-
-    return res
+    if 'conv' in layer:
+        return np.concatenate(res, 1) # concatenate through time dimension
+    else:
+        return res
 
 
 def save_features(vids, feature_extraction_model,
                   frame_home=FRAME_HOME,
                   frames_per_clip=FRAMES_PER_CLIP, 
                   feats_maxlen=FEATS_MAXLEN,
-                  save_dir=FEATS_SAVE_DIR):
+                  save_dir=FEATS_SAVE_DIR, layer='conv1'):
+    
+    save_dir = os.path.join(save_dir, layer)
     
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    for ix in tqdm(range(len(vids)), desc=f'extracting features from pretrained C3D and saving into {save_dir}'):
+    for ix in tqdm(range(len(vids))):
         vid = vids[ix]
         stacked_arr = np.load(os.path.join(frame_home, vid) + '.npy')
         feats = extract_features(stacked_arr, feature_extraction_model,
                                  frame_home,
                                  frames_per_clip, 
-                                 feats_maxlen)
+                                 feats_maxlen, layer)
         np.save(os.path.join(save_dir, vid), feats)
-        
         
 from sklearn.model_selection import train_test_split
 
@@ -168,7 +208,7 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
     
     for i,(preds,gts) in enumerate(zip(pp,gg)):
         ax = axes[i]
-        ax.plot([min(gts), max(gts)], [min(gts), max(gts)], 'r--', label='GT=PRED')
+        ax.plot([min(preds), max(preds)], [min(gts), max(gts)], 'r--', label='GT=PRED')
         ax.legend()
                     
     ax1, ax2 = axes[len(columns):][:2] # last two axes : plot learning curve (train/test)
@@ -185,7 +225,7 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
     plt.savefig(f'status_{phase}.png')
     plt.cla()    
     
-def prepare_dataset(input_file, target_file, feature_extraction_model=None):
+def prepare_dataset(input_file, target_file, feature_extraction_model=None, layer='conv1'):
     # data prepare first !!
     input_df = pd.read_pickle(input_file)
     target_df = pd.read_pickle(target_file)[target_columns]
@@ -193,7 +233,8 @@ def prepare_dataset(input_file, target_file, feature_extraction_model=None):
     # save conv features from pretrained c3d net
     possible_vids = list(set(input_df.vids))
     if feature_extraction_model:
-        save_features(vids=possible_vids, feature_extraction_model=feature_extraction_model)
+        save_features(vids=possible_vids, feature_extraction_model=feature_extraction_model,
+                      feats_maxlen=FEATS_MAXLEN, layer=layer)
     
     # split dataset (train/test)
     train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(input_df, target_df, possible_vids, test_size=0.3, random_state=42)
@@ -246,14 +287,14 @@ def normalize_img(pic, shape=(64,64), color_map='gray'):
 
 class GAITDataset_Regression(Dataset):
     def __init__(self,
-                 X, y, 
+                 X, y,
                  feats_save_dir=FEATS_SAVE_DIR, scaler=None, name=None):
 
         self.X = X
         self.y = y
         self.vids = list(set(X.vids))
         
-        self.feats_save_dir = feats_save_dir
+        self.feats_save_dir = os.path.join(feats_save_dir, 'fc1')
         self.name = name
         
         if scaler:
@@ -268,6 +309,10 @@ class GAITDataset_Regression(Dataset):
         vid = self.vids[idx]
         
         feats = np.load(os.path.join(self.feats_save_dir, vid) + '.npy')
+        #feats = np.pad(feats, ((0,0),(0,320-feats.shape[1]),(0,0),(0,0)), 'constant')
+        #feats = np.pad(feats, ((0,20-feats.shape[0]),(0,0)), 'constant')
+        feats = np.mean(feats, axis=0)
+        
         targets = self.y.loc[vid2pid(vid)].values
         
         return torch.tensor(feats, dtype=torch.float32), torch.tensor(targets, dtype=torch.float32)

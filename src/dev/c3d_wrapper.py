@@ -24,8 +24,10 @@ class C3DNet:
                                                                     initializer=tf.constant_initializer(var),
                                                                     dtype='float32',
                                                                     trainable=trainable)
-        
+                
         print('Done!')
+        self.feats_dict = dict()
+
 
     def __call__(self, inputs):
         def conv3d(name, l_input, w, b):
@@ -35,14 +37,13 @@ class C3DNet:
 
         def max_pool(name, l_input, k):
             return tf.nn.max_pool3d(l_input, ksize=[1, k, 2, 2, 1], strides=[1, k, 2, 2, 1], padding='SAME', name=name)
+        
 
         # Convolution Layer
         conv1 = conv3d('conv1', inputs, self._weights['wc1'], self._biases['bc1'])
         conv1 = tf.nn.relu(conv1, 'relu1')
         pool1 = max_pool('pool1', conv1, k=1)
         
-        return pool1
-
         # Convolution Layer
         conv2 = conv3d('conv2', pool1, self._weights['wc2'], self._biases['bc2'])
         conv2 = tf.nn.relu(conv2, 'relu2')
@@ -69,8 +70,6 @@ class C3DNet:
         conv5 = tf.nn.relu(conv5, 'relu5b')
         pool5 = max_pool('pool5', conv5, k=2)
 
-#         return pool5
-
         # Fully connected layer
         # pool5 = tf.transpose(pool5, perm=[0, 1, 4, 2, 3]) # only for ucf
         dense1 = tf.reshape(pool5, [self.batch_size, self._weights['wd1'].get_shape().as_list()[
@@ -82,9 +81,12 @@ class C3DNet:
 
         dense2 = tf.nn.relu(tf.matmul(dense1, self._weights['wd2']) + self._biases['bd2'], name='fc2')  # Relu activation
         #dense2 = tf.nn.dropout(dense2, self.keep_rate)
-        
-        return dense2
 
+        if not self.feats_dict:
+            for name,tensor in zip(['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'fc1', 'fc2'],
+                                   [pool1, pool2, pool3, pool4, pool5, dense1, dense2]):
+                self.feats_dict[name] = tensor
+    
 #         # Output: class prediction
 #         out = tf.nn.softmax(tf.matmul(dense2, self._weights['wout']) + self._biases['bout'])
 
