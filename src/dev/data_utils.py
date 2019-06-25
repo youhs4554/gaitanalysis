@@ -228,10 +228,33 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
 def prepare_dataset(input_file, target_file, feature_extraction_model=None, layer='conv1'):
     # data prepare first !!
     input_df = pd.read_pickle(input_file)
+        
+    # drop not patient samples
+    valid_ixs = []
+    for ix, row in enumerate(input_df.pos.values):
+        xmin,ymin,xmax,ymax = eval(row)
+        xc, yc = (xmax+xmin)/2, (ymax+ymin)/2
+        if xc > 240: valid_ixs.append(ix)
+    
+    input_df = input_df.iloc[valid_ixs]
     target_df = pd.read_pickle(target_file)[target_columns]
     
+    # remove outlier samples
+    from scipy import stats
+    z = np.abs(stats.zscore(target_df))
+    target_df = target_df.loc[(z<3).all(axis=1)]
+
     # save conv features from pretrained c3d net
     possible_vids = list(set(input_df.vids))
+    
+    # reindex tgt data (to filter-out valid vids)
+    target_df = target_df.reindex([vid2pid(vid) for vid in possible_vids])
+    
+    not_null_ix = np.where(target_df.notnull().values.all(axis=1))[0]
+    possible_vids = [ pid2vid(pid) for pid in target_df.index[not_null_ix] ]
+                     
+    target_df = target_df.dropna()
+    
     if feature_extraction_model:
         save_features(vids=possible_vids, feature_extraction_model=feature_extraction_model,
                       feats_maxlen=FEATS_MAXLEN, layer=layer)
@@ -239,11 +262,10 @@ def prepare_dataset(input_file, target_file, feature_extraction_model=None, laye
     # split dataset (train/test)
     train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(input_df, target_df, possible_vids, test_size=0.2, random_state=42)
     
-    # # target scaler    
-    scaler = StandardScaler().fit(target_df.values)
-    scaler.fit(target_df.values)
-
-    # scaler = None
+    # target scaler    
+    # scaler = StandardScaler().fit(target_df.values)
+    
+    scaler = None
     
     return dict(train_X=train_X, train_y=train_y, train_vids=train_vids,
                 test_X=test_X, test_y=test_y, test_vids=test_vids, 

@@ -300,29 +300,29 @@ class Regression_pretrained(nn.Module):
         # input_shape = (b,512,20,4,4)
         
         self.model = nn.Sequential(
-            Residual(C_in=512, C_out=512),
+            Residual(C_in=512, C_out=256),
             
             # (b,512,10,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-            Residual(C_in=512, C_out=512),
+            Residual(C_in=256, C_out=256),
             
             # (b,512,5,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
 
-            Residual(C_in=512, C_out=512),
+            Residual(C_in=256, C_out=256),
             
             # (b,512,2,4,4)
             nn.MaxPool3d(kernel_size=(3,1,1), stride=(2,1,1), padding=(0,0,0)),
             
-            Residual(C_in=512, C_out=512),
+            Residual(C_in=256, C_out=256),
             
             # (b,512,1,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-            View(-1,512*1*4*4),
+            View(-1,256*1*4*4),
             
-            nn.Linear(512*1*4*4, 1),
+            nn.Linear(256*1*4*4, 17),
         )
         
         
