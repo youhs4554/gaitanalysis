@@ -32,6 +32,7 @@ from skorch import NeuralNetRegressor
 from skorch.helper import predefined_split
 from skorch import callbacks
 from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import QuantileTransformer, quantile_transform
 
 import tensorflow as tf
 
@@ -230,22 +231,20 @@ def prepare_dataset(input_file, target_file, feature_extraction_model=None, laye
     input_df = pd.read_pickle(input_file)
         
     # drop not patient samples
-    valid_ixs = []
-    for ix, row in enumerate(input_df.pos.values):
-        xmin,ymin,xmax,ymax = eval(row)
+    invalid_vids = []
+    for row in input_df.values:
+        vid, _, pos = row
+        xmin,ymin,xmax,ymax = eval(pos)
         xc, yc = (xmax+xmin)/2, (ymax+ymin)/2
-        if xc > 240: valid_ixs.append(ix)
+        if xc < 280: invalid_vids.append(vid)
+            
     
-    input_df = input_df.iloc[valid_ixs]
+    input_df = input_df[~input_df['vids'].isin(invalid_vids)]
+
     target_df = pd.read_pickle(target_file)[target_columns]
     
-    # remove outlier samples
-    from scipy import stats
-    z = np.abs(stats.zscore(target_df))
-    target_df = target_df.loc[(z<3).all(axis=1)]
-
     # save conv features from pretrained c3d net
-    possible_vids = list(set(input_df.vids))
+    possible_vids = sorted(list(set(input_df.vids)))
     
     # reindex tgt data (to filter-out valid vids)
     target_df = target_df.reindex([vid2pid(vid) for vid in possible_vids])
@@ -263,9 +262,10 @@ def prepare_dataset(input_file, target_file, feature_extraction_model=None, laye
     train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(input_df, target_df, possible_vids, test_size=0.2, random_state=42)
     
     # target scaler    
-    # scaler = StandardScaler().fit(target_df.values)
+    #scaler = StandardScaler().fit(target_df.values)
+    scaler = QuantileTransformer(random_state=0, output_distribution='normal').fit(target_df.values)
     
-    scaler = None
+    #scaler = None
     
     return dict(train_X=train_X, train_y=train_y, train_vids=train_vids,
                 test_X=test_X, test_y=test_y, test_vids=test_vids, 

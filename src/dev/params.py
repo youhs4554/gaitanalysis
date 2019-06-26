@@ -16,5 +16,5 @@ target_columns = [
                  'Swing Time(sec)/L', 'Swing Time(sec)/R',
                  'Stance Time(sec)/L', 'Stance Time(sec)/R',
                  'Double Supp. Time(sec)/L', 'Double Supp. Time(sec)/R',
-                  'Toe In / Out/L', 'Toe In / Out/R'
+                  #'Toe In / Out/L', 'Toe In / Out/R'
                   ]

@@ -322,7 +322,9 @@ class Regression_pretrained(nn.Module):
             
             View(-1,256*1*4*4),
             
-            nn.Linear(256*1*4*4, 17),
+            nn.Dropout(0.5),
+            
+            nn.Linear(256*1*4*4, 15)
         )
         
         
