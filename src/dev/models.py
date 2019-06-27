@@ -36,7 +36,6 @@ import tensorflow as tf
 
 import c3d_wrapper
 from data_utils import *
-from models import *
 from params import *
 
 

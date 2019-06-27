@@ -1,8 +1,8 @@
 BATCH_SIZE_OF_TFMODEL = 1
-MODEL_PATH = '/media/hossay/hdd1/GaitData/pretrained/C3D/conv3d_deepnetA_sport1m_iter_1900000_TF.model'
+MODEL_PATH = '/data/GaitData/pretrained/C3D/conv3d_deepnetA_sport1m_iter_1900000_TF.model'
 MEAN_FILE = 'train01_16_128_171_mean.npy'
-FRAME_HOME = "/media/hossay/hdd1/GaitData/CroppedFrameArrays"
-FEATS_SAVE_DIR = "/media/hossay/hdd1/GaitData/EncodedFeatures"
+FRAME_HOME = "/data/GaitData/CroppedFrameArrays"
+FEATS_SAVE_DIR = "/data/GaitData/EncodedFeatures"
 FRAMES_PER_CLIP = 16
 FRAME_MAXLEN=300
 FEATS_MAXLEN=20

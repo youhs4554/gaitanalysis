@@ -167,7 +167,7 @@ def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_sta
 
 
 
-def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
+def report_lerning_process(columns, phase, y_pred, y_true):
     
     pred_and_gt = { k:[] for k in columns }
 
@@ -194,11 +194,8 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
     df = pd.DataFrame(data)
 
     fig, axes = plt.subplots(nrows=5, ncols=4, figsize=(20,20))
-    fig.suptitle("Epoch={} / Phase={}\nLoss={:.8f}".format(epoch,
-                                                           phase,
-                                                           loss_history[phase][-1]),
-                                                           fontsize=30)
-    
+    fig.suptitle("Phase={}".format(phase, fontsize=30))
+
     axes = axes.flatten()
     
     for i,col in enumerate(columns):
@@ -211,21 +208,13 @@ def report_lerning_process(columns, epoch, phase, y_pred, y_true, loss_history):
         ax = axes[i]
         ax.plot([min(preds), max(preds)], [min(gts), max(gts)], 'r--', label='GT=PRED')
         ax.legend()
-                    
-    ax1, ax2 = axes[len(columns):][:2] # last two axes : plot learning curve (train/test)
-
-    for ax,name,color in zip([ax1, ax2], ['train','valid'],['blue','orange']):
-        ax.plot(loss_history[name], color=color)
-        ax.set_title(f'Learning Curve ({name})')
-        ax.set_xlabel('Epoch')
-        ax.set_ylabel('Cost')
     
     fig.tight_layout()
     fig.subplots_adjust(top=0.88)
     
     plt.savefig(f'status_{phase}.png')
     plt.close(fig)
-    
+
 def prepare_dataset(input_file, target_file, feature_extraction_model=None, layer='conv1'):
     # data prepare first !!
     input_df = pd.read_pickle(input_file)
