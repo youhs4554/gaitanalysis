@@ -167,7 +167,7 @@ def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_sta
 
 
 
-def report_lerning_process(columns, phase, y_pred, y_true):
+def report_lerning_process(columns, phase, y_pred, y_true, save_dir=''):
     
     pred_and_gt = { k:[] for k in columns }
 
@@ -194,7 +194,6 @@ def report_lerning_process(columns, phase, y_pred, y_true):
     df = pd.DataFrame(data)
 
     fig, axes = plt.subplots(nrows=5, ncols=4, figsize=(20,20))
-    fig.suptitle("Phase={}".format(phase, fontsize=30))
 
     axes = axes.flatten()
     
@@ -212,7 +211,10 @@ def report_lerning_process(columns, phase, y_pred, y_true):
     fig.tight_layout()
     fig.subplots_adjust(top=0.88)
     
-    plt.savefig(f'status_{phase}.png')
+    img_path = os.path.join(save_dir, f'scatter_plots_{phase}.png')
+    os.system(f'mkdir -p {save_dir}')
+    
+    plt.savefig(img_path)
     plt.close(fig)
 
 def prepare_dataset(input_file, target_file, feature_extraction_model=None, layer='conv1'):

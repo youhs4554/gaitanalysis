@@ -293,42 +293,39 @@ class Residual(nn.Module):
     
     
 class Regression_pretrained(nn.Module):
-    def __init__(self):
+    def __init__(self, num_units=256, regression_config=None, n_factors=15, drop_rate=0.3):
         super(Regression_pretrained, self).__init__()
         
         # input_shape = (b,512,20,4,4)
-        
         self.model = nn.Sequential(
-            Residual(C_in=512, C_out=256),
+            Residual(C_in=512, C_out=num_units),
             
             # (b,512,10,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-            Residual(C_in=256, C_out=256),
+            Residual(C_in=num_units, C_out=num_units),
             
             # (b,512,5,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
 
-            Residual(C_in=256, C_out=256),
+            Residual(C_in=num_units, C_out=num_units),
             
             # (b,512,2,4,4)
             nn.MaxPool3d(kernel_size=(3,1,1), stride=(2,1,1), padding=(0,0,0)),
             
-            Residual(C_in=256, C_out=256),
+            Residual(C_in=num_units, C_out=num_units),
             
             # (b,512,1,4,4)
             nn.MaxPool3d(kernel_size=(4,1,1), stride=(2,1,1), padding=(1,0,0)),
             
-            View(-1,256*1*4*4),
+            View(-1,num_units*1*4*4),
             
-            nn.Dropout(0.5),
+            nn.Dropout(drop_rate),
             
-            nn.Linear(256*1*4*4, 15)
+            # TODO. Attention mechanism to modulate regressor, based on features
+            
+            nn.Linear(num_units*1*4*4, n_factors)
         )
         
-        
-    
     def forward(self, x):
-        x = self.model(x)
-        
-        return x
+        return self.model(x)

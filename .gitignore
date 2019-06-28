@@ -6,3 +6,5 @@
 .ipynb_checkpoints
 *.dirlock
 *feats_viz
+*.png
+*exp_with*
