@@ -261,6 +261,7 @@ class GAP(nn.Module):
         '''
         return torch.mean(x, (2,3,4))
 
+
     
 class Residual(nn.Module):
     def __init__(self, C_in, C_out):
@@ -293,7 +294,7 @@ class Residual(nn.Module):
     
     
 class Regression_pretrained(nn.Module):
-    def __init__(self, num_units=256, regression_config=None, n_factors=15, drop_rate=0.3):
+    def __init__(self, num_units=256, n_factors=15, drop_rate=0.3):
         super(Regression_pretrained, self).__init__()
         
         # input_shape = (b,512,20,4,4)
@@ -328,4 +329,4 @@ class Regression_pretrained(nn.Module):
         )
         
     def forward(self, x):
-        return self.model(x)
+        return self.model(x)    

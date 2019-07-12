@@ -200,12 +200,12 @@ def report_lerning_process(columns, phase, y_pred, y_true, save_dir=''):
     for i,col in enumerate(columns):
         part_of_df = df.loc[df.name==col]
         ax = axes[i]
-        part_of_df.plot.scatter(x="pred", y="gt", c='green', ax=ax, label='data')
+        part_of_df.plot.scatter(x="gt", y="pred", c='green', ax=ax, label='data')
         ax.set_title(f'name={col}')
     
     for i,(preds,gts) in enumerate(zip(pp,gg)):
         ax = axes[i]
-        ax.plot([min(preds), max(preds)], [min(gts), max(gts)], 'r--', label='GT=PRED')
+        ax.plot([min(gts), max(gts)], [min(gts), max(gts)], 'r--', label='GT=PRED')
         ax.legend()
     
     fig.tight_layout()
