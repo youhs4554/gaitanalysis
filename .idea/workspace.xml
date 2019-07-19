@@ -2,14 +2,40 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="15a47881-f6e9-4add-b2a3-c788b80a35c3" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/densenet.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/pre_act_resnet.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/regression_model.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/resnet.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/resnext.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/models/wide_resnet.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/opts.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/generate_model.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/mean.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/parallel.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/target_columns.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/testing_utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/train_utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/transforms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/visualization.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/pose_estimation.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/pose_estimation.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.ipynb_checkpoints/Eval_Baseline_with_PublicDataset-checkpoint.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/.ipynb_checkpoints/Eval_Baseline_with_PublicDataset-checkpoint.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/learning.png" beforeDir="false" afterPath="$PROJECT_DIR$/learning.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/3dconv_sparse_autoencoder.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/Regression-data-analysis.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/Regression-data-analysis.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/RegressionModel-with-OpenPose.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/RegressionModel-with-YOLO.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/RegressionModel-with-pretrained-c3d.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/c3d_wrapper.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/dask-worker-space/global.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/models/base_modules.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/dask-worker-space/purge.lock" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/data_utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/models.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/params.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/train01_16_128_171_mean.npy" beforeDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -19,47 +45,143 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/main.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="477">
+              <caret line="118" column="17" lean-forward="true" selection-start-line="118" selection-start-column="17" selection-end-line="118" selection-end-column="17" />
+              <folding>
+                <element signature="e#0#49#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/visualization.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="228">
+              <caret line="12" column="44" lean-forward="true" selection-start-line="12" selection-start-column="44" selection-end-line="12" selection-end-column="44" />
+              <folding>
+                <element signature="e#0#9#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/mean.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="247">
+              <caret line="13" selection-start-line="13" selection-end-line="13" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/opts.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="228">
+              <caret line="42" column="5" selection-start-line="42" selection-start-column="5" selection-end-line="42" selection-end-column="5" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/testing_utils.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="317">
+              <caret line="90" selection-start-line="90" selection-end-line="90" />
+              <folding>
+                <element signature="e#0#18#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/target_columns.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="317">
+              <caret line="36" selection-start-line="36" selection-end-line="36" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/train_utils.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="2689">
+              <caret line="219" lean-forward="true" selection-start-line="219" selection-end-line="219" />
+              <folding>
+                <element signature="e#0#12#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py">
+        <entry file="file://$PROJECT_DIR$/.gitignore">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="489">
-              <caret line="115" column="12" lean-forward="true" selection-start-line="115" selection-start-column="12" selection-end-line="115" selection-end-column="12" />
+            <state relative-caret-position="228">
+              <caret line="12" column="11" lean-forward="true" selection-start-line="12" selection-start-column="11" selection-end-line="12" selection-end-column="11" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/nn/modules/module.py">
+        <entry file="file://$PROJECT_DIR$/src/dev/utils/transforms.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="9620">
-              <caret line="488" selection-start-line="488" selection-end-line="488" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/functional.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="860">
-              <caret line="51" selection-start-line="51" selection-end-line="51" />
+            <state relative-caret-position="187">
+              <caret line="114" column="10" selection-start-line="114" selection-start-column="10" selection-end-line="114" selection-end-column="10" />
+              <folding>
+                <element signature="e#0#13#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
     </leaf>
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>trajec</find>
-      <find>padding</find>
-      <find>features</find>
-      <find>_dt</find>
-      <find>sample</find>
-      <find>dt</find>
-      <find>pose_data</find>
-      <find>pose_seq</find>
-      <find>target_size</find>
-      <find>bn_</find>
+      <find>criteri</find>
+      <find>get_target_columns</find>
+      <find>neste</find>
+      <find>n_pro</find>
+      <find>eval(opt.</find>
+      <find>device_id</find>
+      <find>net.cuda</find>
+      <find>nn.DataParallel</find>
+      <find>arc</find>
+      <find>net.cuda()</find>
+      <find>output_devi</find>
+      <find>device_</find>
+      <find>mse</find>
+      <find>foo</find>
+      <find>cuda-nn-dataparallel-instead</find>
+      <find>setattr</find>
+      <find>normali</find>
+      <find>name</find>
+      <find>self.score</find>
+      <find>no_mean</find>
+      <find>true</find>
+      <find>bool</find>
+      <find>avg_score</find>
+      <find>resne</find>
+      <find>pth</find>
+      <find>logger</find>
+      <find>quantil</find>
+      <find>qua</find>
+      <find>show</find>
+      <find>target_colu</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -69,6 +191,39 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py" />
+        <option value="$PROJECT_DIR$/src/3D-ResNets-PyTorch/models/resnext.py" />
+        <option value="$PROJECT_DIR$/src/dev/tt.py" />
+        <option value="$PROJECT_DIR$/src/ResNets3D_PyTorch/__init__.py" />
+        <option value="$PROJECT_DIR$/src/dev/__init__.py" />
+        <option value="$PROJECT_DIR$/src/dev/RegressionModel-with-pretrained-c3d.py" />
+        <option value="$PROJECT_DIR$/src/ResNets3D_PyTorch/models/resnext.py" />
+        <option value="$PROJECT_DIR$/src/ResNets3D_PyTorch/models/resnet.py" />
+        <option value="$PROJECT_DIR$/src/dev/data_utils.py" />
+        <option value="$PROJECT_DIR$/src/dev/models.py" />
+        <option value="$PROJECT_DIR$/src/dev/models/base_networks.py" />
+        <option value="$PROJECT_DIR$/src/dev/datasets/data_utils.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/img_transforms.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/transforms.py" />
+        <option value="$PROJECT_DIR$/src/dev/params.py" />
+        <option value="$PROJECT_DIR$/src/dev/models/base_modules.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/pretrained_model.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/training.py" />
+        <option value="$PROJECT_DIR$/src/dev/models/resnet.py" />
+        <option value="$PROJECT_DIR$/src/dev/models/densenet.py" />
+        <option value="$PROJECT_DIR$/src/dev/datasets/GaitRegression_dataset.py" />
+        <option value="$PROJECT_DIR$/src/dev/models/regression_model.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/parallel.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/generate_model.py" />
+        <option value="$PROJECT_DIR$/src/ResNets3D_PyTorch/opts.py" />
+        <option value="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/scores.py" />
+        <option value="$PROJECT_DIR$/src/dev/opts.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/testing_utils.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/target_columns.py" />
+        <option value="$PROJECT_DIR$/src/dev/main.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/visualization.py" />
+        <option value="$PROJECT_DIR$/src/dev/utils/train_utils.py" />
+        <option value="$PROJECT_DIR$/.gitignore" />
       </list>
     </option>
   </component>
@@ -78,6 +233,7 @@
     <option name="width" value="1855" />
     <option name="height" value="1084" />
   </component>
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
     <navigator proportions="" version="1">
       <foldersAlwaysOnTop value="true" />
@@ -88,8 +244,8 @@
         <subPane>
           <expand>
             <path>
-              <item name="GaitAnalysis" type="b2602c69:ProjectViewProjectNode" />
-              <item name="GaitAnalysis" type="462c0819:PsiDirectoryNode" />
+              <item name="gaitanalysis" type="b2602c69:ProjectViewProjectNode" />
+              <item name="gaitanalysis" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -99,8 +255,29 @@
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/src/dev/main.py" />
+    <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
+  </component>
+  <component name="PyConsoleOptionsProvider">
+    <option name="myPythonConsoleState">
+      <console-settings module-name="pose_estimation" is-module-sdk="true" working-directory="$PROJECT_DIR$/src/dev">
+        <option name="myUseModuleSdk" value="true" />
+        <option name="myModuleName" value="pose_estimation" />
+        <option name="myWorkingDirectory" value="$PROJECT_DIR$/src/dev" />
+      </console-settings>
+    </option>
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/dev/utils" />
+      <recent name="$PROJECT_DIR$/src/dev/datasets" />
+      <recent name="$PROJECT_DIR$/src/dev/models" />
+      <recent name="$PROJECT_DIR$/src/3D-ResNets-PyTorch" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/dev" />
+      <recent name="$PROJECT_DIR$/src/dev/models" />
+    </key>
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -114,21 +291,21 @@
       </list>
     </option>
   </component>
-  <component name="RunManager">
-    <configuration name="main" type="PythonConfigurationType" factoryName="Python">
+  <component name="RunManager" selected="Python.test">
+    <configuration name="test" type="PythonConfigurationType" factoryName="Python">
       <module name="pose_estimation" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
-      <option name="SDK_HOME" value="$USER_HOME$/.conda/envs/torch/bin/python" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/dev" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py" />
-      <option name="PARAMETERS" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3 --batch_size=16 --n_threads=16 --mode=test --test_epoch=50" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -136,6 +313,31 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="train" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$PROJECT_DIR$/../anaconda3/envs/torch/bin/python" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/dev" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3 --batch_size=16 --learning_rate=1e-2 --n_threads=16 --mode=train" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Python.test" />
+      <item itemvalue="Python.train" />
+    </list>
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -160,100 +362,451 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="64" y="-4" width="1857" height="1085" extended-state="6" />
+    <frame x="-3" y="31" width="1926" height="1003" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.18777293" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.18746708" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.6921509" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.7482161" />
-      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="6" weight="0.32925585" />
-      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32925585" />
-      <window_info anchor="bottom" id="Terminal" order="8" weight="0.32925585" />
-      <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
-      <window_info anchor="bottom" id="Python Console" order="10" weight="0.32925585" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.3295325" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.44469783" />
+      <window_info anchor="bottom" id="Cvs" order="3" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="4" weight="0.4" />
+      <window_info anchor="bottom" id="Debug" order="5" sideWeight="0.4997367" weight="0.45153934" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.32839224" />
+      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32839224" />
+      <window_info anchor="bottom" id="Terminal" order="8" weight="0.3432155" />
+      <window_info anchor="bottom" id="Event Log" order="9" sideWeight="0.5002633" side_tool="true" weight="0.57696694" />
+      <window_info anchor="bottom" id="Python Console" order="10" weight="0.32155073" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout>
     <layout-to-restore>
-      <window_info content_ui="combo" id="Project" order="0" weight="0.18777293" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18746708" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Find" order="1" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.6921509" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.7482161" />
-      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="6" weight="0.32925585" />
-      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32925585" />
-      <window_info anchor="bottom" id="Terminal" order="8" weight="0.32925585" />
-      <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
-      <window_info anchor="bottom" id="Python Console" order="10" weight="0.32925585" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.3295325" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.44469783" />
+      <window_info anchor="bottom" id="Cvs" order="3" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="4" weight="0.4" />
+      <window_info anchor="bottom" id="Debug" order="5" sideWeight="0.4997367" weight="0.45153934" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.32839224" />
+      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32839224" />
+      <window_info anchor="bottom" id="Terminal" order="8" weight="0.3432155" />
+      <window_info anchor="bottom" id="Event Log" order="9" sideWeight="0.5002633" side_tool="true" weight="0.57696694" />
+      <window_info anchor="bottom" id="Python Console" order="10" weight="0.32155073" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout-to-restore>
   </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/ResNets3D_PyTorch/models/resnet.py</url>
+          <line>194</line>
+          <option name="timeStamp" value="81" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/dev/utils/train_utils.py</url>
+          <line>215</line>
+          <option name="timeStamp" value="127" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/dev/main.py</url>
+          <line>145</line>
+          <option name="timeStamp" value="158" />
+        </line-breakpoint>
+      </breakpoints>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+    </breakpoint-manager>
+  </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/train_SimpleRegressionModel.ipynb" />
-    <entry file="file://$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.ipynb">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/pandas/core/generic.py">
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/utils.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="264">
-          <caret line="5068" column="25" selection-start-line="5068" selection-start-column="25" selection-end-line="5068" selection-end-column="25" />
+        <state relative-caret-position="798">
+          <caret line="42" lean-forward="true" selection-start-line="3" selection-end-line="42" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/utils/data/dataloader.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="264">
-          <caret line="659" lean-forward="true" selection-start-line="659" selection-end-line="659" />
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/resnet-50-kinetics.pth">
+      <provider selected="true" editor-type-id="LargeFileEditor">
+        <state relative-caret-position="-1304">
+          <caret line="999" column="49" selection-start-line="999" selection-start-column="49" selection-end-line="999" selection-end-column="49" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/nn/modules/container.py">
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/densenet-121-kinetics.pth" />
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/threading.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="224">
+        <state relative-caret-position="183">
+          <caret line="863" selection-start-line="863" selection-end-line="863" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/parallel/parallel_apply.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="58" selection-start-line="58" selection-end-line="58" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/modules/batchnorm.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="249" selection-start-line="249" selection-end-line="249" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/functional.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="194">
+          <caret line="1697" column="5" lean-forward="true" selection-start-line="1697" selection-start-column="5" selection-end-line="1697" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/models/densenet.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="610">
+          <caret line="218" column="31" lean-forward="true" selection-start-line="218" selection-start-column="31" selection-end-line="218" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/utils/data/dataloader.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="589">
+          <caret line="147" column="36" lean-forward="true" selection-start-line="147" selection-start-column="36" selection-end-line="147" selection-end-column="36" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/3/functools.pyi">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="46" column="8" selection-start-line="46" selection-start-column="8" selection-end-line="46" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/multiprocessing/process.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="92" selection-start-line="92" selection-end-line="92" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/utils/data/_utils/worker.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="285">
+          <caret line="101" column="71" lean-forward="true" selection-start-line="101" selection-start-column="71" selection-end-line="101" selection-end-column="71" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/modules/container.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="124">
           <caret line="91" selection-start-line="91" selection-end-line="91" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/nn/modules/module.py">
+    <entry file="file://$PROJECT_DIR$/src/dev/models/resnet.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="9620">
-          <caret line="488" selection-start-line="488" selection-end-line="488" />
+        <state relative-caret-position="175">
+          <caret line="86" selection-start-line="86" selection-end-line="86" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/.conda/envs/torch/lib/python3.6/site-packages/torch/functional.py">
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/datasets/kinetics.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="860">
-          <caret line="51" selection-start-line="51" selection-end-line="51" />
+        <state relative-caret-position="120">
+          <caret line="38" column="27" lean-forward="true" selection-start-line="38" selection-start-column="27" selection-end-line="38" selection-end-column="27" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/UDysRS_UPDRS_Export/sn_numbers.txt">
-      <provider selected="true" editor-type-id="text-editor" />
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/validation.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="106">
+          <caret line="23" column="46" lean-forward="true" selection-start-line="23" selection-start-column="12" selection-end-line="23" selection-end-column="46" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/UDysRS_UPDRS_Export/LA_split_all_export.txt">
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/utils/rnn.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="283">
+          <caret line="88" column="8" selection-start-line="88" selection-start-column="8" selection-end-line="88" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/__init__.pyi">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="85">
+          <caret line="243" column="8" selection-start-line="243" selection-start-column="8" selection-end-line="243" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/cuda/_utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="19" selection-start-line="19" selection-end-line="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/cuda/__init__.pyi">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="109">
+          <caret line="27" column="4" selection-start-line="27" selection-start-column="4" selection-end-line="27" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/modules/module.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="24">
+          <caret line="250" column="8" selection-start-line="250" selection-start-column="8" selection-end-line="250" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/autograd/__init__.pyi">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="76">
+          <caret line="4" lean-forward="true" selection-start-line="4" selection-end-line="4" />
+          <folding>
+            <element signature="e#0#66#0" expanded="true" />
+            <element signature="e#271#274#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/models/regression_model.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="485">
+          <caret line="86" selection-start-line="86" selection-end-line="86" />
+          <folding>
+            <element signature="e#0#47#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/ckpt_repos/finetuned_with_resnet-50/save_0.pth">
       <provider selected="true" editor-type-id="LargeFileEditor" />
     </entry>
-    <entry file="file://$PROJECT_DIR$/easy.txt">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/Eval_Baseline_with_PublicDataset.py">
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/optim/lr_scheduler.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="489">
-          <caret line="115" column="12" lean-forward="true" selection-start-line="115" selection-start-column="12" selection-end-line="115" selection-end-column="12" />
+        <state relative-caret-position="-4936">
+          <caret line="283" column="9" lean-forward="true" selection-start-line="283" selection-start-column="9" selection-end-line="283" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/scores.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="228">
+          <caret line="12" column="41" selection-start-line="12" selection-start-column="26" selection-end-line="12" selection-end-column="41" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/datasets/gaitregression.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="337">
+          <caret line="117" lean-forward="true" selection-start-line="117" selection-end-line="117" />
+          <folding>
+            <element signature="e#0#47#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/sklearn/metrics/regression.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="341">
+          <caret line="479" column="25" lean-forward="true" selection-start-line="479" selection-start-column="8" selection-end-line="479" selection-end-column="25" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/serialization.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="284">
+          <caret line="388" column="18" lean-forward="true" selection-start-line="388" selection-start-column="18" selection-end-line="388" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/generate_model.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="127">
+          <caret line="28" column="8" lean-forward="true" selection-start-line="28" selection-start-column="8" selection-end-line="29" selection-end-column="8" />
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/opts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="96">
+          <caret line="194" column="4" selection-start-line="194" selection-start-column="4" selection-end-line="198" selection-end-column="39" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/nn/parallel/data_parallel.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="151">
+          <caret line="150" selection-start-line="150" selection-end-line="150" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/logs/train.log">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="19">
+          <caret line="1" column="52" lean-forward="true" selection-start-line="1" selection-start-column="52" selection-end-line="1" selection-end-column="52" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/test.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-290">
+          <caret line="37" column="8" selection-start-line="37" selection-start-column="8" selection-end-line="37" selection-end-column="8" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/ResNets3D_PyTorch/main.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="355">
+          <caret line="161" column="15" selection-start-line="161" selection-start-column="15" selection-end-line="161" selection-end-column="15" />
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/logs/test.log">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret lean-forward="true" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/opts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="228">
+          <caret line="42" column="5" selection-start-line="42" selection-start-column="5" selection-end-line="42" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/RegressionModel-with-pretrained-c3d.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-5187">
+          <caret line="195" column="21" selection-start-line="195" selection-start-column="21" selection-end-line="195" selection-end-column="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/mean.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="247">
+          <caret line="13" selection-start-line="13" selection-end-line="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/parallel.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="195">
+          <caret line="89" column="13" selection-start-line="89" selection-start-column="13" selection-end-line="89" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$APPLICATION_HOME_DIR$/helpers/pydev/pydevd.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="151">
+          <caret line="1451" selection-start-line="1451" selection-end-line="1451" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/transforms.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="187">
+          <caret line="114" column="10" selection-start-line="114" selection-start-column="10" selection-end-line="114" selection-end-column="10" />
+          <folding>
+            <element signature="e#0#13#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/figures/relations.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/figures/scatter_plots.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/tmp/scatter_plots.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/testing_utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="317">
+          <caret line="90" selection-start-line="90" selection-end-line="90" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/target_columns.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="317">
+          <caret line="36" selection-start-line="36" selection-end-line="36" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/visualization.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="228">
+          <caret line="12" column="44" lean-forward="true" selection-start-line="12" selection-start-column="44" selection-end-line="12" selection-end-column="44" />
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/main.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="477">
+          <caret line="118" column="17" lean-forward="true" selection-start-line="118" selection-start-column="17" selection-end-line="118" selection-end-column="17" />
+          <folding>
+            <element signature="e#0#49#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/dev/utils/train_utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2689">
+          <caret line="219" lean-forward="true" selection-start-line="219" selection-end-line="219" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="228">
+          <caret line="12" column="11" lean-forward="true" selection-start-line="12" selection-start-column="11" selection-end-line="12" selection-end-column="11" />
         </state>
       </provider>
     </entry>

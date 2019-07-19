@@ -8,3 +8,6 @@
 *feats_viz
 *.png
 *exp_with*
+*ckpt_repos
+*logs
+*pretrained
