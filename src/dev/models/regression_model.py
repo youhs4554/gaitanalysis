@@ -1,9 +1,5 @@
 from __future__ import print_function, division
-from datasets.gaitregression import *
-import torch
-from torch import nn
 from models.base_modules import *
-from utils.generate_model import generate_backbone
 
 def horizetal_pyramid_pooling(conv_out, n_groups):
     gap_out = []
@@ -84,6 +80,7 @@ class RegressionNet(nn.Module):
 
         if multi_scale:
             self.model = nn.Sequential(MultiScaleNet(input_dim=num_units, out_dim=num_units//2, n_groups=n_groups),
+                                       nn.Dropout(drop_rate),
                                        nn.Linear(num_units//2, n_factors))
         else:
             self.model = nn.Sequential(View(-1, num_units*fh*fw),

@@ -7,7 +7,7 @@ from utils.testing_utils import Tester
 from utils.target_columns import get_target_columns, get_target_columns_by_group
 import utils.visualization as viz
 
-import datasets
+import datasets.gaitregression
 from utils.mean import get_mean, get_std
 from utils.parallel import DataParallelModel, DataParallelCriterion
 
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     # define regression model
     # TODO. IF variants exissts, you can create branch !!
-    net = regression_model.RegressionNet(num_units=256, n_factors=15, backbone=backbone,
+    net = regression_model.RegressionNet(num_units=256, n_factors=15, backbone=backbone, drop_rate=0.0,
                                          multi_scale=True, n_groups=3)
 
     # Enable GPU model & data parallelism
