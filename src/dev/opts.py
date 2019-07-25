@@ -198,13 +198,17 @@ def parse_opts():
         default='addition',
         type=str,
         help='Merge type of multiple scale HPP features (addition | 1x1_C)')
+    parser.add_argument(
+        '--warm_start',
+        action='store_true',
+        help='If true, you can continue training after validation step.')
+    parser.set_defaults(warm_start=False)
 
     # and so on...
 
     args = parser.parse_args()
 
     return args
-
 
 
 
