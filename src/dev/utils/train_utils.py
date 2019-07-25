@@ -49,10 +49,10 @@ class Logger(object):
 
 from sklearn.metrics.regression import r2_score
 
-def train_epoch(epoch, data_loader, model, criterion, optimizer, opt,
+def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
                 epoch_logger, score_func, target_transform):
 
-    print('train at epoch {}'.format(epoch))
+    print('train at epoch {} @ split-{}'.format(epoch, split))
 
     model.train()
 
@@ -82,7 +82,7 @@ def train_epoch(epoch, data_loader, model, criterion, optimizer, opt,
         batch_time.update(time.time() - end_time)
         end_time = time.time()
 
-        print('Epoch: [{0}][{1}/{2}]\t'
+        print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
               'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
               'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
               'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
@@ -90,20 +90,26 @@ def train_epoch(epoch, data_loader, model, criterion, optimizer, opt,
                   epoch,
                   i + 1,
                   len(data_loader),
+                  split,
                   batch_time=batch_time,
                   data_time=data_time,
                   loss=losses,
                   score=scores))
 
     epoch_logger.log({
-        'epoch': epoch,
+        'epoch@split': f'{epoch}@{split}',
         'loss': losses.avg,
         'score': scores.avg,
         'lr': optimizer.param_groups[0]['lr']
     })
 
     if epoch % opt.checkpoint == 0:
-        ckpt_dir = os.path.join(opt.ckpt_dir, 'finetuned_with_'+ opt.arch)
+        if opt.model_arch == 'HPP':
+            ckpt_dir = os.path.join(opt.ckpt_dir, opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch)
+        elif opt.model_arch == 'naive':
+            ckpt_dir = os.path.join(opt.ckpt_dir,
+                                    opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch)
+
         if not os.path.exists(ckpt_dir):
             os.system(f'mkdir -p {ckpt_dir}')
         save_file_path = os.path.join(ckpt_dir,
@@ -117,8 +123,8 @@ def train_epoch(epoch, data_loader, model, criterion, optimizer, opt,
         torch.save(states, save_file_path)
 
 
-def validate(epoch, data_loader, model, criterion, logger, score_func, target_transform):
-    print('validation at epoch {}'.format(epoch))
+def validate(epoch, split, data_loader, model, criterion, logger, score_func, target_transform):
+    print('validation at epoch {} @ split-{}'.format(epoch, split))
 
     model.eval()
 
@@ -144,7 +150,7 @@ def validate(epoch, data_loader, model, criterion, logger, score_func, target_tr
         batch_time.update(time.time() - end_time)
         end_time = time.time()
 
-        print('Epoch: [{0}][{1}/{2}]\t'
+        print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
               'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
               'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
               'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
@@ -152,17 +158,19 @@ def validate(epoch, data_loader, model, criterion, logger, score_func, target_tr
                   epoch,
                   i + 1,
                   len(data_loader),
+                  split,
                   batch_time=batch_time,
                   data_time=data_time,
                   loss=losses,
                   score=scores))
 
-    logger.log({'epoch': epoch, 'loss': losses.avg, 'score': scores.avg})
+    logger.log({'epoch@split': f'{epoch}@{split}', 'loss': losses.avg, 'score': scores.avg})
 
     return losses.avg, scores.avg
 
 
 from sklearn.model_selection import KFold
+from utils.generate_model import init_state
 
 class Trainer(object):
     def __init__(self,
@@ -191,31 +199,71 @@ class Trainer(object):
         self.target_columns = get_target_columns(opt)
 
     def fit(self, ds, dataloader_generator):
-        data_locations = np.array(ds.vids)
+        entire_vids = np.array(ds.vids)
 
         # K-fold CV
         kf = KFold(n_splits=self.opt.CV)
+        from collections import defaultdict
+
+        cv_result = defaultdict(list)
         print('Start training...')
 
-        for train, valid in kf.split(data_locations):
+        cv_loss = 0.
+        cv_score = 0.
 
-            train_vids, valid_vids = data_locations[train], data_locations[valid]
+        for split, (train, valid) in enumerate(kf.split(entire_vids)):
+
+            train_vids, valid_vids = entire_vids[train], entire_vids[valid]
 
             train_loader = dataloader_generator(self.opt, ds, train_vids,
                                                 self.input_transform, self.target_transform, shuffle=True)
             valid_loader = dataloader_generator(self.opt, ds, valid_vids,
                                                 self.input_transform, self.target_transform, shuffle=False)
 
-            for i in range(self.opt.n_iter):
+            epoch_status = defaultdict(list)
+
+            for epoch in range(self.opt.n_iter):
                 # train loop
-                train_epoch(i, train_loader, self.model, self.criterion, self.optimizer,
+                train_epoch(epoch, split, train_loader, self.model, self.criterion, self.optimizer,
                             self.opt, self.train_logger, self.score_func, self.target_transform)
 
                 with torch.no_grad():
                     # at every train epoch, validate model!
-                    valid_loss, valid_score = validate(i, valid_loader, self.model, self.criterion,
+                    valid_loss, valid_score = validate(epoch, split, valid_loader, self.model, self.criterion,
                                                        self.valid_logger, self.score_func, self.target_transform)
 
                 self.scheduler.step(valid_loss,)
 
-        # TODO. Reinitialize model and monitor valid_score for best model selection along with all CV-splits
+                epoch_status['loss'].append(valid_loss)
+                epoch_status['score'].append(valid_score)
+
+            avg_loss = np.mean(epoch_status['loss'])
+            avg_score = np.mean(epoch_status['score'])
+
+            # todo. early stopping based on avg_loss or avg_score, and user might select criterion
+
+            # todo.\
+            #  best model selection functionality can be added, if we need the hyperparameter searching algorithm (e.g. Gridsearch | Randomsearch | etc.) \
+
+            # todo. \
+            #  best model selection can be implented by running .fit function parallel manner... after running all iterations, we can select best model based on
+            #  avg_loss or avg_score
+
+            cv_result[f'split-{split}'].append(
+                dict(loss=avg_loss,
+                     score=avg_score)
+            )
+
+            # todo. add only last epoch into cv_loss
+            cv_loss += avg_loss
+            cv_score += avg_score
+
+            # warm-starting during cross validation (default : False)
+            if self.opt.warm_start:
+                print('warm starting...')
+                self.model, self.optimizer, self.scheduler = init_state(self.opt)
+
+        cv_result['avg_loss'] = cv_loss / self.opt.CV
+        cv_result['avg_score'] = cv_score / self.opt.CV
+
+        print(cv_result)

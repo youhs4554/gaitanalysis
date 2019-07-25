@@ -32,7 +32,7 @@ def scatterplots(target_columns, y_true, y_pred, save_dir=''):
 
     df = pd.DataFrame(data)
 
-    fig, axes = plt.subplots(nrows=5, ncols=4, figsize=(20, 20))
+    fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(20, 20))
 
     axes = axes.flatten()
 
@@ -57,13 +57,13 @@ def scatterplots(target_columns, y_true, y_pred, save_dir=''):
     plt.close(fig)
 
 
-def dist_plots(target_columns, y_true, y_pred, save_dir, grid_size, figsize, group=None):
+def dist_plots(target_columns, group_cols, y_true, y_pred, save_dir, grid_size, figsize, group=None):
     nrow, ncol = grid_size
 
     fig, axes = plt.subplots(nrows=nrow, ncols=ncol, figsize=figsize)
     axes = axes.flatten()
 
-    for ax, col in zip(axes, target_columns):
+    for ax, col in zip(axes, group_cols):
         ix = target_columns.index(col)
         sns.distplot(y_pred[:, ix], hist=False, label='y_pred', ax=ax)
         sns.distplot(y_true[:, ix], hist=False, label='y_true', ax=ax)
@@ -81,13 +81,13 @@ def dist_plots(target_columns, y_true, y_pred, save_dir, grid_size, figsize, gro
 
 
 
-def margin_plots(target_columns, y_true, y_pred, save_dir, grid_size, figsize, group=None):
+def margin_plots(target_columns, group_cols, y_true, y_pred, save_dir, grid_size, figsize, group=None):
     nrow, ncol = grid_size
 
     fig, axes = plt.subplots(nrows=nrow, ncols=ncol, figsize=figsize)
     axes = axes.flatten()
 
-    for ax,col in zip(axes,target_columns):
+    for ax,col in zip(axes,group_cols):
 
         ix = target_columns.index(col)
 

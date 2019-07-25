@@ -1,6 +1,5 @@
-from models import regression_model
 from opts import parse_opts
-from utils.generate_model import generate_backbone
+from utils.generate_model import init_state
 from utils.transforms import *
 from utils.train_utils import Trainer, Logger
 from utils.testing_utils import Tester
@@ -15,46 +14,18 @@ import sklearn
 
 import os
 from torch import nn
-from torch import optim
-from torch.optim import lr_scheduler
+
 
 if __name__ == '__main__':
     opt = parse_opts()
 
     target_columns = get_target_columns(opt)
 
-    # define backbone
-    with torch.no_grad():
-        backbone = generate_backbone(opt)
-
     # define regression model
-    # TODO. IF variants exissts, you can create branch !!
-    net = regression_model.RegressionNet(num_units=256, n_factors=15, backbone=backbone, drop_rate=0.0,
-                                         multi_scale=True, n_groups=3)
-
-    # Enable GPU model & data parallelism
-    if opt.multi_gpu:
-        net = DataParallelModel(net, device_ids=eval(opt.device_ids+',', ))
-
-    net.cuda()
+    net, optimizer, scheduler = init_state(opt)
 
     criterion = nn.MSELoss()
     criterion = DataParallelCriterion(criterion, device_ids=eval(opt.device_ids+','))
-
-    if opt.nesterov:
-        dampening = 0
-    else:
-        dampening = opt.dampening
-
-    optimizer = optim.SGD(
-        net.parameters(),
-        lr=opt.learning_rate,
-        momentum=opt.momentum,
-        dampening=dampening,
-        weight_decay=opt.weight_decay,
-        nesterov=opt.nesterov)
-    scheduler = lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'min', patience=opt.lr_patience)
 
     opt.arch = '{}-{}'.format(opt.backbone, opt.model_depth)
     opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
@@ -88,7 +59,7 @@ if __name__ == '__main__':
     if opt.dataset=='Gaitparams_PD':
         # prepare dataset  (train/test split)
         data = datasets.gaitregression.prepare_dataset(input_file=opt.input_file, target_file=opt.target_file,
-                                              target_columns=get_target_columns(opt))
+                                              target_columns=target_columns)
 
         train_ds = datasets.gaitregression.GAITDataset(X=data['train_X'], y=data['train_y'], opt=opt)
         test_ds = datasets.gaitregression.GAITDataset(X=data['test_X'], y=data['test_y'], opt=opt)
@@ -104,11 +75,15 @@ if __name__ == '__main__':
 
     if opt.mode == 'train':
         train_logger = Logger(
-            os.path.join(opt.log_dir, 'train.log'),
-            ['epoch', 'loss', 'score', 'lr'])
+            os.path.join(opt.log_dir,
+                         opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch,
+                         'train.tsv'),
+            ['epoch@split', 'loss', 'score', 'lr'])
         valid_logger = Logger(
-            os.path.join(opt.log_dir, 'valid.log'),
-            ['epoch', 'loss', 'score'])
+            os.path.join(opt.log_dir,
+                         opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch,
+                         'valid.tsv'),
+            ['epoch@split', 'loss', 'score'])
 
         trainer = Trainer(model=net, criterion=criterion,
                           optimizer=optimizer, scheduler=scheduler,
@@ -119,9 +94,13 @@ if __name__ == '__main__':
         trainer.fit(ds=train_ds, dataloader_generator=dataloader_generator)
 
     elif opt.mode == 'test':
-
-        model_path = os.path.join(opt.ckpt_dir,
-                     'finetuned_with_' + opt.arch, 'save_' + opt.test_epoch + '.pth')
+        if opt.model_arch == 'HPP':
+            model_path = os.path.join(opt.ckpt_dir,
+                         opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch, 'save_' + opt.test_epoch + '.pth')
+        elif opt.model_arch == 'naive':
+            model_path = os.path.join(opt.ckpt_dir,
+                                      opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,
+                                      'save_' + opt.test_epoch + '.pth')
 
         print(f"Load trained model from {model_path}...")
 
@@ -145,8 +124,8 @@ if __name__ == '__main__':
 
         for group, grid_size, fig_size in zip(['temporal', 'spatial', 'etc'], [(4,2),(2,2),(2,2)], [(20,20),(20,11),(20,11)]):
             group_cols = get_target_columns_by_group(group)
-            viz.dist_plots(group_cols, y_true, y_pred, save_dir='./tmp', grid_size=grid_size, figsize=fig_size, group=group)
-            viz.margin_plots(group_cols, y_true, y_pred, save_dir='./tmp', grid_size=grid_size, figsize=fig_size, group=group)
+            viz.dist_plots(target_columns, group_cols, y_true, y_pred, save_dir='./tmp', grid_size=grid_size, figsize=fig_size, group=group)
+            viz.margin_plots(target_columns, group_cols, y_true, y_pred, save_dir='./tmp', grid_size=grid_size, figsize=fig_size, group=group)
 
 
     else:

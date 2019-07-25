@@ -188,6 +188,16 @@ def parse_opts():
         action='store_true',
         help='If true, averaged score is calculated. If false, scores per each gait-params are calculated')
     parser.set_defaults(score_avg=False)
+    parser.add_argument(
+        '--model_arch',
+        default='HPP',
+        type=str,
+        help='Specify mode for regression model (naive | HPP)')
+    parser.add_argument(
+        '--merge_type',
+        default='addition',
+        type=str,
+        help='Merge type of multiple scale HPP features (addition | 1x1_C)')
 
     # and so on...
 

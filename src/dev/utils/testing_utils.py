@@ -4,7 +4,6 @@ from utils.target_columns import get_target_columns
 from utils.train_utils import AverageMeter
 
 import torch
-from tqdm import tqdm
 
 
 def test(data_loader, model, opt, score_logger, score_func, target_transform):
@@ -17,7 +16,7 @@ def test(data_loader, model, opt, score_logger, score_func, target_transform):
 
     y_true, y_pred = [], []
 
-    for _ in tqdm(range(len(data_loader)), desc='Test-status'):
+    for _ in range(len(data_loader)):
         inputs, targets = next(data_loader)
 
         outputs = model(inputs)
