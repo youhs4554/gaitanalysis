@@ -258,9 +258,9 @@ class Trainer(object):
             cv_loss += avg_loss
             cv_score += avg_score
 
-            # warm-starting during cross validation (default : False)
-            if self.opt.warm_start:
-                print('warm starting...')
+            if not self.opt.warm_start:
+                # if warm-starting is False, re-init the state
+                print('Re-initializing states...')
                 self.model, self.optimizer, self.scheduler = init_state(self.opt)
 
         cv_result['avg_loss'] = cv_loss / self.opt.CV
