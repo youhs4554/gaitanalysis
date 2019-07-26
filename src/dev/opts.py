@@ -203,6 +203,35 @@ def parse_opts():
         action='store_true',
         help='If true, you can continue training after validation step.')
     parser.set_defaults(warm_start=False)
+    parser.add_argument(
+        '--num_units',
+        default=256,
+        type=int,
+        help='Number of units for feature embedding.'
+    )
+    parser.add_argument(
+        '--n_factors',
+        default=15,
+        type=int,
+        help='Number of factors(or gait params) to predict.'
+    )
+    parser.add_argument(
+        '--n_groups',
+        default=3,
+        type=int,
+        help='Number of multi scale groups.'
+    )
+    parser.add_argument(
+        '--drop_rate',
+        default=0.0,
+        type=float,
+        help='Droprate in drop-out operation.'
+    )
+    parser.add_argument(
+        '--attention',
+        action='store_true',
+        help='If true, you can apply attention mechanism.')
+    parser.set_defaults(attention=False)
 
     # and so on...
 

@@ -43,11 +43,12 @@ def generate_regression_model(backbone, opt):
 
     if opt.model_arch == "HPP":
         if opt.merge_type=='addition':
-            net = regression_model.HPP_Addition_Net(num_units=256, n_factors=15, backbone=backbone, drop_rate=0.0,
-                                                     n_groups=3)
+            net = regression_model.HPP_Addition_Net(num_units=opt.num_units, n_factors=opt.n_factors, backbone=backbone, drop_rate=opt.drop_rate,
+                                                     n_groups=opt.n_groups)
         elif opt.merge_type == '1x1_C':
             # define regression model
             net = regression_model.HPP_1x1_Net(num_units=256, n_factors=15, backbone=backbone, drop_rate=0.0,
+                                               attention=opt.attention,
                                                n_groups=3)
 
     elif opt.model_arch == 'naive':
