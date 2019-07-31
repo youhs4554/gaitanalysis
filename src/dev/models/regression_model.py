@@ -160,7 +160,7 @@ class MultiScale_Attention_Net(nn.Module):
         hpp_x = hpp_x.view(hpp_x.size(0), self.num_units, -1, hpp_x.size(-1))   # (b,C,2**(n_groups-1),W)
 
         # apply softmax along with groups index, to get importance of each grid group
-        hpp_x = softmax(hpp_x, dim=2)
+        #hpp_x = softmax(hpp_x, dim=2)
 
         groups = torch.split(hpp_x, 1, dim=2)  # tuple of splitted arrs
         duplicated_groups = [ g.repeat(1,
@@ -174,7 +174,7 @@ class MultiScale_Attention_Net(nn.Module):
         res = x*alpha
 
         # identity connection ?
-        res += x
+        #   res += x
 
         return res
 

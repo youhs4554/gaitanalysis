@@ -11,6 +11,12 @@ def parse_opts():
         help='Dataset to use ( Gaitparams_PD | others... )',
     )
     parser.add_argument(
+        '--v',
+        default='/data/GaitData/Video/7119824_test_0_trial_3.avi',
+        type=str,
+        help='File path of input video file for demo (.avi).',
+    )
+    parser.add_argument(
         '--input_file',
         default="../../preprocess/data/person_detection_and_tracking_results_drop.pkl",
         type=str,
@@ -34,6 +40,24 @@ def parse_opts():
         default="/data/GaitData/CroppedFrameArrays",
         type=str,
         help='Directory path of frames cropped by YOLO',
+    )
+    parser.add_argument(
+        '--video_home',
+        default="/data/GaitData/Video",
+        type=str,
+        help='Directory path of raw video',
+    )
+    parser.add_argument(
+        '--meta_home',
+        default="/data/GaitData/MetaData_converted",
+        type=str,
+        help='Directory path of meta data.',
+    )
+    parser.add_argument(
+        '--darknet_api_home',
+        default="../../preprocess/darknet",
+        type=str,
+        help='Main directory of darknet API.',
     )
     parser.add_argument(
         '--target_columns',
@@ -65,7 +89,12 @@ def parse_opts():
         type=str,
         help='GPU ids to use',
     )
-
+    parser.add_argument(
+        '--device_yolo',
+        default=9,
+        type=int,
+        help='GPU id for yolo detector.',
+    )
     parser.add_argument(
         '--sample_size',
         default=(384,128),
@@ -73,10 +102,34 @@ def parse_opts():
         help='Input image size (h,w) fed into backbone',
     )
     parser.add_argument(
+        '--raw_h',
+        default=480,
+        type=int,
+        help='Input raw frame height.',
+    )
+    parser.add_argument(
+        '--raw_w',
+        default=640,
+        type=int,
+        help='Input raw frame width.',
+    )
+    parser.add_argument(
         '--sample_duration',
         default=50,
         type=int,
         help='Input image lenght fed into backbone',
+    )
+    parser.add_argument(
+        '--maxlen',
+        default=300,
+        type=int,
+        help='Maximum sampling length of input image.',
+    )
+    parser.add_argument(
+        '--fps',
+        default=24,
+        type=int,
+        help='FPS of raw video frame',
     )
     parser.add_argument(
         '--delta',
@@ -93,7 +146,7 @@ def parse_opts():
         '--mode',
         default='train',
         type=str,
-        help='Specify mode ( training | testing )',
+        help='Specify mode ( train | test | demo )',
     )
     parser.add_argument(
         '--batch_size',
@@ -232,6 +285,17 @@ def parse_opts():
         action='store_true',
         help='If true, you can apply attention mechanism.')
     parser.set_defaults(attention=False)
+    parser.add_argument(
+        '--data_gen',
+        action='store_true',
+        help='If true, you can generate dataset.')
+    parser.set_defaults(data_gen=False)
+    parser.add_argument(
+        '--interval_sel',
+        default='COP',
+        type=str,
+        help='Inteval selection methods to use ( COP | DAPs ).'
+    )
 
     # and so on...
 

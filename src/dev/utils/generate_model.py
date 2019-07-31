@@ -89,3 +89,23 @@ def init_state(opt):
         optimizer, 'min', patience=opt.lr_patience)
 
     return net, optimizer, scheduler
+
+import os
+
+def load_trained_ckpt(opt, net):
+    if opt.model_arch == 'HPP':
+        model_path = os.path.join(opt.ckpt_dir,
+                                  opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch,
+                                  'save_' + opt.test_epoch + '.pth')
+    elif opt.model_arch == 'naive':
+        model_path = os.path.join(opt.ckpt_dir,
+                                  opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,
+                                  'save_' + opt.test_epoch + '.pth')
+
+    print(f"Load trained model from {model_path}...")
+
+    # laod pre-trained model
+    pretrain = torch.load(model_path)
+    net.load_state_dict(pretrain['state_dict'])
+
+    return net

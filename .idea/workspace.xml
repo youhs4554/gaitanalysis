@@ -2,7 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="15a47881-f6e9-4add-b2a3-c788b80a35c3" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess/tracking_patient.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/tracking_patient.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dev/models/regression_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/models/regression_model.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dev/opts.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/opts.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dev/utils/generate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/generate_model.py" afterDir="false" />
@@ -20,42 +25,8 @@
       </list>
     </option>
   </component>
-  <component name="FindInProjectRecents">
-    <findStrings>
-      <find>horizontal</find>
-      <find>t</find>
-      <find>mode</find>
-      <find>load(</find>
-      <find>avg_pool</find>
-      <find>_finetuned_with</find>
-      <find>ckpt_dir</find>
-      <find>finetuned</find>
-      <find>tqdm</find>
-      <find>.squeeze</find>
-      <find>summary</find>
-      <find>tester</find>
-      <find>logger</find>
-      <find>train</find>
-      <find>device_ids</find>
-      <find>.cuda(</find>
-      <find>drop_rate</find>
-      <find>shuffle=True</find>
-      <find>shuffle</find>
-      <find>tsv</find>
-      <find>.fc</find>
-      <find>optim</find>
-      <find>nrow</find>
-      <find>target_col</find>
-      <find>.</find>
-      <find>reshape</find>
-      <find>split</find>
-      <find>n_fact</find>
-      <find>.train(</find>
-      <find>n_groups</find>
-    </findStrings>
-  </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/preprocess" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
     <option name="x" value="65" />
@@ -67,8 +38,9 @@
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="full.screen.before.presentation.mode" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/src/dev/main.py" />
+    <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="PyConsoleOptionsProvider">
     <option name="myPythonConsoleState">
@@ -80,15 +52,15 @@
     </option>
   </component>
   <component name="RecentsManager">
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/src/dev" />
-      <recent name="$PROJECT_DIR$/src/dev/models" />
-    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src/dev/utils" />
       <recent name="$PROJECT_DIR$/src/dev/datasets" />
       <recent name="$PROJECT_DIR$/src/dev/models" />
       <recent name="$PROJECT_DIR$/src/3D-ResNets-PyTorch" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/dev" />
+      <recent name="$PROJECT_DIR$/src/dev/models" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -103,8 +75,30 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.train_HPP_conv_1x1">
-    <configuration name="test" type="PythonConfigurationType" factoryName="Python">
+  <component name="RunManager" selected="Python.demo">
+    <configuration name="demo" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+        <env name="CUDA_VISIBLE_DEVICES" value="0,1,2,3,4,5,6,7,8,9" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/dev" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --device_ids=0 --mode=demo --test_epoch=50 --model_arch=HPP --merge_type=1x1_C --attention --interval_sel=COP --v=/data/GaitData/Video/3163817_test_0_trial_0.avi" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="test_model" type="PythonConfigurationType" factoryName="Python">
       <module name="pose_estimation" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -117,7 +111,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3 --batch_size=16 --n_threads=16 --mode=test --test_epoch=20 --model_arch=HPP --merge_type=1x1_C --attention" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3 --batch_size=16 --n_threads=16 --mode=test --test_epoch=50 --model_arch=HPP --merge_type=1x1_C --attention" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -189,11 +183,17 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.test" />
+      <item itemvalue="Python.test_model" />
       <item itemvalue="Python.train_HPP_addition" />
       <item itemvalue="Python.train_naive" />
       <item itemvalue="Python.train_HPP_conv_1x1" />
+      <item itemvalue="Python.demo" />
     </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.demo" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -207,15 +207,6 @@
       <updated>1556065455809</updated>
     </task>
     <servers />
-  </component>
-  <component name="TodoView" selected-index="3">
-    <todo-panel id="selected-file">
-      <is-autoscroll-to-source value="true" />
-    </todo-panel>
-    <todo-panel id="all">
-      <are-packages-shown value="true" />
-      <is-autoscroll-to-source value="true" />
-    </todo-panel>
   </component>
   <component name="UnknownFeatures">
     <option featureType="com.intellij.fileTypeFactory" implementationName="*.log" />
@@ -245,9 +236,9 @@
           <option name="timeStamp" value="169" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/src/dev/models/regression_model.py</url>
-          <line>165</line>
-          <option name="timeStamp" value="178" />
+          <url>file://$PROJECT_DIR$/src/dev/utils/preprocessing.py</url>
+          <line>143</line>
+          <option name="timeStamp" value="215" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
