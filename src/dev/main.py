@@ -139,17 +139,13 @@ if __name__ == '__main__':
 
 
     elif opt.mode == 'demo':
-        net = load_trained_ckpt(opt, net)
+        import demo.app
+        from demo.app import app as flask_app
 
-        import time
-        t0 = time.time()
-        y_pred = worker._run_demo(net, opt.v, localizer, interval_selector,
-                                  spatial_transform=spatial_transform['test'],
-                                  target_transform=target_transform)
+        # set runner
+        demo.app.set_runner(opt, net, localizer, interval_selector, worker,
+                            spatial_transform, target_transform, target_columns)
 
-        res = {k: v for k, v in zip(target_columns, y_pred[0])}
-
-        import pprint
-        pprint.pprint(res)
-
-        print('runtime : ', time.time()-t0)
+        # run flask server
+        print('Demo server is waiting for you...')
+        flask_app.run(host='0.0.0.0', port=40000)

@@ -62,7 +62,10 @@ def check_direction(positions):
 
 def convert_path(p, darknet_home):
     # convert path to use darknet api
-    p = os.path.join(darknet_home, p)
+    try:
+        p = os.path.join(darknet_home, p)
+    except:
+        print('catch')
     # convert python 3 string -> python2 bytes
     p = p.encode()
 
@@ -187,8 +190,8 @@ class Worker(object):
 
         self.opt.frame_home = None  # do not save arr (.npy)
 
-        # if self.opt.interval_sel == 'COP':
-        #    interval_selector = None   # referring COP means there is no interval selection methods at demo phase..
+        if self.opt.interval_sel == 'COP':
+           interval_selector = None   # referring COP means there is no interval selection methods at demo phase..
 
         #todo. develop interval selection methods....\
         # depth calculation / same ratio of human bboxes

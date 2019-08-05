@@ -2,15 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="15a47881-f6e9-4add-b2a3-c788b80a35c3" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/demo/app.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/demo/templates/index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/dev/demo/templates/status.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/preprocess" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/preprocess/tracking_patient.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/tracking_patient.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dev/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/models/regression_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/models/regression_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/opts.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/opts.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/utils/generate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/generate_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -21,6 +18,7 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
+        <option value="HTML File" />
         <option value="Python Script" />
       </list>
     </option>
@@ -28,18 +26,13 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="65" />
-    <option name="y" value="31" />
-    <option name="width" value="1851" />
-    <option name="height" value="1086" />
-  </component>
   <component name="ProjectId" id="1OXQJ7HophWrV7nNplrFu12zdYt" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
+    <property name="DefaultHtmlFileTemplate" value="HTML File" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="full.screen.before.presentation.mode" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/src/dev/main.py" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/src/dev/demo/templates" />
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="PyConsoleOptionsProvider">
@@ -59,6 +52,8 @@
       <recent name="$PROJECT_DIR$/src/3D-ResNets-PyTorch" />
     </key>
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/dev/demo/templates" />
+      <recent name="$PROJECT_DIR$/src/dev/demo/static" />
       <recent name="$PROJECT_DIR$/src/dev" />
       <recent name="$PROJECT_DIR$/src/dev/models" />
     </key>
@@ -76,6 +71,27 @@
     </option>
   </component>
   <component name="RunManager" selected="Python.demo">
+    <configuration name="app" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/dev/demo" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/demo/app.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="demo" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="pose_estimation" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -188,10 +204,12 @@
       <item itemvalue="Python.train_naive" />
       <item itemvalue="Python.train_HPP_conv_1x1" />
       <item itemvalue="Python.demo" />
+      <item itemvalue="Python.app" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.demo" />
+        <item itemvalue="Python.app" />
       </list>
     </recent_temporary>
   </component>
@@ -209,6 +227,8 @@
     <servers />
   </component>
   <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.css" />
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.js" />
     <option featureType="com.intellij.fileTypeFactory" implementationName="*.log" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -216,7 +236,9 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="COLUMN_ORDER" />
+            </State>
           </value>
         </entry>
       </map>
@@ -237,7 +259,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/dev/utils/preprocessing.py</url>
-          <line>143</line>
+          <line>146</line>
           <option name="timeStamp" value="215" />
         </line-breakpoint>
       </breakpoints>
