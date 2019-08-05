@@ -2,12 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="15a47881-f6e9-4add-b2a3-c788b80a35c3" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/generate_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/generate_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/generate_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/preprocess" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/preprocess/tracking_patient.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/tracking_patient.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -85,7 +83,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --device_ids=1 --mode=demo --test_epoch=50 --model_arch=HPP --merge_type=1x1_C --attention --interval_sel=COP --v=/data/GaitData/Video/3163817_test_0_trial_0.avi" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --device_ids=0 --mode=demo --test_epoch=50 --model_arch=HPP --merge_type=1x1_C --attention --interval_sel=COP --v=/data/GaitData/Video/3163817_test_0_trial_0.avi --device_yolo=8" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -106,7 +104,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
-      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=9" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -208,8 +206,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.generate_dataset" />
         <item itemvalue="Python.demo" />
+        <item itemvalue="Python.generate_dataset" />
       </list>
     </recent_temporary>
   </component>
