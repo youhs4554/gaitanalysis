@@ -43,6 +43,23 @@ class COPAnalyizer(object):
 
         return start_ix, end_ix
 
+class HumanScaleAnalyizer(object):
+    def __init__(self, opt):
+        self.opt = opt
+
+    def check_interval(self, pos):
+
+        # determine given pos is in interval
+
+        cond = pos == "hhi"
+
+        if cond:
+            return True
+        else:
+            return False
+
+
+
 
 
 
@@ -138,14 +155,13 @@ class Worker(object):
         if opt.data_gen:
             # input data part
             video_files = [ os.path.join(opt.video_home, v) for v in os.listdir(opt.video_home) if not v.startswith('vid') ]
-
-            tmp_file = '/tmp/foo.csv'
+            input_lines = ['']
 
             for video in tqdm(video_files):
-                self._run(video, localizer, interval_selector, tmp_file)
+                self._run(video, localizer, interval_selector, input_lines)
 
-            pd.read_csv(tmp_file, sep='\t', names=['vids', 'idx', 'pos']).to_pickle(opt.input_file)
-            os.system(f'rm {tmp_file}')  # remove tmpfile
+            pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
+                         columns=['vids', 'idx', 'pos']).to_pickle(opt.input_file)
 
             # todo. parameterize column selection func with opt
             # target data part
@@ -155,16 +171,16 @@ class Worker(object):
                                         'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)', 'Toe In / Out']
                              )
 
-    def _run(self, video, localizer, interval_selector, tmp_file=None):
+    def _run(self, video, localizer, interval_selector, input_lines=None):
         vid = os.path.splitext(os.path.basename(video))[0]
         tracking_log = {}
 
         start_end = None
-        if interval_selector:
+        if interval_selector=='COP':
             start_end = interval_selector.get_interval(vid=vid)
 
         return run_tracker(localizer, video, tracking_log, maxlen=self.opt.maxlen, center=(self.opt.raw_w/2, self.opt.raw_h/2),
-                           save_dir=self.opt.frame_home, tmp_file=tmp_file, start_end=start_end,
+                           save_dir=self.opt.frame_home, input_lines=input_lines, start_end=start_end,
                            analize=False, plot_dist=False)
 
     def _preprocess_inputdata(self, input_data, spatial_transform):

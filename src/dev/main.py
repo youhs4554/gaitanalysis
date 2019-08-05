@@ -9,7 +9,7 @@ import utils.visualization as viz
 import datasets.gaitregression
 from utils.mean import get_mean, get_std
 from utils.parallel import DataParallelModel, DataParallelCriterion
-from utils.preprocessing import PatientLocalizer, COPAnalyizer, Worker
+from utils.preprocessing import PatientLocalizer, COPAnalyizer, HumanScaleAnalyizer, Worker
 from preprocess.darknet.python.extract_bbox import set_gpu
 
 import sklearn
@@ -87,8 +87,8 @@ if __name__ == '__main__':
         interval_selector = None
         if opt.interval_sel == 'COP':
             interval_selector = COPAnalyizer(opt.meta_home, opt.fps)
-        elif opt.interval_sel == 'DAPs':
-            raise NotImplementedError('Comming soon!')
+        elif opt.interval_sel == 'Scale':
+            interval_selector = HumanScaleAnalyizer(opt)
 
         worker = Worker(localizer, interval_selector, opt)
 
