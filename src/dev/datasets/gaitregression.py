@@ -37,11 +37,20 @@ def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_sta
 
 
 def prepare_dataset(input_file, target_file,
-                    target_columns,):
+                    target_columns,chunk_parts):
 
-    # data prepare first !!
-    input_df = pd.read_pickle(input_file)
-        
+    # if data generation is not the case..
+    prefix, ext = os.path.splitext(input_file)
+
+    data_frames = []
+    for ix in range(chunk_parts):
+        partial = prefix + '-' + str(ix) + ext
+        data_frames.append(pd.read_pickle(partial))
+
+    # concat all df
+    input_df = pd.concat(data_frames)
+    input_df.to_pickle(prefix + '-' + 'merged' + ext)  # save input file
+
     # drop not patient samples
     invalid_vids = []
     for row in input_df.values:

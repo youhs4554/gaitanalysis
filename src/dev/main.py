@@ -68,7 +68,7 @@ if __name__ == '__main__':
     if opt.dataset=='Gaitparams_PD':
         # prepare dataset  (train/test split)
         data = datasets.gaitregression.prepare_dataset(input_file=opt.input_file, target_file=opt.target_file,
-                                              target_columns=target_columns)
+                                              target_columns=target_columns, chunk_parts=opt.chunk_parts)
 
         train_ds = datasets.gaitregression.GAITDataset(X=data['train_X'], y=data['train_y'], opt=opt)
         test_ds = datasets.gaitregression.GAITDataset(X=data['test_X'], y=data['test_y'], opt=opt)
@@ -78,19 +78,6 @@ if __name__ == '__main__':
         # target transform
         target_transform = target_transform_func(random_state=0, output_distribution='normal').fit(
             data['target_df'].values)
-
-        # patient localizer & interval selector
-        set_gpu(opt.device_yolo)
-
-        localizer = PatientLocalizer(darknet_api_home=opt.darknet_api_home)
-
-        interval_selector = None
-        if opt.interval_sel == 'COP':
-            interval_selector = COPAnalyizer(opt.meta_home, opt.fps)
-        elif opt.interval_sel == 'Scale':
-            interval_selector = HumanScaleAnalyizer(opt)
-
-        worker = Worker(localizer, interval_selector, opt)
 
     else:
         NotImplementedError("Does not support other datasets until now..")
@@ -141,6 +128,19 @@ if __name__ == '__main__':
     elif opt.mode == 'demo':
         import demo.app
         from demo.app import app as flask_app
+
+        # patient localizer & interval selector
+        set_gpu(opt.device_yolo)
+
+        localizer = PatientLocalizer(darknet_api_home=opt.darknet_api_home)
+
+        interval_selector = None
+        if opt.interval_sel == 'COP':
+            interval_selector = COPAnalyizer(opt.meta_home, opt.fps)
+        elif opt.interval_sel == 'Scale':
+            interval_selector = HumanScaleAnalyizer(opt)
+
+        worker = Worker(localizer, interval_selector, opt)
 
         # set runner
         demo.app.set_runner(opt, net, localizer, interval_selector, worker,

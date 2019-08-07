@@ -147,6 +147,12 @@ import pandas as pd
 import torch
 from PIL import Image
 
+from itertools import islice
+
+def chunk(it, size):
+    it = iter(it)
+    return iter(lambda: tuple(islice(it, size)), ())
+
 class Worker(object):
     def __init__(self, localizer, interval_selector, opt):
 
@@ -154,29 +160,50 @@ class Worker(object):
 
         if opt.data_gen:
             # input data part
-            video_files = [ os.path.join(opt.video_home, v) for v in os.listdir(opt.video_home) if not v.startswith('vid') ]
             input_lines = ['']
 
-            for video in tqdm(video_files):
-                self._run(video, localizer, interval_selector, input_lines)
+            if not os.path.exists(opt.chunk_vid_home):
+                os.system(f'mkdir -p {opt.chunk_vid_home}')
+                all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
+                               not v.startswith('vid')]
+                for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
+                    with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
+                        f.writelines(partial)
+
+            with open(f'{opt.chunk_vid_home}/vids-part{opt.device_yolo}.txt') as f:
+                video_files = list(x.strip() for x in f.readlines())
+
+            pbar = tqdm(video_files)
+            for video in pbar:
+                pbar.set_description(f"Processing ***** {os.path.basename(video)}")
+                try:
+                    self._run(video, localizer, interval_selector, input_lines)
+                except:
+                    continue
+
+            prefix, ext = os.path.splitext(opt.input_file)
+            input_file_path = prefix + '-' + str(opt.device_yolo) + ext
 
             pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
-                         columns=['vids', 'idx', 'pos']).to_pickle(opt.input_file)
+                         columns=['vids', 'idx', 'pos']).to_pickle(input_file_path)
 
-            # todo. parameterize column selection func with opt
-            # target data part
-            create_target_df(meta_home=opt.meta_home, save_path=opt.target_file,
-                             single_cols=['Velocity', 'Cadence', 'Functional Amb. Profile'],
-                             pair_cols=['Cycle Time(sec)', 'Stride Length(cm)', 'HH Base Support(cm)',
-                                        'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)', 'Toe In / Out']
-                             )
+            if opt.device_yolo == 0:
+                # for prevent safe file saving
+                # todo. parameterize column selection func with opt
+                # target data part
+                create_target_df(meta_home=opt.meta_home, save_path=opt.target_file,
+                                 single_cols=['Velocity', 'Cadence', 'Functional Amb. Profile'],
+                                 pair_cols=['Cycle Time(sec)', 'Stride Length(cm)', 'HH Base Support(cm)',
+                                            'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)', 'Toe In / Out']
+                                 )
+
 
     def _run(self, video, localizer, interval_selector, input_lines=None):
         vid = os.path.splitext(os.path.basename(video))[0]
         tracking_log = {}
 
         start_end = None
-        if interval_selector=='COP':
+        if interval_selector:
             start_end = interval_selector.get_interval(vid=vid)
 
         return run_tracker(localizer, video, tracking_log, maxlen=self.opt.maxlen, center=(self.opt.raw_w/2, self.opt.raw_h/2),

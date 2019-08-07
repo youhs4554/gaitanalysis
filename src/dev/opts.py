@@ -48,6 +48,18 @@ def parse_opts():
         help='Directory path of raw video',
     )
     parser.add_argument(
+        '--chunk_vid_home',
+        default="./video_chunks",
+        type=str,
+        help='Directory path of chunked vids list.',
+    )
+    parser.add_argument(
+        '--chunk_parts',
+        default=10,
+        type=int,
+        help='Number of chunk parts.',
+    )
+    parser.add_argument(
         '--meta_home',
         default="/data/GaitData/MetaData_converted",
         type=str,

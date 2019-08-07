@@ -5,7 +5,14 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/generate_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/generate_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/preprocess" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess/darknet/libdarknet.a" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/darknet/libdarknet.a" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess/darknet/libdarknet.so" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/darknet/libdarknet.so" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/darknet/python/extract_bbox.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/preprocess/tracking_patient.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/tracking_patient.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/opts.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/opts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -22,7 +29,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/preprocess" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectId" id="1OXQJ7HophWrV7nNplrFu12zdYt" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -68,7 +75,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.demo">
+  <component name="RunManager" selected="Python.generate_dataset_chunk (0)">
     <configuration name="demo" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="pose_estimation" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -91,7 +98,196 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="generate_dataset" type="PythonConfigurationType" factoryName="Python" temporary="true">
+    <configuration name="generate_dataset_chunk (0)" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=0" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (1)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=1" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (2)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=2" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (3)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=3" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (4)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=4" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (5)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=5" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (6)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=6" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (7)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=7" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (8)" type="PythonConfigurationType" factoryName="Python">
+      <module name="pose_estimation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_dataset.py" />
+      <option name="PARAMETERS" value="--data_gen --input_file=preprocess/data/person_detection_and_tracking_results_drop.pkl --target_file=preprocess/data/targets_dataframe.pkl --darknet_api_home=preprocess/darknet --meta_home=/data/GaitData/MetaData_converted --fps=24 --device_yolo=8" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_dataset_chunk (9)" type="PythonConfigurationType" factoryName="Python">
       <module name="pose_estimation" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -167,7 +363,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3,4,5,6,7 --batch_size=32 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=HPP --merge_type=1x1_C --n_iter=51 --CV=5 --warm_start --attention --n_groups=3" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3 --batch_size=16 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=HPP --merge_type=1x1_C --n_iter=51 --CV=5 --warm_start --attention --n_groups=3" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -202,12 +398,21 @@
       <item itemvalue="Python.train_naive" />
       <item itemvalue="Python.train_HPP_conv_1x1" />
       <item itemvalue="Python.demo" />
-      <item itemvalue="Python.generate_dataset" />
+      <item itemvalue="Python.generate_dataset_chunk (0)" />
+      <item itemvalue="Python.generate_dataset_chunk (1)" />
+      <item itemvalue="Python.generate_dataset_chunk (2)" />
+      <item itemvalue="Python.generate_dataset_chunk (3)" />
+      <item itemvalue="Python.generate_dataset_chunk (4)" />
+      <item itemvalue="Python.generate_dataset_chunk (5)" />
+      <item itemvalue="Python.generate_dataset_chunk (6)" />
+      <item itemvalue="Python.generate_dataset_chunk (7)" />
+      <item itemvalue="Python.generate_dataset_chunk (8)" />
+      <item itemvalue="Python.generate_dataset_chunk (9)" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.generate_dataset_chunk (0)" />
         <item itemvalue="Python.demo" />
-        <item itemvalue="Python.generate_dataset" />
       </list>
     </recent_temporary>
   </component>
@@ -251,9 +456,19 @@
           <option name="timeStamp" value="81" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/src/dev/models/regression_model.py</url>
-          <line>107</line>
-          <option name="timeStamp" value="169" />
+          <url>file://$PROJECT_DIR$/src/dev/utils/parallel.py</url>
+          <line>58</line>
+          <option name="timeStamp" value="259" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/cuda/comm.py</url>
+          <line>59</line>
+          <option name="timeStamp" value="268" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/../anaconda3/envs/torch/lib/python3.6/site-packages/torch/cuda/comm.py</url>
+          <line>70</line>
+          <option name="timeStamp" value="269" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
