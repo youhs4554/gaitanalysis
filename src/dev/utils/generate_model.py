@@ -47,13 +47,13 @@ def generate_regression_model(backbone, opt):
                                                      n_groups=opt.n_groups)
         elif opt.merge_type == '1x1_C':
             # define regression model
-            net = regression_model.HPP_1x1_Net(num_units=256, n_factors=15, backbone=backbone, drop_rate=0.0,
+            net = regression_model.HPP_1x1_Net(num_units=opt.num_units, n_factors=opt.n_factors, backbone=backbone, drop_rate=opt.drop_rate,
                                                attention=opt.attention,
-                                               n_groups=3)
+                                               n_groups=opt.n_groups)
 
     elif opt.model_arch == 'naive':
-        net = regression_model.Naive_Flatten_Net(num_units=256,
-                                                 n_factors=15,
+        net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
+                                                 n_factors=opt.n_factors,
                                                  backbone=backbone)
 
     # Enable GPU model & data parallelism
@@ -86,7 +86,7 @@ def init_state(opt):
         weight_decay=opt.weight_decay,
         nesterov=opt.nesterov)
     scheduler = lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'min', patience=opt.lr_patience)
+        optimizer, 'min', verbose=True, patience=opt.lr_patience)
 
     return net, optimizer, scheduler
 

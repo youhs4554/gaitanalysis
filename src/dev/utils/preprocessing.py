@@ -165,7 +165,7 @@ class Worker(object):
             if not os.path.exists(opt.chunk_vid_home):
                 os.system(f'mkdir -p {opt.chunk_vid_home}')
                 all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
-                               not v.startswith('vid')]
+                               not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home,'{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
                 for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
                     with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
                         f.writelines(partial)
@@ -176,10 +176,7 @@ class Worker(object):
             pbar = tqdm(video_files)
             for video in pbar:
                 pbar.set_description(f"Processing ***** {os.path.basename(video)}")
-                try:
-                    self._run(video, localizer, interval_selector, input_lines)
-                except:
-                    continue
+                self._run(video, localizer, interval_selector, input_lines)
 
             prefix, ext = os.path.splitext(opt.input_file)
             input_file_path = prefix + '-' + str(opt.device_yolo) + ext
@@ -206,7 +203,7 @@ class Worker(object):
         if interval_selector:
             start_end = interval_selector.get_interval(vid=vid)
 
-        return run_tracker(localizer, video, tracking_log, maxlen=self.opt.maxlen, center=(self.opt.raw_w/2, self.opt.raw_h/2),
+        return run_tracker(localizer, video, tracking_log, maxlen=self.opt.maxlen,
                            save_dir=self.opt.frame_home, input_lines=input_lines, start_end=start_end,
                            analize=False, plot_dist=False)
 

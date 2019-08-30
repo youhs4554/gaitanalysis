@@ -51,20 +51,8 @@ def prepare_dataset(input_file, target_file,
     input_df = pd.concat(data_frames)
     input_df.to_pickle(prefix + '-' + 'merged' + ext)  # save input file
 
-    # drop not patient samples
-    invalid_vids = []
-    for row in input_df.values:
-        vid, _, pos = row
-        xmin,ymin,xmax,ymax = eval(pos)
-        xc, yc = (xmax+xmin)/2, (ymax+ymin)/2
-        if xc < 280: invalid_vids.append(vid)
-            
-    
-    input_df = input_df[~input_df['vids'].isin(invalid_vids)]
-
     target_df = pd.read_pickle(target_file)[target_columns]
-    
-    # save conv features from pretrained c3d net
+
     possible_vids = sorted(list(set(input_df.vids)))
     
     # reindex tgt data (to filter-out valid vids)

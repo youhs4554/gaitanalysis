@@ -11,12 +11,6 @@ def parse_opts():
         help='Dataset to use ( Gaitparams_PD | others... )',
     )
     parser.add_argument(
-        '--v',
-        default='/data/GaitData/Video/7119824_test_0_trial_3.avi',
-        type=str,
-        help='File path of input video file for demo (.avi).',
-    )
-    parser.add_argument(
         '--input_file',
         default="../../preprocess/data/person_detection_and_tracking_results_drop.pkl",
         type=str,
@@ -55,7 +49,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--chunk_parts',
-        default=10,
+        default=8,
         type=int,
         help='Number of chunk parts.',
     )

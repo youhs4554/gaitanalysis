@@ -96,7 +96,6 @@ class MultiScale_Addition_Net(nn.Module):
             self.add_module(f'conv_1x1_{i + 1}',
                             nn.Sequential(
                             nn.Conv1d(input_dim, out_dim, kernel_size=1),
-                            nn.BatchNorm1d(out_dim),
                             nn.ReLU(True)))
 
     def forward(self, x):
