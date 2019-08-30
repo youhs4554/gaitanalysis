@@ -65,7 +65,7 @@ conda activate torch
                 - addition : after 1x1_C for each bin, add all. 
                 - 1x1_C : after concatenating each vertically pooled (VAP+VMP) bin through channel dimension, 1x1_C is applied.
 
-    ####naive
+    #### naive
     ```shell script
     python main.py --backbone=resnet
         --model_depth=50
