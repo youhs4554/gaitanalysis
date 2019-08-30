@@ -2,14 +2,16 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="15a47881-f6e9-4add-b2a3-c788b80a35c3" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/pose_estimation.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/GaitAnalysis.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/preprocess" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/preprocess/tracking_patient.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess/tracking_patient.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/datasets/gaitregression.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/models/regression_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/models/regression_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/python2.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/python3.yml" beforeDir="false" afterPath="$PROJECT_DIR$/env.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dev/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dev/opts.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/opts.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/utils/generate_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/generate_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dev/utils/preprocessing.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -31,11 +33,12 @@
   <component name="ProjectId" id="1OXQJ7HophWrV7nNplrFu12zdYt" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="DefaultHtmlFileTemplate" value="HTML File" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="full.screen.before.presentation.mode" value="false" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/../KNUH_db" />
-    <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
+    <property name="settings.editor.selected.configurable" value="consents" />
   </component>
   <component name="PyConsoleOptionsProvider">
     <option name="myPythonConsoleState">
@@ -73,8 +76,29 @@
     </option>
   </component>
   <component name="RunManager" selected="Python.demo">
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="GaitAnalysis" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="demo" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -87,7 +111,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --device_ids=0 --mode=demo --test_epoch=30 --model_arch=HPP --merge_type=1x1_C --interval_sel=COP --device_yolo=8 --n_groups=4" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --device_ids=0 --mode=demo --test_epoch=30 --model_arch=HPP --merge_type=1x1_C --interval_sel=COP --device_yolo=8 --n_groups=4 --port=40001" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -95,8 +119,8 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="generate_dataset_chunk (0)" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <module name="pose_estimation" />
+    <configuration name="generate_dataset_chunk (0)" type="PythonConfigurationType" factoryName="Python">
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -117,7 +141,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (1)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -138,7 +162,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (2)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -159,7 +183,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (3)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -180,7 +204,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (4)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -201,7 +225,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (5)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -222,7 +246,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (6)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -243,7 +267,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (7)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -264,7 +288,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (8)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -285,7 +309,7 @@
       <method v="2" />
     </configuration>
     <configuration name="generate_dataset_chunk (9)" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -306,7 +330,7 @@
       <method v="2" />
     </configuration>
     <configuration name="test_model" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -327,7 +351,7 @@
       <method v="2" />
     </configuration>
     <configuration name="train_HPP_addition" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -339,7 +363,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3,4,5,6,7 --batch_size=32 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=HPP --merge_type=addition --n_iter=201 --CV=5 --warm_start --n_groups=3" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3,4,5,6,7 --batch_size=32 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=HPP --merge_type=addition --n_iter=201 --CV=5 --warm_start --n_groups=4" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -348,7 +372,7 @@
       <method v="2" />
     </configuration>
     <configuration name="train_HPP_conv_1x1" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -369,7 +393,7 @@
       <method v="2" />
     </configuration>
     <configuration name="train_naive" type="PythonConfigurationType" factoryName="Python">
-      <module name="pose_estimation" />
+      <module name="GaitAnalysis" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -381,12 +405,55 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/dev/main.py" />
-      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3,4,5,6,7 --batch_size=32 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=naive --n_iter=101 --CV=5 --warm_start --n_groups=3" />
+      <option name="PARAMETERS" value="--backbone=resnet --model_depth=50 --pretrained_path=pretrained/resnet-50-kinetics.pth --multi_gpu --device_ids=0,1,2,3,4,5,6,7 --batch_size=32 --learning_rate=1e-2 --n_threads=16 --mode=train --model_arch=naive --n_iter=101 --CV=5 --warm_start --n_groups=4" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
       <option name="REDIRECT_INPUT" value="false" />
       <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <module name="GaitAnalysis" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Doctests">
+      <module name="GaitAnalysis" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
+      <module name="GaitAnalysis" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
     <list>
@@ -406,11 +473,6 @@
       <item itemvalue="Python.demo" />
       <item itemvalue="Python.generate_dataset_chunk (0)" />
     </list>
-    <recent_temporary>
-      <list>
-        <item itemvalue="Python.generate_dataset_chunk (0)" />
-      </list>
-    </recent_temporary>
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -451,11 +513,6 @@
           <url>file://$PROJECT_DIR$/src/ResNets3D_PyTorch/models/resnet.py</url>
           <line>194</line>
           <option name="timeStamp" value="81" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/src/dev/utils/preprocessing.py</url>
-          <line>203</line>
-          <option name="timeStamp" value="447" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

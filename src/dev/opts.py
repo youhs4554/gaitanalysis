@@ -302,7 +302,12 @@ def parse_opts():
         type=str,
         help='Inteval selection methods to use ( COP | DAPs ).'
     )
-
+    parser.add_argument(
+        '--port',
+        default=40000,
+        type=int,
+        help='Service port for gaitanalysis.'
+    )
     # and so on...
 
     args = parser.parse_args()

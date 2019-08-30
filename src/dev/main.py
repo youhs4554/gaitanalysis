@@ -148,4 +148,4 @@ if __name__ == '__main__':
 
         # run flask server
         print('Demo server is waiting for you...')
-        flask_app.run(host='0.0.0.0', port=40000)
+        flask_app.run(host='0.0.0.0', port=opt.port)

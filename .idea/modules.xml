@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/pose_estimation.iml" filepath="$PROJECT_DIR$/.idea/pose_estimation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/GaitAnalysis.iml" filepath="$PROJECT_DIR$/.idea/GaitAnalysis.iml" />
     </modules>
   </component>
 </project>
