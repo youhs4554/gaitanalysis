@@ -63,14 +63,6 @@ def fetch_file(*args, **kwargs):
 @ExceptionLogger
 def run_model(*args, **kwargs):
     # update status
-    VariableInterface.db.update_status(STATUS="P",
-                                       ERRMSG="",
-                                       LASTUPDTRID=VariableInterface.USERID,
-                                       LASTUPDTDT="SYSTIMESTAMP",
-                                       GUBUN=VariableInterface.GUBUN,
-                                       PID=VariableInterface.PID,
-                                       SEQNO=VariableInterface.SEQNO)
-
     VariableInterface.res = VariableInterface.runner.run(VariableInterface.VIDEO_PATH)
 
 @check_response
