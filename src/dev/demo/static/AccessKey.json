@@ -1,0 +1,12 @@
+{
+  "HIS": {
+    "username": "aiu01",
+    "password": "aiuser01!",
+    "hostname": "192.168.100.103",
+    "port": "1521",
+    "database": "HIS031",
+    "charset": "utf8",
+    "encoding": "utf8",
+    "unicode_error": "ignore"
+  }
+}

@@ -1,0 +1,17 @@
+{
+    "Velocity": "VELOCITY",
+    "Cadence": "CADENCE",
+    "Functional Amb. Profile": "FAP",
+    "Cycle Time(sec)/L": "CYCLE_TIME/L",
+    "Cycle Time(sec)/R": "CYCLE_TIME/R",
+    "Stance Time(sec)/L": "STANCE_TIME/L",
+    "Stance Time(sec)/R": "STANCE_TIME/R",
+    "Double Supp. Time(sec)/L": "DOUBLESUPPORT_TIME/L",
+    "Double Supp. Time(sec)/R": "DOUBLESUPPORT_TIME/R",
+    "Swing Time(sec)/L": "SWING_TIME/L",
+    "Swing Time(sec)/R": "SWING_TIME/R",
+    "Stride Length(cm)/L": "STRIDE_LENGTH/L",
+    "Stride Length(cm)/R": "STRIDE_LENGTH/R",
+    "HH Base Support(cm)/L": "HH_BASE_SUPPORT/L",
+    "HH Base Support(cm)/R": "HH_BASE_SUPPORT/R"
+}

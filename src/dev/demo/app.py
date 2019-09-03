@@ -1,9 +1,13 @@
 ## flask....
 
 import os
-from flask import Flask, flash, request, redirect, url_for, render_template, session
+from flask import Flask, flash, request, redirect, url_for, render_template, session, jsonify
 import json
 from utils.generate_model import load_trained_ckpt
+import datetime
+import pandas as pd
+from .utils import VariableInterface, fetch_file, run_model, write_result, success_callback, BadRequestException, bad_request
+from .db import HIS_Database
 
 class Runner():
     def __init__(self, opt, net, localizer, interval_selector, worker,
@@ -30,15 +34,10 @@ class Runner():
         return {'pos': self.target_columns,
                 'val': y_pred[0].tolist()}
 
-
-
-
 # model
 runner = None
 
 APP_HOME = os.path.abspath(os.path.dirname(__file__))
-
-
 UPLOAD_FOLDER = os.path.join(APP_HOME, 'static')
 ALLOWED_EXTENSIONS = set(['mp4', 'avi'])
 
@@ -47,6 +46,9 @@ app.config['APP_HOME'] = APP_HOME
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.secret_key = 'super secret key'
 app.config['SESSION_TYPE'] = 'filesystem'
+
+# db instance
+VariableInterface.db = HIS_Database()
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -74,6 +76,45 @@ def upload_file():
     session['vname'] = file.filename
 
     return redirect('/')
+
+@app.route('/api')
+def api_call():
+    # from request.get
+    VariableInterface.GUBUN = request.args['GUBUN']
+    VariableInterface.PID = request.args['PID']
+    VariableInterface.SEQNO = request.args['SEQNO']
+    VariableInterface.FILEKEY = request.args['FILEKEY']
+    VariableInterface.FILESEQ = VariableInterface.SEQNO
+    VariableInterface.USERID = 'AIM'
+
+    VariableInterface.DATA_PREFIX = "http://192.168.100.121/his031edu/attach"
+    VariableInterface.VIDEO_PATH = './demo/static/tmp.avi'
+
+    data = pd.read_sql("SELECT * FROM com.zfmmfile", VariableInterface.db._engine)
+    VariableInterface.query_res = data.query('filekey==@VariableInterface.FILEKEY and fileseq==@VariableInterface.FILESEQ')
+
+    VariableInterface.codeNameTable = json.load(open('./demo/static/codeNameTable.json'))
+
+    # default response
+    VariableInterface.response = bad_request(status='ERR', message='Unknown Error.')
+
+    try:
+        # fetch video file!
+        fetch_file()
+
+        # run model!
+        run_model()
+
+        # write result to DB!
+        write_result()
+
+        # callback of success, notifying task is done!
+        success_callback()
+
+    except BadRequestException as e:
+        return VariableInterface.BadResponse
+
+    return VariableInterface.GreetingResponse
 
 @app.route('/run')
 def run():
@@ -103,7 +144,7 @@ def stat():
 
 def set_runner(*args, **kwargs):
     global runner
-    runner = Runner(*args, **kwargs)
+    VariableInterface.runner = runner = Runner(*args, **kwargs)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=40000)
