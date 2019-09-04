@@ -1,15 +1,21 @@
-import os, sys
-from preprocess.darknet.python.extract_bbox import *
-from preprocess.tracking_patient import run_tracker
-from preprocess.preprocess_metadata import create_target_df
-
-import cv2
-from collections import namedtuple
-import csv
-from tqdm import tqdm
 import re
+from tqdm import tqdm
+import csv
+from collections import namedtuple
+import cv2
+from preprocess.preprocess_metadata import create_target_df
+from preprocess.tracking_patient import run_tracker
+from preprocess.darknet.python.extract_bbox import *
+from itertools import islice
+from PIL import Image
+import torch
+import pandas as pd
+import os
+
 
 # # Add COP Files containing start/end timing info
+
+
 class COPAnalyizer(object):
     def __init__(self, meta_home='/data/GaitData/MetaData_converted', fps=24):
         self.meta_home = meta_home
@@ -19,7 +25,8 @@ class COPAnalyizer(object):
         regex = re.compile(r'(.*)_test_(.*)_trial_(.*)')
         pid, test_ix, trial_ix = regex.search(vid).groups()
 
-        cop_file_path = os.path.join(self.meta_home, f'{pid}_cop_test_{test_ix}_trial_{trial_ix}.txt')
+        cop_file_path = os.path.join(
+            self.meta_home, f'{pid}_cop_test_{test_ix}_trial_{trial_ix}.txt')
 
         fp = open(cop_file_path, 'r', encoding='utf-8')
         reader = csv.reader(fp, delimiter='\t')
@@ -27,11 +34,13 @@ class COPAnalyizer(object):
         tmp = []
 
         for i, line in enumerate(reader):
-            if i == 0: continue  # skip first line!
+            if i == 0:
+                continue  # skip first line!
             # parse each line
             _, time, _, pos, _ = line
 
-            if not time: break  # if we encounter empty str, break this loop!
+            if not time:
+                break  # if we encounter empty str, break this loop!
             time, pos = [eval(x) for x in [time, pos]]
 
             tmp.append([time, pos])
@@ -42,6 +51,7 @@ class COPAnalyizer(object):
         start_ix, end_ix = [int(self.fps * t) for t in [start, end]]
 
         return start_ix, end_ix
+
 
 class HumanScaleAnalyizer(object):
     def __init__(self, opt):
@@ -59,13 +69,7 @@ class HumanScaleAnalyizer(object):
             return False
 
 
-
-
-
-
 # In[10]:
-
-
 
 
 def check_direction(positions):
@@ -73,8 +77,6 @@ def check_direction(positions):
         return 'approach'
     else:
         return 'leave'
-
-
 
 
 def convert_path(p, darknet_home):
@@ -89,7 +91,6 @@ def convert_path(p, darknet_home):
     return p
 
 
-
 class PatientLocalizer(object):
     path_dict = {"cfg_path": "cfg/yolov3.cfg",
                  "weight_path": "yolov3.weights",
@@ -100,7 +101,8 @@ class PatientLocalizer(object):
             self.path_dict[p_key] = convert_path(p_val, darknet_api_home)
 
         self.im = IMAGE()
-        self.net = load_net(self.path_dict["cfg_path"], self.path_dict["weight_path"], 0)
+        self.net = load_net(
+            self.path_dict["cfg_path"], self.path_dict["weight_path"], 0)
         self.meta = load_meta(self.path_dict["anno_path"])
 
     def __len__(self):
@@ -130,28 +132,25 @@ class PatientLocalizer(object):
                         p_BB = [bx, by, bw, bh]
                         person_BB.append(p_BB)
 
-            if not person_BB: continue
+            if not person_BB:
+                continue
 
             self.c += 1  # counter
 
-            res = dict(person_pos = person_BB,
+            res = dict(person_pos=person_BB,
                        idx=idx, vid=video_name)
-            nt = namedtuple('res', res.keys())(*res.values())  # convert dict -> named tuple
+            nt = namedtuple('res', res.keys())(
+                *res.values())  # convert dict -> named tuple
 
             yield nt
 
         cap.release()
 
 
-import pandas as pd
-import torch
-from PIL import Image
-
-from itertools import islice
-
 def chunk(it, size):
     it = iter(it)
     return iter(lambda: tuple(islice(it, size)), ())
+
 
 class Worker(object):
     def __init__(self, localizer, interval_selector, opt):
@@ -165,7 +164,7 @@ class Worker(object):
             if not os.path.exists(opt.chunk_vid_home):
                 os.system(f'mkdir -p {opt.chunk_vid_home}')
                 all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
-                               not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home,'{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
+                                   not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
                 for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
                     with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
                         f.writelines(partial)
@@ -175,7 +174,8 @@ class Worker(object):
 
             pbar = tqdm(video_files)
             for video in pbar:
-                pbar.set_description(f"Processing ***** {os.path.basename(video)}")
+                pbar.set_description(
+                    f"Processing ***** {os.path.basename(video)}")
                 self._run(video, localizer, interval_selector, input_lines)
 
             prefix, ext = os.path.splitext(opt.input_file)
@@ -189,11 +189,11 @@ class Worker(object):
                 # todo. parameterize column selection func with opt
                 # target data part
                 create_target_df(meta_home=opt.meta_home, save_path=opt.target_file,
-                                 single_cols=['Velocity', 'Cadence', 'Functional Amb. Profile'],
+                                 single_cols=['Velocity', 'Cadence',
+                                              'Functional Amb. Profile'],
                                  pair_cols=['Cycle Time(sec)', 'Stride Length(cm)', 'HH Base Support(cm)',
                                             'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)', 'Toe In / Out']
                                  )
-
 
     def _run(self, video, localizer, interval_selector, input_lines=None):
         vid = os.path.splitext(os.path.basename(video))[0]
@@ -216,13 +216,12 @@ class Worker(object):
 
         # zero padding
         inputs = np.pad(inputs, ((0, self.opt.sample_duration - len(inputs)), (0, 0), (0, 0), (0, 0)),
-                                               'constant', constant_values=0)
+                        'constant', constant_values=0)
 
-        inputs = [ spatial_transform(Image.fromarray(img)) for img in inputs ]
-        inputs = torch.stack(inputs, 0).permute(1,0,2,3)
+        inputs = [spatial_transform(Image.fromarray(img)) for img in inputs]
+        inputs = torch.stack(inputs, 0).permute(1, 0, 2, 3)
 
         return inputs
-
 
     def _run_demo(self, net, video, localizer, interval_selector, spatial_transform, target_transform):
 
@@ -231,15 +230,17 @@ class Worker(object):
         self.opt.frame_home = None  # do not save arr (.npy)
 
         if self.opt.interval_sel == 'COP':
-           interval_selector = None   # referring COP means there is no interval selection methods at demo phase..
+            # referring COP means there is no interval selection methods at demo phase..
+            interval_selector = None
 
-        #todo. develop interval selection methods....\
+        # todo. develop interval selection methods....\
         # depth calculation / same ratio of human bboxes
 
         input_data = self._run(video, localizer, interval_selector)
         input_data = self._preprocess_inputdata(input_data, spatial_transform)
 
         y_pred = net(input_data[None, :])
-        y_pred = target_transform.inverse_transform(y_pred.detach().cpu().numpy())
+        y_pred = target_transform.inverse_transform(
+            y_pred.detach().cpu().numpy())
 
         return y_pred
