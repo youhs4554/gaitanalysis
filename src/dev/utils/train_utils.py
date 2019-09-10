@@ -1,9 +1,13 @@
+from sklearn.metrics.regression import r2_score
+from utils.generate_model import init_state
+from sklearn.model_selection import KFold
 import torch
 import time
 import os
 import numpy as np
 import csv
 from utils.target_columns import get_target_columns
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -47,7 +51,6 @@ class Logger(object):
         self.logger.writerow(write_values)
         self.log_file.flush()
 
-from sklearn.metrics.regression import r2_score
 
 def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
                 epoch_logger, score_func, target_transform):
@@ -69,7 +72,8 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
         loss = criterion(outputs, targets)
         score = score_func(
             target_transform.inverse_transform(targets.numpy()),
-            target_transform.inverse_transform(torch.cat(outputs).detach().cpu().numpy())
+            target_transform.inverse_transform(
+                torch.cat(outputs).detach().cpu().numpy())
         )
 
         losses.update(loss.item(), inputs.size(0))
@@ -105,8 +109,9 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
 
     if epoch % opt.checkpoint == 0:
         if opt.model_arch == 'HPP':
-            ckpt_dir = os.path.join(opt.ckpt_dir, opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch)
-        elif opt.model_arch == 'naive':
+            ckpt_dir = os.path.join(opt.ckpt_dir, opt.model_arch + '_' +
+                                    opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch)
+        else:
             ckpt_dir = os.path.join(opt.ckpt_dir,
                                     opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch)
 
@@ -141,7 +146,8 @@ def validate(epoch, split, data_loader, model, criterion, logger, score_func, ta
         loss = criterion(outputs, targets)
         score = score_func(
             target_transform.inverse_transform(targets.numpy()),
-            target_transform.inverse_transform(torch.cat(outputs).detach().cpu().numpy())
+            target_transform.inverse_transform(
+                torch.cat(outputs).detach().cpu().numpy())
         )
 
         losses.update(loss.item(), inputs.size(0))
@@ -164,13 +170,11 @@ def validate(epoch, split, data_loader, model, criterion, logger, score_func, ta
                   loss=losses,
                   score=scores))
 
-    logger.log({'epoch@split': f'{epoch}@{split}', 'loss': losses.avg, 'score': scores.avg})
+    logger.log({'epoch@split': f'{epoch}@{split}',
+                'loss': losses.avg, 'score': scores.avg})
 
     return losses.avg, scores.avg
 
-
-from sklearn.model_selection import KFold
-from utils.generate_model import init_state
 
 class Trainer(object):
     def __init__(self,
@@ -261,7 +265,8 @@ class Trainer(object):
             if not self.opt.warm_start:
                 # if warm-starting is False, re-init the state
                 print('Re-initializing states...')
-                self.model, self.optimizer, self.scheduler = init_state(self.opt)
+                self.model, self.optimizer, self.scheduler = init_state(
+                    self.opt)
 
         cv_result['avg_loss'] = cv_loss / self.opt.CV
         cv_result['avg_score'] = cv_score / self.opt.CV

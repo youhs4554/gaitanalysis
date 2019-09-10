@@ -21,6 +21,9 @@ from torch import nn
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.set_start_method('spawn', True)
+
     opt = parse_opts()
 
     target_columns = get_target_columns(opt)
@@ -56,7 +59,7 @@ if __name__ == "__main__":
         "train": Compose(
             [
                 # crop_method, #### disable crop method
-                RandomHorizontalFlip(),
+                # RandomHorizontalFlip(), ### disable flip
                 ToTensor(opt.norm_value),
                 norm_method,
             ]

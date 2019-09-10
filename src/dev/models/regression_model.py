@@ -1,26 +1,48 @@
 from __future__ import print_function, division
 
-from models.base_modules import *
+from .base_modules import (Concat, View, GAP, GMP, MultiInputSequential)
+import torch
 from torch import nn
-from torch.nn.functional import avg_pool2d, max_pool2d, softmax
+from torch.nn.functional import (
+    avg_pool2d, max_pool2d, softmax, relu, affine_grid, grid_sample)
+import math
+
+pooling_dim = {
+    'height': 2,
+    'width': 3
+}
+
+
+def calc_PaddingNeed(input_size, kernel_size, stride=1, dilation=1, groups=1):
+    effective_filter_size_rows = (kernel_size - 1) * dilation + 1
+    out_size = (input_size + stride - 1) // stride
+    padding_needed = max(
+        0, (out_size - 1) * stride + effective_filter_size_rows - input_size)
+
+    return padding_needed
+
 
 def horizontal_pyramid_pooling(conv_out, n_groups, squeeze=True, reduce='spatial'):
     avg_out = []
     max_out = []
 
     for n_bins in [2 ** x for x in range(n_groups)]:
-        bin_size = conv_out.size(2) // n_bins
-        group = torch.split(conv_out, bin_size, dim=2)  # tuple of splitted arr
+        bin_size = conv_out.size(pooling_dim.get(reduce)) // n_bins
+
+        group = torch.split(conv_out, bin_size, dim=pooling_dim.get(
+            reduce))  # tuple of splitted arr
 
         pooling_kernel_size = [group[0].size(2), group[0].size(3)]
 
-        if reduce=='height':
+        if reduce == 'height':
             pooling_kernel_size[1] = 1
-        elif reduce=='width':
+        elif reduce == 'width':
             pooling_kernel_size[0] = 1
 
-        avg_stacked = torch.stack([avg_pool2d(x, kernel_size=pooling_kernel_size) for x in group])
-        max_stacked = torch.stack([max_pool2d(x, kernel_size=pooling_kernel_size) for x in group])
+        avg_stacked = torch.stack(
+            [avg_pool2d(x, kernel_size=pooling_kernel_size) for x in group])
+        max_stacked = torch.stack(
+            [max_pool2d(x, kernel_size=pooling_kernel_size) for x in group])
 
         if squeeze:
             avg_stacked = avg_stacked.view(avg_stacked.size()[:-2])
@@ -31,6 +53,7 @@ def horizontal_pyramid_pooling(conv_out, n_groups, squeeze=True, reduce='spatial
 
     return avg_out, max_out
 
+
 class BackboneEmbeddingNet(nn.Module):
     def __init__(self,
                  backbone,
@@ -40,7 +63,7 @@ class BackboneEmbeddingNet(nn.Module):
 
         # input_shape = (b,3,50,384,128)
 
-        if backbone.module._get_name().lower()=='resnet':
+        if backbone.module._get_name().lower() == 'resnet':
             # (feats_len, feats_h, feats_w)
             _, self.fh, self.fw = backbone.module.avgpool.output_size
 
@@ -62,29 +85,43 @@ class BackboneEmbeddingNet(nn.Module):
 
         return x
 
+
 class MultiScale_Pooling_Net(nn.Module):
-    def __init__(self, n_groups, squeeze, reduce, cat_policy='group'):
+    def __init__(self, n_groups, squeeze, reduce, cat_policy='group', get_input=False):
         super(MultiScale_Pooling_Net, self).__init__()
         self.n_groups = n_groups
         self.squeeze = squeeze
         self.reduce = reduce
         self.cat_policy = cat_policy
+        self.get_input = get_input
 
     def forward(self, x):
-        avg_out, max_out = horizontal_pyramid_pooling(x, self.n_groups, squeeze=self.squeeze, reduce=self.reduce)
+        avg_out, max_out = horizontal_pyramid_pooling(
+            x, self.n_groups, squeeze=self.squeeze, reduce=self.reduce)
 
         if self.cat_policy == 'group':
             # group-wise concat of group features
             avg_out = torch.cat(avg_out)  # (1+2+4, b, C)
             max_out = torch.cat(max_out)  # (1+2+4, b, C)
         elif self.cat_policy == 'channel':
+            """
+                if reduce=='height',
+                    (b, (1+2+4)*C, 1, W)
+                elif reduce=='width',
+                    (b, (1+2+4)*C, H, 1)
+            """
             # channel-wise concat of group features
-            avg_out = torch.cat([torch.cat(e.split(1), 2).squeeze(0) for e in avg_out], 1)  # (b, (1+2+4)*C, 1, W)
-            max_out = torch.cat([torch.cat(e.split(1), 2).squeeze(0) for e in max_out], 1)  # (b, (1+2+4)*C, 1, W)
+            avg_out = torch.cat([torch.cat(e.split(1), 2).squeeze(0)
+                                 for e in avg_out], 1)
+            max_out = torch.cat([torch.cat(e.split(1), 2).squeeze(0)
+                                 for e in max_out], 1)
 
-        x = avg_out + max_out
+        res = avg_out + max_out
 
-        return x
+        if self.get_input:
+            return (res, x)
+
+        return res
 
 
 class MultiScale_Addition_Net(nn.Module):
@@ -95,8 +132,8 @@ class MultiScale_Addition_Net(nn.Module):
         for i in range(n_groups):
             self.add_module(f'conv_1x1_{i + 1}',
                             nn.Sequential(
-                            nn.Conv1d(input_dim, out_dim, kernel_size=1),
-                            nn.ReLU(True)))
+                                nn.Conv1d(input_dim, out_dim, kernel_size=1),
+                                nn.ReLU(True)))
 
     def forward(self, x):
         x = x.permute(1, 2, 0)  # (b, C, 1+2+4)
@@ -118,89 +155,31 @@ class MultiScale_Addition_Net(nn.Module):
 
         return res
 
-class MultiScale_1x1_base_Net(nn.Module):
-    def __init__(self, input_dim, num_units, out_dim, n_groups=3):
-        super(MultiScale_1x1_base_Net, self).__init__()
-        self.input_dim = input_dim
-        self.num_units = num_units
-        self.out_dim = out_dim
-        self.n_groups = n_groups
-
-        self.conv_1x1 = nn.Sequential(nn.Conv2d(input_dim, out_dim, kernel_size=1),
-                                   nn.BatchNorm2d(out_dim),
-                                   nn.ReLU(True))
-
-class MultiScale_1x1_Net(MultiScale_1x1_base_Net):
-    def __init__(self, *args, **kwargs):
-        super(MultiScale_1x1_Net, self).__init__(*args, **kwargs)
-
-    def forward(self, *inputs):
-        # x : (b, (1+2+4+...)*C, 1, W)
-        x = inputs[0]
-
-        # group merge type : 1x1 conv
-        res = self.conv_1x1(x)  # (b, C, 1, W)
-
-        # maxpool
-        res = max_pool2d(res, kernel_size=(1, res.size(-1))).view(res.size(0), -1)  # (b,C)
-
-        return res
 
 class MultiScale_Attention_Net(nn.Module):
-    def __init__(self, num_units, n_groups):
+    def __init__(self, embedding_dim, attention_dim):
         super(MultiScale_Attention_Net, self).__init__()
-        self.num_units = num_units
-        self.n_groups = n_groups
 
-    def forward(self, hpp_x, x):
-        # hpp_x : (b,C*2**(n_groups-1),1,W)
-        # x : (b,C,H,W)
+        self.multiScale_feats_att = nn.Linear(embedding_dim, attention_dim)
+        self.globalScale_feats_att = nn.Linear(embedding_dim, attention_dim)
+        self.full_att = nn.Linear(attention_dim, 1)
 
-        hpp_x = hpp_x.view(hpp_x.size(0), self.num_units, -1, hpp_x.size(-1))   # (b,C,2**(n_groups-1),W)
+    def forward(self, emb_x, x):
+        # emb_x : (b,embedding_dim)
+        # x : (b,number_of_pixels,embedding_dim)
 
-        # apply softmax along with groups index, to get importance of each grid group
-        #hpp_x = softmax(hpp_x, dim=2)
+        att1 = self.multiScale_feats_att(emb_x)     # (b,attention_dim)
 
-        groups = torch.split(hpp_x, 1, dim=2)  # tuple of splitted arrs
-        duplicated_groups = [ g.repeat(1,
-                                       1,
-                                       x.size(2) // 2**(self.n_groups-1),  # H/n_groups
-                                       1) for g in groups ]
+        # (b,number_of_pixels,attention_dim)
+        att2 = self.globalScale_feats_att(x)
 
-        alpha = torch.cat(duplicated_groups, dim=2)  # (b,C,H,W)
+        att = self.full_att(relu(att1.unsqueeze(1)+att2)
+                            ).squeeze(2)    # (b,number_of_pixels)
+        alpha = softmax(att, dim=1)  # (b,number_of_pixels)
 
-        # elementwise multiplication with attention value (alpha)
-        res = x*alpha
+        attended_x = (x*alpha.unsqueeze(2)).sum(dim=1)     # (b,embedding_dim)
 
-        # identity connection ?
-        #   res += x
-
-        return res
-
-
-
-
-
-class MultiScale_1x1_attention_Net(MultiScale_1x1_base_Net):
-    def __init__(self, *args, **kwargs):
-        super(MultiScale_1x1_attention_Net, self).__init__(*args, **kwargs)
-        self.model = MultiScale_Attention_Net(num_units=self.num_units,
-                                              n_groups=self.n_groups)
-
-    def forward(self, hpp_x, x):
-        # hpp_x : (b, (1+2+4+...)*C, 1, W)
-        # x : (b,C,H,W)
-
-        # group merge type : 1x1 conv
-        hpp_x = self.conv_1x1(hpp_x)  # (b, C*n_groups, H, W)
-
-        # attention mechanism
-        res = self.model(hpp_x, x)
-
-        # GMP
-        res = max_pool2d(res, kernel_size=(res.size(2), res.size(3))).view(res.size(0), -1)  # (b,C))
-
-        return res
+        return attended_x
 
 
 class Naive_Flatten_Net(nn.Module):
@@ -218,7 +197,6 @@ class Naive_Flatten_Net(nn.Module):
 
         self.model = nn.Sequential(View(-1, num_units * self.backbone.fh * self.backbone.fw),
                                    nn.Linear(num_units * self.backbone.fh * self.backbone.fw, n_factors))
-
 
     def forward(self, x):
 
@@ -243,7 +221,8 @@ class HPP_Addition_Net(nn.Module):
         # feature embedding layer (common)
         self.backbone = BackboneEmbeddingNet(backbone, num_units)
 
-        self.multiscale_pooling = MultiScale_Pooling_Net(n_groups, squeeze=True, reduce='spatial', cat_policy='group')
+        self.multiscale_pooling = MultiScale_Pooling_Net(
+            n_groups, squeeze=True, reduce='spatial', cat_policy='group')
 
         self.model = nn.Sequential(MultiScale_Addition_Net(input_dim=num_units, out_dim=num_units, n_groups=n_groups),
                                    nn.Dropout(drop_rate),
@@ -258,6 +237,33 @@ class HPP_Addition_Net(nn.Module):
         return x
 
 
+class Conv_1x1_Embedding(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(Conv_1x1_Embedding, self).__init__()
+        self.conv_1x1 = nn.Sequential(nn.Conv2d(*args, **kwargs),
+                                      nn.BatchNorm2d(kwargs['out_channels']),
+                                      nn.ReLU(True))
+
+    def __call__(self, *inputs):
+        if len(inputs) == 2:
+            x_cat, x = inputs
+
+            x_emb = self.conv_1x1(x_cat)    # (b,C,H,1) or (b,C,1,W)
+
+            # avgpool
+            x_emb = avg_pool2d(x_emb,
+                               kernel_size=(x_emb.size(2), x_emb.size(3))).view(x_emb.size(0), -1)  # (b,C)
+
+            # transpose x for attention
+            x = x.permute(0, 2, 3, 1)   # (b,H,W,C)
+            # (b,number_of_pixels,C)
+            x = x.view(x.size(0), -1, x.size(3))
+
+            return x_emb, x
+        else:
+            return self.conv_1x1(*inputs)
+
+
 class HPP_1x1_Net(nn.Module):
     def __init__(self,
                  num_units,
@@ -270,34 +276,182 @@ class HPP_1x1_Net(nn.Module):
         super(HPP_1x1_Net, self).__init__()
 
         # input_shape = (b,3,50,384,128)
+        layers = []
 
         # feature embedding layer (common)
-        self.backbone = BackboneEmbeddingNet(backbone, num_units)
-        self.multiscale_pooling = MultiScale_Pooling_Net(n_groups, squeeze=False, reduce='height', cat_policy='channel')
+        layers.append(BackboneEmbeddingNet(backbone, num_units))
+
+        # HPP layer : Multi-scaled feats
+        layers.append(MultiScale_Pooling_Net(
+            n_groups, squeeze=False, reduce='width', cat_policy='channel', get_input=attention))
+
+        # conv_1x1 layer : Embed HPP feats
+        layers.append(Conv_1x1_Embedding(in_channels=num_units * sum([2 ** x for x in range(n_groups)]),
+                                         out_channels=num_units, kernel_size=1))
 
         if attention:
-            input_dim = num_units * sum([2 ** x for x in range(n_groups)])
-            out_dim = num_units * (2 ** (n_groups - 1))
+            # attention layer
+            layers.append(MultiScale_Attention_Net(
+                num_units, num_units//2))
 
-            multiscale_net = MultiScale_1x1_attention_Net(input_dim=input_dim, num_units=num_units,
-                                                      out_dim=out_dim, n_groups=n_groups)
-        else:
-            input_dim = num_units * sum([2 ** x for x in range(n_groups)])
-            out_dim = num_units
+        # regression layer : single FC
+        layers.append(nn.Sequential(nn.Dropout(drop_rate),
+                                    nn.Linear(num_units, n_factors)))
 
-            multiscale_net = MultiScale_1x1_Net(input_dim=input_dim, num_units=num_units,
-                                                      out_dim=out_dim, n_groups=n_groups)
-
-        self.multiscale_net = multiscale_net
-
-        self.regressor = nn.Sequential(nn.Dropout(drop_rate),
-                                   nn.Linear(num_units, n_factors))
-
+        self.model = MultiInputSequential(*layers)
 
     def forward(self, x):
-        feats = self.backbone(x)  # (b,C,H,W)
-        hpp_x = self.multiscale_pooling(feats)  # (b, (1+2+4+...)*C, 1, W)
-        res = self.multiscale_net(hpp_x, feats)
-        res = self.regressor(res)
+        x = self.model(x)
+        return x
 
-        return res
+
+class SpatialPyramid(nn.Module):
+    def __init__(self, backbone, dilation_config, num_units, n_factors, kernel_size=3, drop_rate=0.0):
+        super(SpatialPyramid, self).__init__()
+
+        # (feature_channels, feature_length, feature_height, feature_width)
+        self._fC, self._fL, self._fH, self._fW = backbone.module.fc.in_features, * \
+            backbone.module.avgpool.output_size
+
+        # except last fc layer from pretreaind backboneNet
+        self.backbone = nn.Sequential(*list(backbone.module.children())[:-1])
+
+        self.pyramid = nn.ModuleList([self._makePyramid(
+            _dilation=_dil, _num_units=num_units, _kernel_size=kernel_size) for _dil in dilation_config])
+
+        self.conv_1x1 = nn.Sequential(
+            nn.Conv3d(num_units * len(dilation_config),
+                      num_units, kernel_size=1),
+            nn.BatchNorm3d(num_units),
+            nn.ReLU()
+        )
+
+        self.reg = nn.Sequential(nn.Dropout(drop_rate),
+                                 nn.Linear(num_units, n_factors))
+
+    def _makePyramid(self, _dilation, _num_units, _kernel_size):
+
+        layers = []
+
+        padding_need = [math.floor(calc_PaddingNeed(
+            input_size=_inSize, kernel_size=_kernel_size, dilation=_dilation)/2) for _inSize in [self._fL, self._fH, self._fW]]
+
+        layers += [
+            nn.Conv3d(self._fC, _num_units, _kernel_size,
+                      padding=padding_need, dilation=_dilation),
+            nn.BatchNorm3d(_num_units),
+            nn.ReLU(),
+            nn.Conv3d(
+                _num_units, _num_units, kernel_size=1),
+            nn.BatchNorm3d(_num_units),
+            nn.ReLU(),
+            nn.Conv3d(
+                _num_units, _num_units, kernel_size=1)
+        ]
+
+        return nn.Sequential(*layers)
+
+    def __call__(self, x):
+        # x : (N,C,D,H,W)
+        x = self.backbone(x)
+
+        res = []
+        for m in self.pyramid:
+            res.append(m(x))
+
+        # concat and conv_1x1
+        x = torch.cat(res, dim=1)
+        x = self.conv_1x1(x)
+        x = torch.mean(x, (2, 3, 4))    # mean
+        x = self.reg(x)                 # regression
+
+        return x
+
+
+class DeepFFT(nn.Module):
+    def __init__(self, backbone, n_factors, num_freq=1, drop_rate=0.0):
+        super(DeepFFT,  self).__init__()
+        num_feats = backbone.fc.in_features
+        self.num_freq = num_freq
+
+        self.backbone = nn.Sequential(*list(backbone.children())[:-1])
+        self.convViz = self._build_coreNet(
+            {
+                'conv': {
+                    'in_channels': [2048, 2048, 1024, 512, 512],
+                    'out_channels': [2048, 1024, 512, 512, 256],
+                    'kernel_size': [3]*4+[1],
+                    'stride': [2]*4+[1],
+                    'padding': [0]+[1]*3+[0]
+                },
+                'bn': {
+                    'num_features': [2048, 1024, 512, 512, 256],
+                }
+            }
+        )
+        self.convFreq = self._build_coreNet(
+            {
+                'conv': {
+                    'in_channels': [2048, 2048, 1024, 512, 512],
+                    'out_channels': [2048, 1024, 512, 512, 256],
+                    'kernel_size': [3]*4+[1],
+                    'stride': [2]*4+[1],
+                    'padding': [1]*4+[0]
+                },
+                'bn': {
+                    'num_features': [2048, 1024, 512, 512, 256],
+                }
+            }
+        )
+
+        self.fc = nn.Sequential(nn.Dropout(drop_rate),
+                                nn.Linear(3*2*256, n_factors))
+
+    def _build_convBlock(self, *args, **kwargs):
+        conv_args = args[0]
+        bn_args = args[1]
+
+        return nn.Sequential(nn.Conv1d(*conv_args),
+                             nn.BatchNorm1d(*bn_args),
+                             nn.ReLU())
+
+    def _build_coreNet(self, layer_configs):
+        layers = []
+        conv_configs = layer_configs['conv']
+        bn_configs = layer_configs['bn']
+
+        for c, b in zip(zip(*conv_configs.values()), zip(*bn_configs.values())):
+            layers.append(self._build_convBlock(c, b))
+
+        return nn.Sequential(*layers)
+
+    def __call__(self, x):
+        # x : (N,C,L,H,W)
+        feats = []
+        xs = x.permute(2, 0, 1, 3, 4)
+
+        for xt in xs:
+            conv_feats = self.backbone(xt).squeeze(dim=3)
+            feats.append(conv_feats)
+
+        feats = torch.stack(feats, dim=0).permute(1, 2, 0, 3)  # (N, C, L, 1)
+
+        im = torch.zeros_like(feats)  # (N,C,L,1)
+        xr = feats
+        xc = torch.cat([xr, im], dim=3)
+        # tensor with last dimension 2 (real+imag) , 1 is signal dimension
+        fr = torch.fft(xc, signal_ndim=1)
+
+        fft_r = fr[:, :, :self.num_freq, 0]
+        fft_i = fr[:, :, :self.num_freq, 1]
+
+        fft = torch.sqrt(fft_r**2+fft_i**2)
+
+        x_viz = self.convViz(feats.squeeze(dim=3)).permute(0, 2, 1)
+        x_freq = self.convFreq(fft).permute(0, 2, 1)
+
+        x_cat = torch.cat([x_viz, x_freq], dim=2)
+
+        x = self.fc(x_cat.view(x_cat.size(0), -1))
+
+        return x

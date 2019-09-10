@@ -1,8 +1,8 @@
 import argparse
 
+
 def parse_opts():
     parser = argparse.ArgumentParser()
-
 
     parser.add_argument(
         '--dataset',
@@ -73,7 +73,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--pretrained_path',
-        default='./pretrained/resnet-50-kinetics.pth',
+        default='',
         type=str,
         help='Path to pretrained model file',
     )
@@ -81,7 +81,7 @@ def parse_opts():
         '--backbone',
         default=None,
         type=str,
-        help='Which networks to use ( resnet | others )',
+        help='Which networks to use ( 3D-resnet | 2D-resnet )',
     )
     parser.add_argument(
         '--model_depth',
@@ -103,7 +103,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--sample_size',
-        default=(384,128),
+        default=(384, 128),
         type=tuple,
         help='Input image size (h,w) fed into backbone',
     )
@@ -182,15 +182,13 @@ def parse_opts():
         '--train_crop',
         default='',
         type=str,
-        help=
-        'Spatial cropping method in training. random is uniform. corner is selection from 4 corners and 1 center.  (random | corner | center)'
+        help='Spatial cropping method in training. random is uniform. corner is selection from 4 corners and 1 center.  (random | corner | center)'
     )
     parser.add_argument(
         '--learning_rate',
         default=1e-4,
         type=float,
-        help=
-        'Initial learning rate (divided by 10 while training by lr scheduler)')
+        help='Initial learning rate (divided by 10 while training by lr scheduler)')
     parser.add_argument('--momentum', default=0.9, type=float, help='Momentum')
     parser.add_argument(
         '--dampening', default=0.9, type=float, help='dampening of SGD')
@@ -200,13 +198,12 @@ def parse_opts():
         '--mean_dataset',
         default='activitynet',
         type=str,
-        help=
-        'dataset for mean values of mean subtraction (activitynet | kinetics)')
+        help='dataset for mean values of mean subtraction (activitynet | kinetics)')
     parser.add_argument(
         '--no_mean_norm',
         action='store_true',
         help='If true, inputs are not normalized by mean.')
-    parser.set_defaults(no_mean_norm=True)
+    parser.set_defaults(no_mean_norm=False)
     parser.add_argument(
         '--std_norm',
         action='store_true',
@@ -216,8 +213,7 @@ def parse_opts():
         '--norm_value',
         default=1,
         type=int,
-        help=
-        'If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
+        help='If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
     parser.add_argument(
         '--nesterov', action='store_true', help='Nesterov momentum')
     parser.set_defaults(nesterov=False)
@@ -313,7 +309,3 @@ def parse_opts():
     args = parser.parse_args()
 
     return args
-
-
-
-
