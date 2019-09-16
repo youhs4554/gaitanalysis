@@ -112,14 +112,13 @@ class GAITDataset(Dataset):
                  y,
                  opt,
                  input_transform=None, target_transform=None,
-                 name=None):
+                 load_pretrained=None):
 
         self.X = X
         self.y = y
         self.vids = list(set(X.vids))
 
-        self.frame_home = opt.frame_home
-        self.name = name
+        self.load_pretrained = load_pretrained
 
         self.sample_duration = opt.sample_duration
 
@@ -138,26 +137,36 @@ class GAITDataset(Dataset):
     def __getitem__(self, idx):
         vid = self.vids[idx]
 
-        inputs = []
+        if self.load_pretrained:
+            inputs = np.load(os.path.join(
+                self.opt.data_root, vid)+'.npy')
+            inputs = inputs[::self.opt.delta]
 
-        stacked_arr = np.load(os.path.join(self.frame_home, vid) + '.npy')
+            # zero padding
+            # inputs = zero_padding!!
+        else:
+            inputs = []
+            stacked_arr = np.load(os.path.join(
+                self.opt.data_root, vid) + '.npy')
 
-        for cropped in stacked_arr[::self.opt.delta]:
-            img = cv2.resize(cropped, self.opt.sample_size[::-1])
-            inputs.append(img)
+            for cropped in stacked_arr[::self.opt.delta]:
+                img = cv2.resize(cropped, self.opt.sample_size[::-1])
+                inputs.append(img)
 
-        # zero padding
-        inputs = np.pad(inputs, ((0, self.sample_duration - len(inputs)),
-                                 (0, 0), (0, 0), (0, 0)),
-                        'constant', constant_values=0)
+            # zero padding
+            inputs = np.pad(inputs, ((0, self.sample_duration - len(inputs)),
+                                     (0, 0), (0, 0), (0, 0)),
+                            'constant', constant_values=0)
 
-        if self.input_transform:
-            self.input_transform.randomize_parameters()
-            inputs = [self.input_transform(
-                Image.fromarray(img)) for img in inputs]
+            if self.input_transform:
+                self.input_transform.randomize_parameters()
+                inputs = [self.input_transform(
+                    Image.fromarray(img)) for img in inputs]
 
-        inputs = torch.stack(inputs, 0).permute(1, 0, 2, 3)
+            inputs = torch.stack(inputs, 0).permute(1, 0, 2, 3)
+
+        # target is always same!
         targets = torch.tensor(
             self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
 
-        return inputs, targets
+        return inputs, targets, vid

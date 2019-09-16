@@ -30,10 +30,10 @@ def parse_opts():
     )
 
     parser.add_argument(
-        '--frame_home',
+        '--data_root',
         default="/data/GaitData/CroppedFrameArrays",
         type=str,
-        help='Directory path of frames cropped by YOLO',
+        help='Directory path of data',
     )
     parser.add_argument(
         '--video_home',
@@ -152,7 +152,7 @@ def parse_opts():
         '--mode',
         default='train',
         type=str,
-        help='Specify mode ( train | test | demo )',
+        help='Specify mode ( train | test | demo | preprocess__frame | preprocess__feature )',
     )
     parser.add_argument(
         '--batch_size',
@@ -198,7 +198,7 @@ def parse_opts():
         '--mean_dataset',
         default='activitynet',
         type=str,
-        help='dataset for mean values of mean subtraction (activitynet | kinetics)')
+        help='dataset for mean values of mean subtraction (imagenet | activitynet | kinetics)')
     parser.add_argument(
         '--no_mean_norm',
         action='store_true',

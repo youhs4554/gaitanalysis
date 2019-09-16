@@ -11,7 +11,7 @@ from PIL import Image
 import torch
 import pandas as pd
 import os
-
+import numpy as np
 
 # # Add COP Files containing start/end timing info
 
@@ -204,7 +204,7 @@ class Worker(object):
             start_end = interval_selector.get_interval(vid=vid)
 
         return run_tracker(localizer, video, tracking_log, maxlen=self.opt.maxlen,
-                           save_dir=self.opt.frame_home, input_lines=input_lines, start_end=start_end,
+                           save_dir=self.opt.data_root, input_lines=input_lines, start_end=start_end,
                            analize=False, plot_dist=False)
 
     def _preprocess_inputdata(self, input_data, spatial_transform):
@@ -227,7 +227,7 @@ class Worker(object):
 
         net.eval()
 
-        self.opt.frame_home = None  # do not save arr (.npy)
+        self.opt.data_root = None  # do not save arr (.npy)
 
         if self.opt.interval_sel == 'COP':
             # referring COP means there is no interval selection methods at demo phase..

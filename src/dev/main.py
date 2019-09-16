@@ -38,12 +38,10 @@ if __name__ == "__main__":
 
     opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
     opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
-    opt.std = get_std(opt.norm_value)
+    opt.std = get_std(opt.norm_value, dataset=opt.mean_dataset)
 
     if opt.no_mean_norm and not opt.std_norm:
         norm_method = Normalize([0, 0, 0], [1, 1, 1])
-    elif not opt.std_norm:
-        norm_method = Normalize(opt.mean, [1, 1, 1])
     else:
         norm_method = Normalize(opt.mean, opt.std)
 
