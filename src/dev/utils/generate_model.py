@@ -16,11 +16,13 @@ def generate_backbone(opt):
     if opt.backbone == '3D-resnet':
         if opt.model_depth == 50:
             net = resnet.resnet50(
-                sample_size=opt.sample_size, sample_duration=opt.sample_duration)
+                sample_size=opt.sample_size,
+                sample_duration=opt.sample_duration)
 
         elif opt.model_depth == 101:
             net = resnet.resnet101(
-                sample_size=opt.sample_size, sample_duration=opt.sample_duration)
+                sample_size=opt.sample_size,
+                sample_duration=opt.sample_duration)
 
         else:
             ValueError("Invalid model depth")
@@ -63,16 +65,21 @@ def generate_regression_model(backbone, opt):
         if opt.model_arch == 'SPP':
             net = regression_model.SpatialPyramid(
                 backbone=backbone, dilation_config=(1, 6, 12, 18, 24),
-                num_units=opt.num_units, n_factors=opt.n_factors, kernel_size=3, drop_rate=opt.drop_rate)
+                num_units=opt.num_units, n_factors=opt.n_factors,
+                kernel_size=3, drop_rate=opt.drop_rate)
 
         if opt.model_arch == "HPP":
             if opt.merge_type == 'addition':
-                net = regression_model.HPP_Addition_Net(num_units=opt.num_units, n_factors=opt.n_factors, backbone=backbone, drop_rate=opt.drop_rate,
-                                                        n_groups=opt.n_groups)
+                net = regression_model.HPP_Addition_Net(
+                    num_units=opt.num_units, n_factors=opt.n_factors,
+                    backbone=backbone, drop_rate=opt.drop_rate,
+                    n_groups=opt.n_groups)
             elif opt.merge_type == '1x1_C':
-                net = regression_model.HPP_1x1_Net(num_units=opt.num_units, n_factors=opt.n_factors, backbone=backbone, drop_rate=opt.drop_rate,
-                                                   attention=opt.attention,
-                                                   n_groups=opt.n_groups)
+                net = regression_model.HPP_1x1_Net(
+                    num_units=opt.num_units, n_factors=opt.n_factors,
+                    backbone=backbone, drop_rate=opt.drop_rate,
+                    attention=opt.attention,
+                    n_groups=opt.n_groups)
 
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
@@ -81,7 +88,8 @@ def generate_regression_model(backbone, opt):
     elif opt.backbone == "2D-resnet":
         if opt.model_arch == 'DeepFFT':
             net = regression_model.DeepFFT(
-                backbone, n_factors=opt.n_factors, num_freq=46, drop_rate=opt.drop_rate)
+                backbone, n_factors=opt.n_factors,
+                num_freq=100, drop_rate=opt.drop_rate)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
@@ -119,13 +127,16 @@ def init_state(opt):
 
 def load_trained_ckpt(opt, net):
     if opt.model_arch == 'HPP':
-        model_path = os.path.join(opt.ckpt_dir,
-                                  opt.model_arch + '_' + opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch,
-                                  'save_' + opt.test_epoch + '.pth')
+        model_path = os.path.join(
+            opt.ckpt_dir,
+            opt.model_arch + '_' + opt.merge_type
+            + '_' + 'finetuned_with' + '_' + opt.arch,
+            'save_' + opt.test_epoch + '.pth')
     elif opt.model_arch == 'naive':
-        model_path = os.path.join(opt.ckpt_dir,
-                                  opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,
-                                  'save_' + opt.test_epoch + '.pth')
+        model_path = os.path.join(
+            opt.ckpt_dir,
+            opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,
+            'save_' + opt.test_epoch + '.pth')
 
     print(f"Load trained model from {model_path}...")
 

@@ -110,10 +110,12 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
     if epoch % opt.checkpoint == 0:
         if opt.model_arch == 'HPP':
             ckpt_dir = os.path.join(opt.ckpt_dir, opt.model_arch + '_' +
-                                    opt.merge_type + '_' + 'finetuned_with' + '_' + opt.arch)
+                                    opt.merge_type + '_' +
+                                    'finetuned_with' + '_' + opt.arch)
         else:
             ckpt_dir = os.path.join(opt.ckpt_dir,
-                                    opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch)
+                                    opt.model_arch + '_' +
+                                    'finetuned_with' + '_' + opt.arch)
 
         if not os.path.exists(ckpt_dir):
             os.system(f'mkdir -p {ckpt_dir}')
@@ -128,7 +130,8 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
         torch.save(states, save_file_path)
 
 
-def validate(epoch, split, data_loader, model, criterion, logger, score_func, target_transform):
+def validate(epoch, split, data_loader,
+             model, criterion, logger, score_func, target_transform):
     print('validation at epoch {} @ split-{}'.format(epoch, split))
 
     model.eval()
@@ -220,21 +223,32 @@ class Trainer(object):
             train_vids, valid_vids = entire_vids[train], entire_vids[valid]
 
             train_loader = dataloader_generator(self.opt, ds, train_vids,
-                                                self.input_transform, self.target_transform, shuffle=True)
+                                                self.input_transform,
+                                                self.target_transform,
+                                                shuffle=True)
             valid_loader = dataloader_generator(self.opt, ds, valid_vids,
-                                                self.input_transform, self.target_transform, shuffle=False)
+                                                self.input_transform,
+                                                self.target_transform,
+                                                shuffle=False)
 
             epoch_status = defaultdict(list)
 
             for epoch in range(self.opt.n_iter):
                 # train loop
-                train_epoch(epoch, split, train_loader, self.model, self.criterion, self.optimizer,
-                            self.opt, self.train_logger, self.score_func, self.target_transform)
+                train_epoch(epoch, split, train_loader, self.model,
+                            self.criterion, self.optimizer,
+                            self.opt, self.train_logger,
+                            self.score_func, self.target_transform)
 
                 with torch.no_grad():
                     # at every train epoch, validate model!
-                    valid_loss, valid_score = validate(epoch, split, valid_loader, self.model, self.criterion,
-                                                       self.valid_logger, self.score_func, self.target_transform)
+                    valid_loss, valid_score = validate(epoch, split,
+                                                       valid_loader,
+                                                       self.model,
+                                                       self.criterion,
+                                                       self.valid_logger,
+                                                       self.score_func,
+                                                       self.target_transform)
 
                 self.scheduler.step(valid_loss,)
 
@@ -244,13 +258,18 @@ class Trainer(object):
             avg_loss = np.mean(epoch_status['loss'])
             avg_score = np.mean(epoch_status['score'])
 
-            # todo. early stopping based on avg_loss or avg_score, and user might select criterion
+            # todo. early stopping based on avg_loss or avg_score,
+            # and user might select criterion
 
             # todo.\
-            #  best model selection functionality can be added, if we need the hyperparameter searching algorithm (e.g. Gridsearch | Randomsearch | etc.) \
+            #  best model selection functionality can be added,
+            # if we need the hyperparameter searching algorithm
+            # (e.g. Gridsearch | Randomsearch | etc.) \
 
             # todo. \
-            #  best model selection can be implented by running .fit function parallel manner... after running all iterations, we can select best model based on
+            #  best model selection can be implented by running .fit function
+            # parallel manner... after running all iterations, we can select
+            # best model based on
             #  avg_loss or avg_score
 
             cv_result[f'split-{split}'].append(

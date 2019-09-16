@@ -1,13 +1,18 @@
-## flask....
+# flask....
 
 import os
-from flask import Flask, flash, request, redirect, url_for, render_template, session, jsonify
+import time
+
+from flask import (Flask, flash, request, redirect,
+                   render_template, session)
 import json
 from utils.generate_model import load_trained_ckpt
-import datetime
 import pandas as pd
-from .utils import VariableInterface, fetch_file, run_model, write_result, success_callback, BadRequestException, bad_request
-from .db import HIS_Database
+from demo.utils import (VariableInterface, fetch_file, run_model,
+                        write_result, success_callback,
+                        BadRequestException, bad_request)
+from demo.db import HIS_Database
+
 
 class Runner():
     def __init__(self, opt, net, localizer, interval_selector, worker,
@@ -23,16 +28,17 @@ class Runner():
         self.net = load_trained_ckpt(opt, net)
 
     def run(self, path):
-        import time
-
         t0 = time.time()
-        y_pred = self.worker._run_demo(self.net, path, self.localizer, self.interval_selector,
-                                  spatial_transform=self.spatial_transform['test'],
-                                  target_transform=self.target_transform)
+        y_pred = self.worker._run_demo(
+            self.net, path, self.localizer,
+            self.interval_selector,
+            spatial_transform=self.spatial_transform['test'],
+            target_transform=self.target_transform)
         print('runtime : ', time.time() - t0)
 
         return {'pos': self.target_columns,
                 'val': y_pred[0].tolist()}
+
 
 # model
 runner = None
@@ -50,13 +56,16 @@ app.config['SESSION_TYPE'] = 'filesystem'
 # db instance
 VariableInterface.db = HIS_Database()
 
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/', methods=['GET','POST'])
+
+@app.route('/', methods=['GET', 'POST'])
 def main():
     return render_template('index.html')
+
 
 @app.route('/upload_file', methods=['POST'])
 def upload_file():
@@ -77,6 +86,7 @@ def upload_file():
 
     return redirect('/')
 
+
 @app.route('/api')
 def api_call():
     # from request.get
@@ -90,13 +100,20 @@ def api_call():
     VariableInterface.DATA_PREFIX = "http://192.168.100.121/his031edu/attach"
     VariableInterface.VIDEO_PATH = './demo/static/tmp.avi'
 
-    data = pd.read_sql("SELECT * FROM com.zfmmfile", VariableInterface.db._engine)
-    VariableInterface.query_res = data.query('filekey==@VariableInterface.FILEKEY and fileseq==@VariableInterface.FILESEQ')
+    data = pd.read_sql("SELECT * FROM com.zfmmfile",
+                       VariableInterface.db._engine)
+    VariableInterface.query_res = data.query(
+        """
+        filekey==@VariableInterface.FILEKEY
+        and fileseq==@VariableInterface.FILESEQ
+        """)
 
-    VariableInterface.codeNameTable = json.load(open('./demo/static/codeNameTable.json'))
+    VariableInterface.codeNameTable = json.load(
+        open('./demo/static/codeNameTable.json'))
 
     # default response
-    VariableInterface.response = bad_request(status='ERR', message='Unknown Error.')
+    VariableInterface.response = bad_request(
+        status='ERR', message='Unknown Error.')
 
     try:
         # fetch video file!
@@ -111,10 +128,11 @@ def api_call():
         # callback of success, notifying task is done!
         success_callback()
 
-    except BadRequestException as e:
+    except BadRequestException:
         return VariableInterface.BadResponse
 
     return VariableInterface.GreetingResponse
+
 
 @app.route('/run')
 def run():
@@ -145,6 +163,7 @@ def stat():
 def set_runner(*args, **kwargs):
     global runner
     VariableInterface.runner = runner = Runner(*args, **kwargs)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=40000)

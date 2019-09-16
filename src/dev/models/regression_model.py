@@ -1,10 +1,11 @@
 from __future__ import print_function, division
 
-from .base_modules import (Concat, View, GAP, GMP, MultiInputSequential)
+from models.base_modules import (
+    View, MultiInputSequential)
 import torch
 from torch import nn
 from torch.nn.functional import (
-    avg_pool2d, max_pool2d, softmax, relu, affine_grid, grid_sample)
+    avg_pool2d, max_pool2d, softmax, relu, )
 import math
 
 pooling_dim = {
@@ -22,7 +23,8 @@ def calc_PaddingNeed(input_size, kernel_size, stride=1, dilation=1, groups=1):
     return padding_needed
 
 
-def horizontal_pyramid_pooling(conv_out, n_groups, squeeze=True, reduce='spatial'):
+def horizontal_pyramid_pooling(conv_out, n_groups,
+                               squeeze=True, reduce='spatial'):
     avg_out = []
     max_out = []
 
@@ -68,9 +70,11 @@ class BackboneEmbeddingNet(nn.Module):
             _, self.fh, self.fw = backbone.module.avgpool.output_size
 
             # replace last layer with 1x1 conv
-            backbone.module.fc = nn.Sequential(nn.Conv3d(backbone.module.fc.in_features, num_units, kernel_size=1),
-                                               nn.BatchNorm3d(num_units),
-                                               nn.ReLU(True))
+            backbone.module.fc = nn.Sequential(
+                nn.Conv3d(backbone.module.fc.in_features,
+                          num_units, kernel_size=1),
+                nn.BatchNorm3d(num_units),
+                nn.ReLU(True))
 
         else:
             NotImplementedError('later..')
@@ -87,7 +91,8 @@ class BackboneEmbeddingNet(nn.Module):
 
 
 class MultiScale_Pooling_Net(nn.Module):
-    def __init__(self, n_groups, squeeze, reduce, cat_policy='group', get_input=False):
+    def __init__(self, n_groups, squeeze, reduce,
+                 cat_policy='group', get_input=False):
         super(MultiScale_Pooling_Net, self).__init__()
         self.n_groups = n_groups
         self.squeeze = squeeze
@@ -195,8 +200,10 @@ class Naive_Flatten_Net(nn.Module):
         # feature embedding layer (common)
         self.backbone = BackboneEmbeddingNet(backbone, num_units)
 
-        self.model = nn.Sequential(View(-1, num_units * self.backbone.fh * self.backbone.fw),
-                                   nn.Linear(num_units * self.backbone.fh * self.backbone.fw, n_factors))
+        self.model = nn.Sequential(
+            View(-1, num_units * self.backbone.fh * self.backbone.fw),
+            nn.Linear(
+                num_units * self.backbone.fh * self.backbone.fw, n_factors))
 
     def forward(self, x):
 
@@ -224,9 +231,11 @@ class HPP_Addition_Net(nn.Module):
         self.multiscale_pooling = MultiScale_Pooling_Net(
             n_groups, squeeze=True, reduce='spatial', cat_policy='group')
 
-        self.model = nn.Sequential(MultiScale_Addition_Net(input_dim=num_units, out_dim=num_units, n_groups=n_groups),
-                                   nn.Dropout(drop_rate),
-                                   nn.Linear(num_units, n_factors))
+        self.model = nn.Sequential(
+            MultiScale_Addition_Net(input_dim=num_units,
+                                    out_dim=num_units, n_groups=n_groups),
+            nn.Dropout(drop_rate),
+            nn.Linear(num_units, n_factors))
 
     def forward(self, x):
 
@@ -251,8 +260,10 @@ class Conv_1x1_Embedding(nn.Module):
             x_emb = self.conv_1x1(x_cat)    # (b,C,H,1) or (b,C,1,W)
 
             # avgpool
-            x_emb = avg_pool2d(x_emb,
-                               kernel_size=(x_emb.size(2), x_emb.size(3))).view(x_emb.size(0), -1)  # (b,C)
+            x_emb = avg_pool2d(
+                x_emb,
+                kernel_size=(x_emb.size(2), x_emb.size(3))).view(
+                    x_emb.size(0), -1)  # (b,C)
 
             # transpose x for attention
             x = x.permute(0, 2, 3, 1)   # (b,H,W,C)
@@ -283,11 +294,14 @@ class HPP_1x1_Net(nn.Module):
 
         # HPP layer : Multi-scaled feats
         layers.append(MultiScale_Pooling_Net(
-            n_groups, squeeze=False, reduce='width', cat_policy='channel', get_input=attention))
+            n_groups, squeeze=False, reduce='width',
+            cat_policy='channel', get_input=attention))
 
         # conv_1x1 layer : Embed HPP feats
-        layers.append(Conv_1x1_Embedding(in_channels=num_units * sum([2 ** x for x in range(n_groups)]),
-                                         out_channels=num_units, kernel_size=1))
+        layers.append(
+            Conv_1x1_Embedding(
+                in_channels=num_units * sum([2 ** x for x in range(n_groups)]),
+                out_channels=num_units, kernel_size=1))
 
         if attention:
             # attention layer
@@ -306,18 +320,22 @@ class HPP_1x1_Net(nn.Module):
 
 
 class SpatialPyramid(nn.Module):
-    def __init__(self, backbone, dilation_config, num_units, n_factors, kernel_size=3, drop_rate=0.0):
+    def __init__(self, backbone, dilation_config,
+                 num_units, n_factors, kernel_size=3, drop_rate=0.0):
         super(SpatialPyramid, self).__init__()
 
         # (feature_channels, feature_length, feature_height, feature_width)
-        self._fC, self._fL, self._fH, self._fW = backbone.module.fc.in_features, * \
-            backbone.module.avgpool.output_size
+        self._fC, self._fL, self._fH, self._fW =\
+            backbone.module.fc.in_features, \
+            *backbone.module.avgpool.output_size
 
         # except last fc layer from pretreaind backboneNet
         self.backbone = nn.Sequential(*list(backbone.module.children())[:-1])
 
-        self.pyramid = nn.ModuleList([self._makePyramid(
-            _dilation=_dil, _num_units=num_units, _kernel_size=kernel_size) for _dil in dilation_config])
+        self.pyramid = nn.ModuleList(
+            [self._makePyramid(
+                _dilation=_dil, _num_units=num_units, _kernel_size=kernel_size)
+                for _dil in dilation_config])
 
         self.conv_1x1 = nn.Sequential(
             nn.Conv3d(num_units * len(dilation_config),
@@ -333,8 +351,12 @@ class SpatialPyramid(nn.Module):
 
         layers = []
 
-        padding_need = [math.floor(calc_PaddingNeed(
-            input_size=_inSize, kernel_size=_kernel_size, dilation=_dilation)/2) for _inSize in [self._fL, self._fH, self._fW]]
+        padding_need = [math.floor(
+            calc_PaddingNeed(
+                input_size=_inSize,
+                kernel_size=_kernel_size,
+                dilation=_dilation)/2)
+            for _inSize in [self._fL, self._fH, self._fW]]
 
         layers += [
             nn.Conv3d(self._fC, _num_units, _kernel_size,
@@ -371,7 +393,7 @@ class SpatialPyramid(nn.Module):
 class DeepFFT(nn.Module):
     def __init__(self, backbone, n_factors, num_freq=1, drop_rate=0.0):
         super(DeepFFT,  self).__init__()
-        num_feats = backbone.fc.in_features
+        self.num_feats = backbone.fc.in_features
         self.num_freq = num_freq
 
         self.backbone = nn.Sequential(*list(backbone.children())[:-1])
@@ -405,7 +427,7 @@ class DeepFFT(nn.Module):
         )
 
         self.fc = nn.Sequential(nn.Dropout(drop_rate),
-                                nn.Linear(3*2*256, n_factors))
+                                nn.Linear(256, n_factors))
 
     def _build_convBlock(self, *args, **kwargs):
         conv_args = args[0]
@@ -420,21 +442,20 @@ class DeepFFT(nn.Module):
         conv_configs = layer_configs['conv']
         bn_configs = layer_configs['bn']
 
-        for c, b in zip(zip(*conv_configs.values()), zip(*bn_configs.values())):
+        for c, b in zip(zip(*conv_configs.values()),
+                        zip(*bn_configs.values())):
             layers.append(self._build_convBlock(c, b))
 
         return nn.Sequential(*layers)
 
     def __call__(self, x):
         # x : (N,C,L,H,W)
-        feats = []
-        xs = x.permute(2, 0, 1, 3, 4)
+        xs = x.permute(0, 2, 1, 3, 4)  # (N, L, C, H, W)
+        xs = xs.contiguous().view(-1, *xs.size()[2:])  # (N*L, C, H, W)
 
-        for xt in xs:
-            conv_feats = self.backbone(xt).squeeze(dim=3)
-            feats.append(conv_feats)
-
-        feats = torch.stack(feats, dim=0).permute(1, 2, 0, 3)  # (N, C, L, 1)
+        feats = self.backbone(xs).view(-1, x.size(2),
+                                       self.num_feats, 1)   # (N, L, C, 1)
+        feats = feats.permute(0, 2, 1, 3)  # (N, C, L, 1)
 
         im = torch.zeros_like(feats)  # (N,C,L,1)
         xr = feats
@@ -447,11 +468,9 @@ class DeepFFT(nn.Module):
 
         fft = torch.sqrt(fft_r**2+fft_i**2)
 
-        x_viz = self.convViz(feats.squeeze(dim=3)).permute(0, 2, 1)
-        x_freq = self.convFreq(fft).permute(0, 2, 1)
-
-        x_cat = torch.cat([x_viz, x_freq], dim=2)
-
-        x = self.fc(x_cat.view(x_cat.size(0), -1))
+        # (N,hidden_size,num_freq)
+        x_freq = self.convFreq(fft)
+        x_freq = x_freq.mean(2)        # average => (N,hidden_size)
+        x = self.fc(x_freq)
 
         return x

@@ -1,13 +1,18 @@
+from torch import nn
+import os
+import sklearn
+import datasets.gaitregression
+from utils.parallel import DataParallelCriterion
 from opts import parse_opts
 from utils.generate_model import init_state, load_trained_ckpt
-from utils.transforms import *
+from utils.transforms import (
+    Compose, ToTensor, MultiScaleRandomCrop, MultiScaleCornerCrop, Normalize)
 from utils.train_utils import Trainer, Logger
 from utils.testing_utils import Tester
-from utils.target_columns import get_target_columns, get_target_columns_by_group
+from utils.target_columns import (
+    get_target_columns, get_target_columns_by_group)
 import utils.visualization as viz
-import datasets.gaitregression
 from utils.mean import get_mean, get_std
-from utils.parallel import DataParallelModel, DataParallelCriterion
 from utils.preprocessing import (
     PatientLocalizer,
     COPAnalyizer,
@@ -15,14 +20,10 @@ from utils.preprocessing import (
     Worker,
 )
 from preprocess.darknet.python.extract_bbox import set_gpu
-import sklearn
-import os
-from torch import nn
-
 
 if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.set_start_method('spawn', True)
+    # import multiprocessing
+    # multiprocessing.set_start_method('spawn', True)
 
     opt = parse_opts()
 
@@ -73,7 +74,8 @@ if __name__ == "__main__":
         ),
     }
 
-    # temporal_transform = TemporalRandomCrop(opt.sample_duration) ### disable temporal crop method
+    # temporal_transform = TemporalRandomCrop(
+    #     opt.sample_duration)  # disable temporal crop method
 
     target_transform_func = sklearn.preprocessing.QuantileTransformer
 
@@ -197,9 +199,7 @@ if __name__ == "__main__":
             )
 
     elif opt.mode == "demo":
-        import demo.app
-        from demo.app import app as flask_app
-
+        from demo import app as flask_app
         # patient localizer & interval selector
         set_gpu(opt.device_yolo)
 
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         worker = Worker(localizer, interval_selector, opt)
 
         # set runner
-        demo.app.set_runner(
+        flask_app.set_runner(
             opt,
             net,
             localizer,

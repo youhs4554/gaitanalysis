@@ -8,8 +8,6 @@ import os
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
-from utils.target_columns import get_target_columns
 
 
 def pid2vid(pid):
@@ -31,14 +29,18 @@ def filter_target_df_with_vids(df, vids):
     return df.loc[target_ids]
 
 
-def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_state=42):
+def split_dataset_with_vids(input_df, target_df, vids,
+                            test_size=0.2, random_state=42):
     train_vids, test_vids = train_test_split(
         vids, test_size=test_size, random_state=random_state)
 
     train_X, train_y = filter_input_df_with_vids(
-        input_df, train_vids), filter_target_df_with_vids(target_df, train_vids)
+        input_df, train_vids), filter_target_df_with_vids(target_df,
+                                                          train_vids)
+
     test_X, test_y = filter_input_df_with_vids(
-        input_df, test_vids), filter_target_df_with_vids(target_df, test_vids)
+        input_df, test_vids), filter_target_df_with_vids(target_df,
+                                                         test_vids)
 
     return train_X, train_y, train_vids, test_X, test_y, test_vids
 
@@ -71,21 +73,29 @@ def prepare_dataset(input_file, target_file,
     target_df = target_df.dropna()
 
     # split dataset (train/test)
-    train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(
-        input_df, target_df, possible_vids, test_size=0.2, random_state=42)
+    train_X, train_y, train_vids, test_X, test_y, test_vids =\
+        split_dataset_with_vids(
+            input_df, target_df, possible_vids,
+            test_size=0.2, random_state=42)
 
     return dict(train_X=train_X, train_y=train_y, train_vids=train_vids,
                 test_X=test_X, test_y=test_y, test_vids=test_vids,
                 input_df=input_df, target_df=target_df)
 
 
-def generate_dataloader_for_crossvalidation(opt, ds, vids, input_transform=None, target_transform=None, shuffle=True):
+def generate_dataloader_for_crossvalidation(opt, ds, vids,
+                                            input_transform=None,
+                                            target_transform=None,
+                                            shuffle=True):
+
     from torch.utils.data import DataLoader
     X, y = filter_input_df_with_vids(
         ds.X, vids), filter_target_df_with_vids(ds.y, vids)
 
     ds = GAITDataset(X, y,
-                     opt=opt, input_transform=input_transform, target_transform=target_transform)
+                     opt=opt,
+                     input_transform=input_transform,
+                     target_transform=target_transform)
 
     # define dataloader
     loader = DataLoader(ds,
@@ -136,12 +146,10 @@ class GAITDataset(Dataset):
             img = cv2.resize(cropped, self.opt.sample_size[::-1])
             inputs.append(img)
 
-        try:
-            # zero padding
-            inputs = np.pad(inputs, ((0, self.sample_duration - len(inputs)), (0, 0), (0, 0), (0, 0)),
-                            'constant', constant_values=0)
-        except:
-            pass
+        # zero padding
+        inputs = np.pad(inputs, ((0, self.sample_duration - len(inputs)),
+                                 (0, 0), (0, 0), (0, 0)),
+                        'constant', constant_values=0)
 
         if self.input_transform:
             self.input_transform.randomize_parameters()
