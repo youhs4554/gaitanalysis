@@ -391,12 +391,11 @@ class SpatialPyramid(nn.Module):
 
 
 class DeepFFT(nn.Module):
-    def __init__(self, backbone, n_factors, num_freq=1, drop_rate=0.0):
+    def __init__(self, num_feats, n_factors, num_freq=1, drop_rate=0.0):
         super(DeepFFT,  self).__init__()
-        self.num_feats = backbone.fc.in_features
+        self.num_feats = num_feats
         self.num_freq = num_freq
 
-        self.backbone = nn.Sequential(*list(backbone.children())[:-1])
         self.convViz = self._build_coreNet(
             {
                 'conv': {
@@ -449,19 +448,16 @@ class DeepFFT(nn.Module):
         return nn.Sequential(*layers)
 
     def __call__(self, x):
-        # x : (N,C,L,H,W)
-        xs = x.permute(0, 2, 1, 3, 4)  # (N, L, C, H, W)
-        xs = xs.contiguous().view(-1, *xs.size()[2:])  # (N*L, C, H, W)
+        # x : (N,L,C)
+        x = x.unsqueeze(-1)  # (N,L,C,1)
+        x = x.permute(0, 2, 1, 3)  # (N, C, L, 1)
 
-        feats = self.backbone(xs).view(-1, x.size(2),
-                                       self.num_feats, 1)   # (N, L, C, 1)
-        feats = feats.permute(0, 2, 1, 3)  # (N, C, L, 1)
-
-        im = torch.zeros_like(feats)  # (N,C,L,1)
-        xr = feats
+        im = torch.zeros_like(x)    # real component : (N,C,L,1)
+        xr = x                      # imaginary component : (N,C,L,1)
         xc = torch.cat([xr, im], dim=3)
+
         # tensor with last dimension 2 (real+imag) , 1 is signal dimension
-        fr = torch.fft(xc, signal_ndim=1)
+        fr = torch.fft(xc.cpu(), signal_ndim=1).to(xc.device)
 
         fft_r = fr[:, :, :self.num_freq, 0]
         fft_i = fr[:, :, :self.num_freq, 1]

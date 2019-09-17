@@ -65,7 +65,7 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
     scores = AverageMeter()
 
     end_time = time.time()
-    for i, (inputs, targets) in enumerate(data_loader):
+    for i, (inputs, targets, vids) in enumerate(data_loader):
         data_time.update(time.time() - end_time)
 
         outputs = model(inputs)
@@ -142,7 +142,7 @@ def validate(epoch, split, data_loader,
     scores = AverageMeter()
 
     end_time = time.time()
-    for i, (inputs, targets) in enumerate(data_loader):
+    for i, (inputs, targets, vids) in enumerate(data_loader):
         data_time.update(time.time() - end_time)
 
         outputs = model(inputs)

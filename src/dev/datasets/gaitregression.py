@@ -97,6 +97,8 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
                      input_transform=input_transform,
                      target_transform=target_transform)
 
+    ds[0]
+
     # define dataloader
     loader = DataLoader(ds,
                         batch_size=opt.batch_size,
@@ -111,14 +113,13 @@ class GAITDataset(Dataset):
                  X,
                  y,
                  opt,
-                 input_transform=None, target_transform=None,
-                 load_pretrained=None):
+                 input_transform=None, target_transform=None):
 
         self.X = X
         self.y = y
         self.vids = list(set(X.vids))
 
-        self.load_pretrained = load_pretrained
+        self.load_pretrained = opt.load_pretrained
 
         self.sample_duration = opt.sample_duration
 
@@ -126,6 +127,9 @@ class GAITDataset(Dataset):
         self.target_transform = target_transform
 
         self.opt = opt
+
+        self.feats_dir = os.path.join(
+            os.path.dirname(opt.data_root), 'FeatsArrays', opt.arch)
 
         if target_transform:
             scaled_values = target_transform.transform(y)
@@ -139,11 +143,8 @@ class GAITDataset(Dataset):
 
         if self.load_pretrained:
             inputs = np.load(os.path.join(
-                self.opt.data_root, vid)+'.npy')
+                self.feats_dir, vid)+'.npy')
             inputs = inputs[::self.opt.delta]
-
-            # zero padding
-            # inputs = zero_padding!!
         else:
             inputs = []
             stacked_arr = np.load(os.path.join(

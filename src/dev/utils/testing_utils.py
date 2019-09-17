@@ -17,13 +17,13 @@ def test(data_loader, model, opt, score_logger, score_func, target_transform):
     y_true, y_pred = [], []
 
     for _ in range(len(data_loader)):
-        inputs, targets = next(data_loader)
+        inputs, targets, vids = next(data_loader)
 
         outputs = model(inputs)
 
         targets = targets.numpy()
-        outputs = target_transform.inverse_transform(torch.cat(outputs).detach().cpu().numpy())
-
+        outputs = target_transform.inverse_transform(
+            torch.cat(outputs).detach().cpu().numpy())
 
         score_val = score_func(
             targets,
@@ -36,7 +36,6 @@ def test(data_loader, model, opt, score_logger, score_func, target_transform):
         # y_true, y_pred for later usage
         y_true.append(targets)
         y_pred.append(outputs)
-
 
     # end of epoch, log avged score for entire testset
     score_logger.log({c: v for c, v in zip(score_logger.header, scores.avg)})
@@ -76,15 +75,16 @@ class Tester(object):
 
         # define dataloader
         test_loader = DataLoader(ds,
-                                batch_size=self.opt.batch_size,
-                                shuffle=False,
-                                num_workers=self.opt.n_threads, pin_memory=True)
+                                 batch_size=self.opt.batch_size,
+                                 shuffle=False,
+                                 num_workers=self.opt.n_threads, pin_memory=True)
 
         # convert to iterable
         test_loader = iter(test_loader)
 
         with torch.no_grad():
             # test model!
-            y_true, y_pred = test(test_loader, self.model, self.opt, self.test_logger, self.score_func, self.target_transform)
+            y_true, y_pred = test(test_loader, self.model, self.opt,
+                                  self.test_logger, self.score_func, self.target_transform)
 
         return y_true, y_pred

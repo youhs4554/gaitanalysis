@@ -211,7 +211,7 @@ def parse_opts():
     parser.set_defaults(std_norm=False)
     parser.add_argument(
         '--norm_value',
-        default=1,
+        default=255,
         type=int,
         help='If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
     parser.add_argument(
@@ -304,6 +304,12 @@ def parse_opts():
         type=int,
         help='Service port for gaitanalysis.'
     )
+    parser.add_argument(
+        '--load_pretrained',
+        action='store_true',
+        help='If true, you can use pretrained feature arrray as input.')
+    parser.set_defaults(load_pretrained=False)
+
     # and so on...
 
     args = parser.parse_args()

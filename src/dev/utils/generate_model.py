@@ -29,17 +29,20 @@ def generate_backbone(opt):
 
     # other models...
     if opt.backbone == '2D-resnet':
-        if opt.model_depth == 50:
-            net = models.resnet50(pretrained=True)
+        if opt.mode == "preprocess__feature":
+            if opt.model_depth == 50:
+                net = models.resnet50(pretrained=True)
 
-        elif opt.model_depth == 101:
-            net = models.resnet101(pretrained=True)
+            elif opt.model_depth == 101:
+                net = models.resnet101(pretrained=True)
 
+            elif opt.model_depth == 152:
+                net = models.resnet152(pretrained=True)
+
+            for param in net.parameters():
+                param.requires_grad = False
         else:
-            ValueError("Invalid model depth")
-
-        for param in net.parameters():
-            param.requires_grad = False
+            return net
 
     # if pre-trained modelfile exists...
     if opt.pretrained_path:
@@ -87,9 +90,10 @@ def generate_regression_model(backbone, opt):
                                                      backbone=backbone)
     elif opt.backbone == "2D-resnet":
         if opt.model_arch == 'DeepFFT':
-            net = regression_model.DeepFFT(
-                backbone, n_factors=opt.n_factors,
-                num_freq=100, drop_rate=opt.drop_rate)
+            net = regression_model.DeepFFT(num_feats=2048,
+                                           n_factors=opt.n_factors,
+                                           num_freq=100,
+                                           drop_rate=opt.drop_rate)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
@@ -132,7 +136,7 @@ def load_trained_ckpt(opt, net):
             opt.model_arch + '_' + opt.merge_type
             + '_' + 'finetuned_with' + '_' + opt.arch,
             'save_' + opt.test_epoch + '.pth')
-    elif opt.model_arch == 'naive':
+    else:
         model_path = os.path.join(
             opt.ckpt_dir,
             opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,

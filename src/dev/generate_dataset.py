@@ -19,13 +19,16 @@ if __name__ == '__main__':
         worker = Worker(localizer, interval_selector, opt)
 
     elif opt.mode == 'preprocess__feature':
-        from datasets.gaitregression import GAITDataset
+        from datasets.gaitregression import GAITDataset, vid2pid, pid2vid
         from utils.mean import get_mean, get_std
+        from utils.target_columns import get_target_columns
         from preprocess.preprocess_metadata import create_target_df
+
         import pandas as pd
         import sklearn
         from utils.transforms import (
-            Compose, ToTensor, MultiScaleRandomCrop, MultiScaleCornerCrop, Normalize)
+            Compose, ToTensor, MultiScaleRandomCrop,
+            MultiScaleCornerCrop, Normalize)
         from utils.generate_model import generate_backbone
         from torch.utils.data import DataLoader
         from utils.parallel import DataParallelModel
@@ -43,7 +46,20 @@ if __name__ == '__main__':
                                         'Stance Time(sec)',
                                         'Double Supp. Time(sec)',
                                         'Toe In / Out']
-                             )
+                             )[get_target_columns(opt)]
+
+        possible_vids = sorted(list(set(X.vids)))
+
+        # reindex tgt data (to filter-out valid vids)
+        y = y.reindex([vid2pid(vid) for vid in possible_vids])
+
+        not_null_ix = np.where(y.notnull().values.all(axis=1))[0]
+        possible_vids = [pid2vid(pid) for pid in y.index[not_null_ix]]
+
+        y = y.dropna()
+
+        # filter-out valid inputs
+        X = X[X.vids.isin(possible_vids)]
 
         opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
         opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
@@ -73,8 +89,7 @@ if __name__ == '__main__':
 
         ds = GAITDataset(X=X, y=y, opt=opt,
                          input_transform=input_transform,
-                         target_transform=target_transform,
-                         load_pretrained=False)
+                         target_transform=target_transform)
         ds_loader = DataLoader(ds, batch_size=opt.batch_size)
         ds_loader = iter(ds_loader)
 

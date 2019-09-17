@@ -22,8 +22,8 @@ from utils.preprocessing import (
 from preprocess.darknet.python.extract_bbox import set_gpu
 
 if __name__ == "__main__":
-    # import multiprocessing
-    # multiprocessing.set_start_method('spawn', True)
+    import multiprocessing
+    multiprocessing.set_start_method('spawn', True)
 
     opt = parse_opts()
 
