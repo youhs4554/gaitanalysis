@@ -130,18 +130,13 @@ def init_state(opt):
 
 
 def load_trained_ckpt(opt, net):
-    if opt.model_arch == 'HPP':
-        model_path = os.path.join(
-            opt.ckpt_dir,
-            opt.model_arch + '_' + opt.merge_type
-            + '_' + 'finetuned_with' + '_' + opt.arch,
-            'save_' + opt.test_epoch + '.pth')
-    else:
-        model_path = os.path.join(
-            opt.ckpt_dir,
-            opt.model_arch + '_' + 'finetuned_with' + '_' + opt.arch,
-            'save_' + opt.test_epoch + '.pth')
 
+    ckpt_dir = os.path.join(opt.ckpt_dir,
+                            '_'.join(filter(lambda x: x != '',
+                                            [opt.model_arch,
+                                                opt.merge_type,
+                                                opt.arch])))
+    model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
     print(f"Load trained model from {model_path}...")
 
     # laod pre-trained model

@@ -294,7 +294,7 @@ class HPP_1x1_Net(nn.Module):
 
         # HPP layer : Multi-scaled feats
         layers.append(MultiScale_Pooling_Net(
-            n_groups, squeeze=False, reduce='width',
+            n_groups, squeeze=False, reduce='height',
             cat_policy='channel', get_input=attention))
 
         # conv_1x1 layer : Embed HPP feats
@@ -459,8 +459,8 @@ class DeepFFT(nn.Module):
         # tensor with last dimension 2 (real+imag) , 1 is signal dimension
         fr = torch.fft(xc.cpu(), signal_ndim=1).to(xc.device)
 
-        fft_r = fr[:, :, :self.num_freq, 0]
-        fft_i = fr[:, :, :self.num_freq, 1]
+        fft_r = fr[..., 0]
+        fft_i = fr[..., 1]
 
         fft = torch.sqrt(fft_r**2+fft_i**2)
 

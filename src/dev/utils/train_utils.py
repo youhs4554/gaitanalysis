@@ -52,22 +52,14 @@ class Logger(object):
         self.log_file.flush()
 
 
-def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
-                epoch_logger, score_func, target_transform):
+def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, opt,
+                logger, score_func, target_transform):
 
     print('train at epoch {} @ split-{}'.format(epoch, split))
 
     model.train()
 
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-    scores = AverageMeter()
-
-    end_time = time.time()
     for i, (inputs, targets, vids) in enumerate(data_loader):
-        data_time.update(time.time() - end_time)
-
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         score = score_func(
@@ -76,46 +68,32 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
                 torch.cat(outputs).detach().cpu().numpy())
         )
 
-        losses.update(loss.item(), inputs.size(0))
-        scores.update(score, inputs.size(0))
+        for k, v in zip(['loss', 'score', 'lr'],
+                        [loss.item(), score, optimizer.param_groups[0]['lr']]):
+            logger[k].add_record(step[0], v)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        batch_time.update(time.time() - end_time)
-        end_time = time.time()
-
         print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
-              'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-              'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-              'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-              'Score {score.val:.3f} ({score.avg:.3f})'.format(
+              'Loss {loss:.4f}\t'
+              'Score {score:.3f}'.format(
                   epoch,
                   i + 1,
                   len(data_loader),
                   split,
-                  batch_time=batch_time,
-                  data_time=data_time,
-                  loss=losses,
-                  score=scores))
+                  loss=loss.item(),
+                  score=score))
 
-    epoch_logger.log({
-        'epoch@split': f'{epoch}@{split}',
-        'loss': losses.avg,
-        'score': scores.avg,
-        'lr': optimizer.param_groups[0]['lr']
-    })
+        step[0] += 1
 
     if epoch % opt.checkpoint == 0:
-        if opt.model_arch == 'HPP':
-            ckpt_dir = os.path.join(opt.ckpt_dir, opt.model_arch + '_' +
-                                    opt.merge_type + '_' +
-                                    'finetuned_with' + '_' + opt.arch)
-        else:
-            ckpt_dir = os.path.join(opt.ckpt_dir,
-                                    opt.model_arch + '_' +
-                                    'finetuned_with' + '_' + opt.arch)
+        ckpt_dir = os.path.join(opt.ckpt_dir,
+                                '_'.join(filter(lambda x: x != '',
+                                                [opt.model_arch,
+                                                    opt.merge_type,
+                                                    opt.arch])))
 
         if not os.path.exists(ckpt_dir):
             os.system(f'mkdir -p {ckpt_dir}')
@@ -130,21 +108,14 @@ def train_epoch(epoch, split, data_loader, model, criterion, optimizer, opt,
         torch.save(states, save_file_path)
 
 
-def validate(epoch, split, data_loader,
+def validate(step, epoch, split, data_loader,
              model, criterion, logger, score_func, target_transform):
     print('validation at epoch {} @ split-{}'.format(epoch, split))
 
     model.eval()
-
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
     losses = AverageMeter()
     scores = AverageMeter()
-
-    end_time = time.time()
     for i, (inputs, targets, vids) in enumerate(data_loader):
-        data_time.update(time.time() - end_time)
-
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         score = score_func(
@@ -156,25 +127,19 @@ def validate(epoch, split, data_loader,
         losses.update(loss.item(), inputs.size(0))
         scores.update(score, inputs.size(0))
 
-        batch_time.update(time.time() - end_time)
-        end_time = time.time()
+    print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
+          'Loss {loss:.4f}\t'
+          'Score {score:.3f}'.format(
+              epoch,
+              i + 1,
+              len(data_loader),
+              split,
+              loss=losses.avg,
+              score=scores.avg))
 
-        print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
-              'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-              'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-              'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-              'Scores {score.val:.3f} ({score.avg:.3f})'.format(
-                  epoch,
-                  i + 1,
-                  len(data_loader),
-                  split,
-                  batch_time=batch_time,
-                  data_time=data_time,
-                  loss=losses,
-                  score=scores))
-
-    logger.log({'epoch@split': f'{epoch}@{split}',
-                'loss': losses.avg, 'score': scores.avg})
+    for k, v in zip(['loss', 'score'],
+                    [losses.avg, scores.avg]):
+        logger[k].add_record(step[0], v)
 
     return losses.avg, scores.avg
 
@@ -233,16 +198,18 @@ class Trainer(object):
 
             epoch_status = defaultdict(list)
 
+            step = [0]
+
             for epoch in range(self.opt.n_iter):
                 # train loop
-                train_epoch(epoch, split, train_loader, self.model,
+                train_epoch(step, epoch, split, train_loader, self.model,
                             self.criterion, self.optimizer,
                             self.opt, self.train_logger,
                             self.score_func, self.target_transform)
 
                 with torch.no_grad():
                     # at every train epoch, validate model!
-                    valid_loss, valid_score = validate(epoch, split,
+                    valid_loss, valid_score = validate(step, epoch, split,
                                                        valid_loader,
                                                        self.model,
                                                        self.criterion,
@@ -250,7 +217,7 @@ class Trainer(object):
                                                        self.score_func,
                                                        self.target_transform)
 
-                self.scheduler.step(valid_loss,)
+                self.scheduler.step(valid_loss)
 
                 epoch_status['loss'].append(valid_loss)
                 epoch_status['score'].append(valid_score)

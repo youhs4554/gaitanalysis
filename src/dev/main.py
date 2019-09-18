@@ -22,8 +22,8 @@ from utils.preprocessing import (
 from preprocess.darknet.python.extract_bbox import set_gpu
 
 if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.set_start_method('spawn', True)
+    # import multiprocessing
+    # multiprocessing.set_start_method('spawn', True)
 
     opt = parse_opts()
 
@@ -106,34 +106,32 @@ if __name__ == "__main__":
         NotImplementedError("Does not support other datasets until now..")
 
     if opt.mode == "train":
-        train_logger = Logger(
-            os.path.join(
-                opt.log_dir,
-                opt.model_arch
-                + "_"
-                + opt.merge_type
-                + "_"
-                + "finetuned_with"
-                + "_"
-                + opt.arch,
-                "train.tsv",
-            ),
-            ["epoch@split", "loss", "score", "lr"],
-        )
-        valid_logger = Logger(
-            os.path.join(
-                opt.log_dir,
-                opt.model_arch
-                + "_"
-                + opt.merge_type
-                + "_"
-                + "finetuned_with"
-                + "_"
-                + opt.arch,
-                "valid.tsv",
-            ),
-            ["epoch@split", "loss", "score"],
-        )
+        from visualdl import LogWriter
+        logpath = os.path.join(opt.log_dir, opt.arch)
+
+        logpath = os.path.join(
+            opt.log_dir,
+            '_'.join(filter(lambda x: x != '', [opt.model_arch,
+                                                opt.merge_type,
+                                                opt.arch])))
+
+        if not os.path.exists(logpath):
+            os.system(f'mkdir -p {logpath}')
+
+        logger = LogWriter(logpath, sync_cycle=100)
+
+        with logger.mode('train'):
+            train_logger = {
+                'loss': logger.scalar("scalars/scalar_pytorch_loss"),
+                'score': logger.scalar("scalars/scalar_pytorch_score"),
+                'lr': logger.scalar("scalars/scalar_pytorch_lr")
+            }
+
+        with logger.mode('valid'):
+            valid_logger = {
+                'loss': logger.scalar("scalars/scalar_pytorch_loss"),
+                'score': logger.scalar("scalars/scalar_pytorch_score")
+            }
 
         trainer = Trainer(
             model=net,
@@ -225,4 +223,4 @@ if __name__ == "__main__":
 
         # run flask server
         print("Demo server is waiting for you...")
-        flask_app.run(host="0.0.0.0", port=opt.port)
+        flask_app.app.run(host="0.0.0.0", port=opt.port)

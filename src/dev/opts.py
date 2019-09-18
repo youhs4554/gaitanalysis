@@ -250,7 +250,7 @@ def parse_opts():
         help='Specify mode for regression model (naive | HPP)')
     parser.add_argument(
         '--merge_type',
-        default='addition',
+        default='',
         type=str,
         help='Merge type of multiple scale HPP features (addition | 1x1_C)')
     parser.add_argument(
