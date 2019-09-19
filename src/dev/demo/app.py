@@ -103,10 +103,8 @@ def api_call():
     data = pd.read_sql("SELECT * FROM com.zfmmfile",
                        VariableInterface.db._engine)
     VariableInterface.query_res = data.query(
-        """
-        filekey==@VariableInterface.FILEKEY
-        and fileseq==@VariableInterface.FILESEQ
-        """)
+        "filekey==@VariableInterface.FILEKEY \
+        and fileseq==@VariableInterface.FILESEQ")
 
     VariableInterface.codeNameTable = json.load(
         open('./demo/static/codeNameTable.json'))

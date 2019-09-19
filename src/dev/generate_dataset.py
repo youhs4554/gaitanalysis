@@ -102,7 +102,6 @@ if __name__ == '__main__':
         if opt.multi_gpu:
             net = DataParallelModel(
                 net, device_ids=eval(opt.device_ids + ',', ))
-
         net.cuda()
 
         save_dir = os.path.join(os.path.dirname(opt.data_root),

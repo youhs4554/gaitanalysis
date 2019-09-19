@@ -97,13 +97,11 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
                      input_transform=input_transform,
                      target_transform=target_transform)
 
-    ds[0]
-
     # define dataloader
     loader = DataLoader(ds,
                         batch_size=opt.batch_size,
                         shuffle=shuffle,
-                        num_workers=opt.n_threads, pin_memory=True)
+                        num_workers=opt.n_threads)
 
     return loader
 

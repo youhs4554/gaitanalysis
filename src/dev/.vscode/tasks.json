@@ -2,10 +2,32 @@
     // See https://go.microsoft.com/fwlink/?LinkId=733558
     // for the documentation about the tasks.json format
     "version": "2.0.0",
+    "command": "bash",
+    "args": ["-c"],
     "tasks": [{
-        "label": "Training DeepFFT",
-        "type": "shell",
-        "command": "python ${workspaceFolder}/infinite.py",
-
-    }]
+            "label": "Training models for ArchComp Exp",
+            "type": "shell",
+            "args": ["${workspaceFolder}/scripts/training/ArchComp-Exp.sh"],
+        },
+        {
+            "label": "Training models for HPP_Attention Exp",
+            "type": "shell",
+            "args": ["${workspaceFolder}/scripts/training/HPP_Attention-Exp.sh"],
+        },
+        {
+            "label": "Training models for HPP_GroupNbrsWithAttention Exp",
+            "type": "shell",
+            "args": ["${workspaceFolder}/scripts/training/HPP_GroupsNbrsWithAttention-Exp.sh"],
+        },
+        {
+            "label": "Training models for HPP_GroupsNbrsWithoutAttention Exp",
+            "type": "shell",
+            "args": ["${workspaceFolder}/scripts/training/HPP_GroupsNbrsWithoutAttention-Exp.sh"],
+        },
+        {
+            "label": "Training models for HPP_MergeType Exp",
+            "type": "shell",
+            "args": ["${workspaceFolder}/scripts/training/HPP_MergeType_Exp.sh"],
+        },
+    ]
 }

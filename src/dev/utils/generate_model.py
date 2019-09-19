@@ -1,8 +1,9 @@
 import os
+import time
 from models import resnet
 import torch
 from torch import nn
-from utils.parallel import DataParallelModel
+from utils.parallel import DataParallelModel, DataParallelCriterion
 import models.regression_model as regression_model
 from torch import optim
 from torch.optim import lr_scheduler
@@ -87,7 +88,9 @@ def generate_regression_model(backbone, opt):
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
                                                      n_factors=opt.n_factors,
-                                                     backbone=backbone)
+                                                     backbone=backbone,
+                                                     drop_rate=opt.drop_rate)
+
     elif opt.backbone == "2D-resnet":
         if opt.model_arch == 'DeepFFT':
             net = regression_model.DeepFFT(num_feats=2048,
@@ -97,9 +100,8 @@ def generate_regression_model(backbone, opt):
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
-        net = DataParallelModel(net, device_ids=eval(opt.device_ids + ',', ))
-
-    net.cuda()
+        net = DataParallelModel(net, device_ids=eval(
+            opt.device_ids + ',', )).cuda()
 
     return net
 
@@ -133,9 +135,12 @@ def load_trained_ckpt(opt, net):
 
     ckpt_dir = os.path.join(opt.ckpt_dir,
                             '_'.join(filter(lambda x: x != '',
-                                            [opt.model_arch,
-                                                opt.merge_type,
-                                                opt.arch])))
+                                            [opt.attention_str,
+                                             opt.model_arch,
+                                             opt.merge_type,
+                                             opt.arch,
+                                             opt.group_str])))
+
     model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
     print(f"Load trained model from {model_path}...")
 

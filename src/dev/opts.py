@@ -219,7 +219,7 @@ def parse_opts():
     parser.set_defaults(nesterov=False)
     parser.add_argument(
         '--lr_patience',
-        default=10,
+        default=5,
         type=int,
         help='Patience of LR scheduler. See documentation of ReduceLROnPlateau.'
     )
@@ -247,7 +247,7 @@ def parse_opts():
         '--model_arch',
         default='HPP',
         type=str,
-        help='Specify mode for regression model (naive | HPP)')
+        help='Specify mode for regression model (naive | HPP | SPP)')
     parser.add_argument(
         '--merge_type',
         default='',
@@ -272,7 +272,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--n_groups',
-        default=3,
+        default=-1,
         type=int,
         help='Number of multi scale groups.'
     )

@@ -1,8 +1,11 @@
 from torch import nn
 import os
+import time
 import sklearn
 import datasets.gaitregression
 from utils.parallel import DataParallelCriterion
+import visdom
+from visualdl import LogWriter
 from opts import parse_opts
 from utils.generate_model import init_state, load_trained_ckpt
 from utils.transforms import (
@@ -22,10 +25,14 @@ from utils.preprocessing import (
 from preprocess.darknet.python.extract_bbox import set_gpu
 
 if __name__ == "__main__":
-    # import multiprocessing
-    # multiprocessing.set_start_method('spawn', True)
+    import multiprocessing
+    multiprocessing.set_start_method('spawn', True)
 
     opt = parse_opts()
+
+    # attention indicator
+    opt.attention_str = 'Attentive' if opt.attention else 'NonAttentive'
+    opt.group_str = f"G{opt.n_groups}" if opt.n_groups > 0 else ''
 
     target_columns = get_target_columns(opt)
 
@@ -34,7 +41,7 @@ if __name__ == "__main__":
 
     criterion = nn.MSELoss()
     criterion = DataParallelCriterion(
-        criterion, device_ids=eval(opt.device_ids + ","))
+        criterion, device_ids=eval(opt.device_ids + ",")).cuda()
 
     opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
     opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
@@ -77,6 +84,43 @@ if __name__ == "__main__":
 
     target_transform_func = sklearn.preprocessing.QuantileTransformer
 
+    model_indicator = '_'.join(filter(lambda x: x != '', [opt.attention_str,
+                                                          opt.model_arch,
+                                                          opt.merge_type,
+                                                          opt.arch,
+                                                          opt.group_str]))
+
+    # result log path
+    logpath = os.path.join(opt.log_dir, model_indicator,
+                           opt.mode)
+
+    opt.logpath = logpath
+
+    import torch
+    import numpy as np
+
+    class VisdomLinePlotter(object):
+        """Plots to Visdom"""
+
+        def __init__(self, env_name='main'):
+            self.viz = visdom.Visdom()
+            self.env = env_name
+            self.plots = {}
+
+        def plot(self, var_name, split_name, title_name, x, y):
+            if var_name not in self.plots:
+                self.plots[var_name] = self.viz.line(X=np.array([x, x]), Y=np.array([y, y]), env=self.env, opts=dict(
+                    legend=[split_name],
+                    title=title_name,
+                    xlabel='Epochs',
+                    ylabel=var_name
+                ))
+            else:
+                self.viz.line(X=np.array([x]), Y=np.array(
+                    [y]), env=self.env, win=self.plots[var_name], name=split_name, update='append')
+
+    plotter = VisdomLinePlotter(env_name=model_indicator)
+
     if opt.dataset == "Gaitparams_PD":
         # prepare dataset  (train/test split)
         data = datasets.gaitregression.prepare_dataset(
@@ -106,63 +150,32 @@ if __name__ == "__main__":
         NotImplementedError("Does not support other datasets until now..")
 
     if opt.mode == "train":
-        from visualdl import LogWriter
-        logpath = os.path.join(opt.log_dir, opt.arch)
-
-        logpath = os.path.join(
-            opt.log_dir,
-            '_'.join(filter(lambda x: x != '', [opt.model_arch,
-                                                opt.merge_type,
-                                                opt.arch])))
-
-        if not os.path.exists(logpath):
-            os.system(f'mkdir -p {logpath}')
-
-        logger = LogWriter(logpath, sync_cycle=100)
-
-        with logger.mode('train'):
-            train_logger = {
-                'loss': logger.scalar("scalars/scalar_pytorch_loss"),
-                'score': logger.scalar("scalars/scalar_pytorch_score"),
-                'lr': logger.scalar("scalars/scalar_pytorch_lr")
-            }
-
-        with logger.mode('valid'):
-            valid_logger = {
-                'loss': logger.scalar("scalars/scalar_pytorch_loss"),
-                'score': logger.scalar("scalars/scalar_pytorch_score")
-            }
-
         trainer = Trainer(
             model=net,
             criterion=criterion,
             optimizer=optimizer,
             scheduler=scheduler,
             opt=opt,
-            train_logger=train_logger,
-            val_logger=valid_logger,
             input_transform=spatial_transform[opt.mode],
             target_transform=target_transform,
         )
 
-        trainer.fit(ds=train_ds, dataloader_generator=dataloader_generator)
+        trainer.fit(
+            ds=train_ds, dataloader_generator=dataloader_generator,
+            plotter=plotter)
 
     elif opt.mode == "test":
         net = load_trained_ckpt(opt, net)
 
-        test_logger = Logger(os.path.join(
-            opt.log_dir, "test.log"), target_columns)
-
         tester = Tester(
             model=net,
             opt=opt,
-            test_logger=test_logger,
             score_func=sklearn.metrics.r2_score,
             input_transform=spatial_transform[opt.mode],
             target_transform=target_transform,
         )
 
-        y_true, y_pred = tester.fit(ds=test_ds)
+        y_true, y_pred = tester.fit(ds=test_ds, logpath=logpath)
 
         # visualize
         viz.scatterplots(target_columns, y_true, y_pred, save_dir="./tmp")

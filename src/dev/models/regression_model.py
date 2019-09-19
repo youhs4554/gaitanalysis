@@ -191,7 +191,7 @@ class Naive_Flatten_Net(nn.Module):
     def __init__(self,
                  num_units,
                  n_factors,
-                 backbone):
+                 backbone, drop_rate=0.0):
 
         super(Naive_Flatten_Net, self).__init__()
 
@@ -202,6 +202,7 @@ class Naive_Flatten_Net(nn.Module):
 
         self.model = nn.Sequential(
             View(-1, num_units * self.backbone.fh * self.backbone.fw),
+            nn.Dropout(drop_rate),
             nn.Linear(
                 num_units * self.backbone.fh * self.backbone.fw, n_factors))
 
