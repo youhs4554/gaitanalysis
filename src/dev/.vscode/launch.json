@@ -125,8 +125,8 @@
                 "3",
                 "--warm_start",
                 "--drop_rate",
-                "0.3",
-                "--attention"
+                "0.3"
+                //"--attention"
             ]
         },
 
@@ -170,6 +170,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "8,9"
+            },
             "args": [
                 "--backbone",
                 "2D-resnet",
@@ -179,7 +182,7 @@
                 "imagenet",
                 "--multi_gpu",
                 "--device_ids",
-                "0,1,2",
+                "0,1",
                 "--batch_size",
                 "300",
                 "--learning_rate",
@@ -191,10 +194,9 @@
                 "--model_arch",
                 "DeepFFT",
                 "--n_iter",
-                "2",
+                "21",
                 "--CV",
                 "5",
-                "--warm_start",
                 "--drop_rate",
                 "0.3",
                 "--delta",
@@ -236,7 +238,6 @@
                 "150",
                 "--load_pretrained"
             ]
-        },
-
+        }
     ]
 }

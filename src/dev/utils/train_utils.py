@@ -63,7 +63,7 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
     running_loss = 0.0
     running_scores = [0.0 for _ in range(len(target_columns))]
 
-    # half of epoch
+    # update plotter at every half of epoch
     update_cycle = len(data_loader) // 2
 
     for i, (inputs, targets, vids) in enumerate(data_loader):
@@ -273,17 +273,17 @@ class Trainer(object):
                 epoch_status['loss'].append(valid_loss)
                 epoch_status['score'].append(valid_score)
 
-            avg_loss = np.mean(epoch_status['loss'])
-            avg_score = np.mean(epoch_status['score'])
+            last_loss = epoch_status['loss'][-1]
+            last_score = epoch_status['score'][-1]
 
             CV_results[f'split-{split}'].append(
-                dict(loss=avg_loss,
-                     score=avg_score)
+                dict(loss=last_loss,
+                     score=last_score)
             )
 
             # todo. add only last epoch into cv_loss
-            cv_loss += avg_loss
-            cv_score += avg_score
+            cv_loss += last_loss
+            cv_score += last_score
 
             if not self.opt.warm_start:
                 # if warm-starting is False, re-init the state

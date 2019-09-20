@@ -1,12 +1,12 @@
-##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-## Created by: Hang Zhang
-## ECE Department, Rutgers University
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Created by: Hang Zhang
+# ECE Department, Rutgers University
 ## Email: zhang.hang@rutgers.edu
-## Copyright (c) 2017
+# Copyright (c) 2017
 ##
-## This source code is licensed under the MIT-style license found in the
-## LICENSE file in the root directory of this source tree
-##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# This source code is licensed under the MIT-style license found in the
+# LICENSE file in the root directory of this source tree
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 """Encoding Data Parallel"""
 import threading
@@ -23,19 +23,22 @@ torch_ver = torch.__version__[:3]
 __all__ = ['allreduce', 'DataParallelModel', 'DataParallelCriterion',
            'patch_replication_callback']
 
+
 def allreduce(*inputs):
     """Cross GPU all reduce autograd operation for calculate mean and
     variance in SyncBN.
     """
     return AllReduce.apply(*inputs)
 
+
 class AllReduce(Function):
     @staticmethod
     def forward(ctx, num_inputs, *inputs):
         ctx.num_inputs = num_inputs
-        ctx.target_gpus = [inputs[i].get_device() for i in range(0, len(inputs), num_inputs)]
+        ctx.target_gpus = [inputs[i].get_device()
+                           for i in range(0, len(inputs), num_inputs)]
         inputs = [inputs[i:i + num_inputs]
-                 for i in range(0, len(inputs), num_inputs)]
+                  for i in range(0, len(inputs), num_inputs)]
         # sort before reduce sum
         inputs = sorted(inputs, key=lambda i: i[0].get_device())
         results = comm.reduce_add_coalesced(inputs, ctx.target_gpus[0])
@@ -46,10 +49,11 @@ class AllReduce(Function):
     def backward(ctx, *inputs):
         inputs = [i.data for i in inputs]
         inputs = [inputs[i:i + ctx.num_inputs]
-                 for i in range(0, len(inputs), ctx.num_inputs)]
+                  for i in range(0, len(inputs), ctx.num_inputs)]
         results = comm.reduce_add_coalesced(inputs, ctx.target_gpus[0])
         outputs = comm.broadcast_coalesced(results, ctx.target_gpus)
         return (None,) + tuple([Variable(t) for tensors in outputs for t in tensors])
+
 
 class Reduce(Function):
     @staticmethod
@@ -92,6 +96,7 @@ class DataParallelModel(DataParallel):
         >>> net = encoding.nn.DataParallelModel(model, device_ids=[0, 1, 2])
         >>> y = net(x)
     """
+
     def gather(self, outputs, output_device):
         return outputs
 
@@ -120,6 +125,7 @@ class DataParallelCriterion(DataParallel):
         >>> y = net(x)
         >>> loss = criterion(y, target)
     """
+
     def forward(self, inputs, *targets, **kwargs):
         # input should be already scatterd
         # scattering the targets instead

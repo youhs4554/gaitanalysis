@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 
 from models.base_modules import (
-    View, MultiInputSequential)
+    View, MultiInputSequential, GAP)
 import torch
 from torch import nn
 from torch.nn.functional import (
@@ -273,7 +273,15 @@ class Conv_1x1_Embedding(nn.Module):
 
             return x_emb, x
         else:
-            return self.conv_1x1(*inputs)
+            x_emb = self.conv_1x1(*inputs)
+
+            # avgpool
+            x_emb = avg_pool2d(
+                x_emb,
+                kernel_size=(x_emb.size(2), x_emb.size(3))).view(
+                    x_emb.size(0), -1)  # (b,C)
+
+            return x_emb
 
 
 class HPP_1x1_Net(nn.Module):

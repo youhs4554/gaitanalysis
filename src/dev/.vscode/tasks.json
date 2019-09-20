@@ -5,29 +5,19 @@
     "command": "bash",
     "args": ["-c"],
     "tasks": [{
-            "label": "Training models for ArchComp Exp",
+            "label": "[Experiment scripts] Other models; Naive(or baseline) and SPP",
             "type": "shell",
-            "args": ["${workspaceFolder}/scripts/training/ArchComp-Exp.sh"],
+            "args": ["${workspaceFolder}/scripts/training/OtherModels-Exp.sh"],
         },
         {
-            "label": "Training models for HPP_Attention Exp",
+            "label": "[Experiment scripts] GroupsNbrs effect in HPP",
             "type": "shell",
-            "args": ["${workspaceFolder}/scripts/training/HPP_Attention-Exp.sh"],
+            "args": ["${workspaceFolder}/scripts/training/HPP_GroupsNbrs-Exp.sh"],
         },
         {
-            "label": "Training models for HPP_GroupNbrsWithAttention Exp",
+            "label": "[Experiment scripts] MergeType effect in HPP",
             "type": "shell",
-            "args": ["${workspaceFolder}/scripts/training/HPP_GroupsNbrsWithAttention-Exp.sh"],
-        },
-        {
-            "label": "Training models for HPP_GroupsNbrsWithoutAttention Exp",
-            "type": "shell",
-            "args": ["${workspaceFolder}/scripts/training/HPP_GroupsNbrsWithoutAttention-Exp.sh"],
-        },
-        {
-            "label": "Training models for HPP_MergeType Exp",
-            "type": "shell",
-            "args": ["${workspaceFolder}/scripts/training/HPP_MergeType_Exp.sh"],
+            "args": ["${workspaceFolder}/scripts/training/HPP_MergeType-Exp.sh"],
         },
     ]
 }
