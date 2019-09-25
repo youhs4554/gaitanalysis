@@ -1,4 +1,5 @@
 {
     "python.pythonPath": "/home/hossay/anaconda3/envs/torch/bin/python",
-    "python.formatting.provider": "autopep8"
+    "python.formatting.provider": "autopep8",
+    "docker.host":"tcp://localhost:23750",
 }
