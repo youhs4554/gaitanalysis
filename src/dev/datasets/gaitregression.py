@@ -8,6 +8,7 @@ import os
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from natsort import natsorted
 
 
 def pid2vid(pid):
@@ -18,6 +19,12 @@ def pid2vid(pid):
 def vid2pid(vid):
     split = vid.split('_')
     return '_'.join([split[0], split[2], split[4]])
+
+
+def arrange_vids(vids, seed=0):
+    np.random.seed(seed)
+    np.random.shuffle(vids)
+    return vids
 
 
 def filter_input_df_with_vids(df, vids):
@@ -84,6 +91,7 @@ def prepare_dataset(input_file, target_file,
 
 
 def generate_dataloader_for_crossvalidation(opt, ds, vids,
+                                            ds_class,
                                             input_transform=None,
                                             target_transform=None,
                                             shuffle=True):
@@ -92,10 +100,10 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
     X, y = filter_input_df_with_vids(
         ds.X, vids), filter_target_df_with_vids(ds.y, vids)
 
-    ds = GAITDataset(X, y,
-                     opt=opt,
-                     input_transform=input_transform,
-                     target_transform=target_transform)
+    ds = ds_class(X, y,
+                  opt=opt,
+                  input_transform=input_transform,
+                  target_transform=target_transform)
 
     # define dataloader
     loader = DataLoader(ds,
@@ -104,6 +112,63 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
                         num_workers=opt.n_threads)
 
     return loader
+
+
+def video_loader(data_root, vid, frame_indices, mode='PIL'):
+    if mode == 'numpy':
+        res = np.load(os.path.join(data_root, vid) + '.npy')
+    elif mode == 'PIL':
+        res = []
+        subdir = os.path.join(data_root, vid)
+        for i in frame_indices:
+            f = os.path.join(subdir, f"thumb{int(i):04d}.jpg")
+            img = Image.open(f).resize((256, 256))
+            res.append(img)
+
+    return res
+
+
+def process_as_tensor_image(imgs, padding):
+    imgs = torch.stack([img
+                        for img in imgs])
+
+    imgs = imgs.permute(
+        1, 0, 2, 3)     # (C,D,H,W)
+
+    # zero-pad
+    import torch.nn.functional as F
+    imgs = F.pad(imgs, padding)
+
+    return imgs
+
+
+def get_input_and_mask(video_data, patient_positions, input_transform, padding):
+    input_ = []
+    mask_ = []
+
+    raitio = {
+        'height': 256/480,
+        'width': 256/640
+    }
+
+    for idx in range(len(video_data)):
+        img, pos = video_data[idx], patient_positions[idx]
+        t_img = input_transform(img)   # Tensor image (C,H,W)
+        input_.append(t_img)
+
+        xmin, ymin, xmax, ymax = eval(pos)
+
+        xmin, xmax = [round(raitio['width']*v) for v in [xmin, xmax]]
+        ymin, ymax = [round(raitio['height']*v) for v in [ymin, ymax]]
+
+        mask = torch.zeros_like(t_img)
+        mask[:, ymin:ymax, xmin:xmax] = 1
+        mask_.append(mask)
+
+    input_ = process_as_tensor_image(input_, padding)
+    mask_ = process_as_tensor_image(mask_, padding)
+
+    return input_, mask_
 
 
 class GAITDataset(Dataset):
@@ -115,8 +180,7 @@ class GAITDataset(Dataset):
 
         self.X = X
         self.y = y
-        self.vids = list(set(X.vids))
-
+        self.vids = arrange_vids(natsorted(list(set(X.vids))), seed=0)
         self.load_pretrained = opt.load_pretrained
 
         self.sample_duration = opt.sample_duration
@@ -169,3 +233,55 @@ class GAITDataset(Dataset):
             self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
 
         return inputs, targets, vid
+
+
+class GAITSegRegDataset(Dataset):
+    def __init__(self,
+                 X,
+                 y,
+                 opt,
+                 input_transform=None, target_transform=None):
+
+        self.X = X
+        self.y = y
+        self.vids = arrange_vids(natsorted(list(set(X.vids))), seed=0)
+        self.load_pretrained = opt.load_pretrained
+
+        self.sample_duration = opt.sample_duration
+
+        self.input_transform = input_transform
+        self.target_transform = target_transform
+
+        self.opt = opt
+
+        if target_transform:
+            scaled_values = target_transform.transform(y)
+            self.y.loc[:, :] = scaled_values
+
+    def __len__(self):
+        return len(self.vids)
+
+    def __getitem__(self, idx):
+        vid = self.vids[idx]
+
+        # uniform sampling with delta(=6)
+        cur_X = self.X[self.X.vids == vid].iloc[::self.opt.delta]
+
+        frame_indices, patient_positions = cur_X.idx.values, cur_X.pos.values
+        video_data = video_loader(
+            self.opt.data_root, vid, frame_indices, mode='PIL')
+
+        input_imgs, mask_imgs = get_input_and_mask(
+            video_data,
+            patient_positions, self.input_transform,
+            padding=(
+                0, 0,
+                0, 0,
+                0, self.sample_duration - len(frame_indices))
+        )
+
+        # target is always same!
+        targets = torch.tensor(
+            self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
+
+        return input_imgs, mask_imgs, targets, vid

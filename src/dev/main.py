@@ -130,10 +130,16 @@ if __name__ == "__main__":
             chunk_parts=opt.chunk_parts,
         )
 
-        train_ds = datasets.gaitregression.GAITDataset(
+        if opt.with_segmentation:
+            ds_class = datasets.gaitregression.GAITSegRegDataset
+        else:
+            ds_class = datasets.gaitregression.GAITDataset
+
+        train_ds = ds_class(
             X=data["train_X"], y=data["train_y"], opt=opt
         )
-        test_ds = datasets.gaitregression.GAITDataset(
+
+        test_ds = ds_class(
             X=data["test_X"], y=data["test_y"], opt=opt
         )
 
@@ -162,6 +168,7 @@ if __name__ == "__main__":
 
         trainer.fit(
             ds=train_ds, dataloader_generator=dataloader_generator,
+            ds_class=ds_class,
             plotter=plotter)
 
     elif opt.mode == "test":

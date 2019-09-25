@@ -66,7 +66,7 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
     # update plotter at every half of epoch
     update_cycle = len(data_loader) // 2
 
-    for i, (inputs, targets, vids) in enumerate(data_loader):
+    for i, (inputs, masks, targets, vids) in enumerate(data_loader):
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         score = score_func(
@@ -209,7 +209,7 @@ class Trainer(object):
 
         self.target_columns = get_target_columns(opt)
 
-    def fit(self, ds, dataloader_generator, plotter):
+    def fit(self, ds, dataloader_generator, ds_class, plotter):
         entire_vids = np.array(ds.vids)
 
         # K-fold CV
@@ -238,11 +238,11 @@ class Trainer(object):
 
             train_vids, valid_vids = entire_vids[train], entire_vids[valid]
 
-            train_loader = dataloader_generator(self.opt, ds, train_vids,
+            train_loader = dataloader_generator(self.opt, ds, train_vids, ds_class,
                                                 self.input_transform,
                                                 self.target_transform,
                                                 shuffle=True)
-            valid_loader = dataloader_generator(self.opt, ds, valid_vids,
+            valid_loader = dataloader_generator(self.opt, ds, valid_vids, ds_class,
                                                 self.input_transform,
                                                 self.target_transform,
                                                 shuffle=False)

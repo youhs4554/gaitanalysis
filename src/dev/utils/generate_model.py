@@ -85,6 +85,9 @@ def generate_regression_model(backbone, opt):
                     attention=opt.attention,
                     n_groups=opt.n_groups)
 
+        elif opt.model_arch == 'SRegression':
+            net = regression_model.SRegessionNet(backbone)
+
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
                                                      n_factors=opt.n_factors,

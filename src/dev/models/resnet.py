@@ -134,16 +134,10 @@ class ResNet(nn.Module):
             block, 256, layers[2], shortcut_type, stride=2)
         self.layer4 = self._make_layer(
             block, 512, layers[3], shortcut_type, stride=2)
-
         last_duration = int(math.ceil(sample_duration / 16))
-        if (type(sample_size) is tuple) and len(sample_size)==2:
-            last_shape = (last_duration, int(math.ceil(sample_size[0] / 16)), int(math.ceil(sample_size[1] / 16)))
-        else:
-            last_size = int(math.ceil(sample_size / 16))
-            last_shape = (last_duration, last_size, last_size)
-
-        # self.avgpool = nn.AvgPool3d(last_shape, stride=1)
-        self.avgpool = nn.AdaptiveAvgPool3d(last_shape)
+        last_size = int(math.ceil(sample_size / 32))
+        self.avgpool = nn.AvgPool3d(
+            (last_duration, last_size, last_size), stride=1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():

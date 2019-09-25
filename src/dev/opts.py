@@ -103,7 +103,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--sample_size',
-        default=(384, 128),
+        default=224,
         type=tuple,
         help='Input image size (h,w) fed into backbone',
     )
@@ -147,7 +147,13 @@ def parse_opts():
         '--multi_gpu',
         action='store_true',
         help='If true, enable multi GPU system.')
-    parser.set_defaults(multi_gpu=True)
+    parser.set_defaults(multi_gpu=False)
+    parser.add_argument(
+        '--with_segmentation',
+        action='store_true',
+        help='If true, add segmentation dataset.'
+    )
+    parser.set_defaults(with_segmentation=False)
     parser.add_argument(
         '--mode',
         default='train',
@@ -247,7 +253,7 @@ def parse_opts():
         '--model_arch',
         default='HPP',
         type=str,
-        help='Specify mode for regression model (naive | HPP | SPP)')
+        help='Specify mode for regression model (naive | HPP | SPP | SRegression)')
     parser.add_argument(
         '--merge_type',
         default='',

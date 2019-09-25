@@ -479,3 +479,17 @@ class DeepFFT(nn.Module):
         x = self.fc(x_freq)
 
         return x
+
+
+class SRegessionNet(nn.Module):
+    def __init__(self, backbone):
+        super(SRegessionNet, self).__init__()
+        self.model = nn.Sequential(*list(backbone.module.children())[:-2])
+
+    def forward(self, x):
+        res = self.model(x)
+        nn.Upsample()
+
+        import torchvision
+
+        return x
