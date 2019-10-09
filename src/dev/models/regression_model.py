@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 
 from models.base_modules import (
-    View, MultiInputSequential, GAP)
+    View, MultiInputSequential, GAP, UpConv)
 import torch
 from torch import nn
 from torch.nn.functional import (
@@ -484,12 +484,66 @@ class DeepFFT(nn.Module):
 class SRegessionNet(nn.Module):
     def __init__(self, backbone):
         super(SRegessionNet, self).__init__()
-        self.model = nn.Sequential(*list(backbone.module.children())[:-2])
+
+        self.inp_enc = nn.Sequential(
+            backbone.module.conv1,
+            backbone.module.bn1,
+            backbone.module.relu,
+            backbone.module.maxpool,
+            backbone.module.layer1,
+        )
+
+        self.down1 = backbone.module.layer2
+        self.down2 = backbone.module.layer3
+        self.down3 = backbone.module.layer4
+        self.down4 = nn.Sequential(
+            nn.Conv3d(512, 512, 3, 1, 1),
+            nn.BatchNorm3d(512),
+            nn.ReLU(),
+            nn.MaxPool3d(2),
+        )
+
+        self.up1 = UpConv(1024, 256)
+        self.up2 = UpConv(512, 128)
+        self.up3 = UpConv(256, 64)
+        self.up4 = UpConv(128, 64)
+
+        self.seg = nn.Sequential(
+            nn.Upsample(scale_factor=(2, 4, 4),
+                        mode='trilinear', align_corners=True),
+            nn.Conv3d(64+64, 2, 3, 1, 1),
+            nn.Sigmoid())
+
+        self.reg = nn.Sequential(
+            nn.Conv3d(64+64, 15, 3, 1, 1),
+            nn.BatchNorm3d(15),
+            nn.ReLU(),
+        )
+
+        self.avg_pool = nn.AvgPool3d(32)
+
+        self.fc = nn.Linear(15, 15)
 
     def forward(self, x):
-        res = self.model(x)
-        nn.Upsample()
+        x1 = self.inp_enc(x)    # (N,64,32,32,32)
+        x2 = self.down1(x1)     # (N,128,16,16,16)
+        x3 = self.down2(x2)     # (N,256,8,8,8)
+        x4 = self.down3(x3)     # (N,512,4,4,4)
+        emb = self.down4(x4)      # (N,512,2,2,2)
 
-        import torchvision
+        x = self.up1(emb, x4)     # (N,512,4,4,4)
+        x = self.up2(x, x3)     # (N,256,8,8,8)
+        x = self.up3(x, x2)     # (N,128,16,16,16)
+        x = self.up4(x, x1)     # (N,64,32,32,32)
 
-        return x
+        x = torch.cat([x1, x], dim=1)   # (N,64+64,32,32,32)
+
+        # segmentation output
+        seg = self.seg(x)                 # (N,2,64,128,128)
+
+        # regression output
+        reg_actmap = self.reg(x)
+        reg = self.avg_pool(reg_actmap).view(-1, reg_actmap.size(1))
+        reg = self.fc(reg)
+
+        return seg, reg, reg_actmap

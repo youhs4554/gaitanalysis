@@ -8,6 +8,54 @@ import numpy as np
 import csv
 import json
 from utils.target_columns import get_target_columns
+import matplotlib.pyplot as plt
+from torchvision.utils import make_grid
+import cv2
+import torchvision.transforms.functional as F
+
+
+def normalize_img(img):
+    img = (img - np.min(img))/np.max(img)
+    return np.uint8(255 * img)
+
+
+def draw_actmap(reg_actmap, inputs, weight_output, plotter, opt):
+    nc, L, h, w = reg_actmap.shape
+    step = inputs.shape[1] // L
+    mean = np.array(opt.mean)
+    std = np.array(opt.std)
+
+    for t in range(L):
+        actmap = reg_actmap[:, t]  # (nc,h,w)
+        # (128, 128, 3)
+        input_img = (inputs.transpose(1, 2, 3, 0)[
+                     step*t:step*(t+1)]*std + mean).mean(0)
+        heatmaps = []
+        for n in range(nc):
+            # dot-product for all logits
+            actmap_img = weight_output[n].dot(
+                actmap.reshape((nc, h*w))).reshape((h, w))
+            actmap_img = normalize_img(actmap_img)
+            input_img = normalize_img(input_img)
+            actmap_img = cv2.resize(actmap_img,
+                                    (opt.sample_size, opt.sample_size))
+            actmap_img = cv2.applyColorMap(
+                actmap_img, cv2.COLORMAP_JET)
+
+            # bgr -> rgb
+            actmap_img = cv2.cvtColor(actmap_img, cv2.COLOR_BGR2RGB)
+            input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
+
+            res = torch.clamp(F.to_tensor(actmap_img) * 0.3 +
+                              F.to_tensor(input_img) * 0.5, 0., 1.)
+
+            heatmaps.append(res)
+
+        actmap_grid = make_grid(heatmaps)
+        plotter.viz.image(actmap_grid, win='actmap_hist', env=plotter.env,
+                          opts=dict(caption=f't={t}',
+                                    store_history=True,
+                                    title=f'Activation_Maps at {t}-th'),)
 
 
 class AverageMeter(object):
@@ -53,7 +101,7 @@ class Logger(object):
         self.log_file.flush()
 
 
-def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, opt,
+def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, optimizer, opt,
                 plotter, score_func, target_transform, target_columns):
 
     print('train at epoch {} @ split-{}'.format(epoch, split))
@@ -63,16 +111,20 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
     running_loss = 0.0
     running_scores = [0.0 for _ in range(len(target_columns))]
 
-    # update plotter at every half of epoch
-    update_cycle = len(data_loader) // 2
+    # update plotter at every 1/10 of epoch
+    update_cycle = len(data_loader) // 10
 
     for i, (inputs, masks, targets, vids) in enumerate(data_loader):
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
+        res = model(inputs)
+        seg_outputs, reg_outputs, reg_actmap = tuple(zip(*res))
+
+        loss = 0.2 * criterion1(seg_outputs, masks) + \
+            0.8 * criterion2(reg_outputs, targets)
+
         score = score_func(
             target_transform.inverse_transform(targets.numpy()),
             target_transform.inverse_transform(
-                torch.cat(outputs).detach().cpu().numpy()),
+                torch.cat(reg_outputs).detach().cpu().numpy()),
             multioutput='raw_values',
         )
 
@@ -90,7 +142,6 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
             _loss = running_loss / update_cycle
             _scores = [running_scores[n] /
                        update_cycle for n in range(len(target_columns))]
-
             print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
                   'Loss {loss:.4f}\t'
                   'Score {avg_score:.3f}'.format(
@@ -113,6 +164,24 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
                              target_columns[n] + '_' +
                              'score' + '__' + 'trace',
                              step[0], _scores[n])
+
+            input_video = inputs[0, :].permute(1, 2, 3, 0)
+            plotter.draw_video('train__input_video',
+                               f'Input (epoch : {epoch}, step : {step[0]})',
+                               torch.tensor((input_video-input_video.min())/(input_video.max()-input_video.min())*255, dtype=torch.uint8))
+
+            cmap = plt.get_cmap('jet')
+
+            output_video = cmap(
+                seg_outputs[0][0, 1].detach().cpu().numpy())[..., :3]
+            plotter.draw_video('train__output_video',
+                               f'Output (epoch : {epoch}, step : {step[0]})',
+                               torch.tensor((output_video-output_video.min())/(output_video.max()-output_video.min())*255, dtype=torch.uint8))
+
+            target_video = cmap(masks[0, 1].numpy())[..., :3]
+            plotter.draw_video('train__target_video',
+                               f'Target (epoch : {epoch}, step : {step[0]})',
+                               torch.tensor((target_video-target_video.min())/(target_video.max()-target_video.min())*255, dtype=torch.uint8))
 
             # re-init running_loss & running_scores
             running_loss = 0.0
@@ -141,20 +210,24 @@ def train_epoch(step, epoch, split, data_loader, model, criterion, optimizer, op
 
 
 def validate(step, epoch, split, data_loader,
-             model, criterion, plotter, score_func,
+             model, criterion1, criterion2, opt, plotter, score_func,
              target_transform, target_columns):
     print('validation at epoch {} @ split-{}'.format(epoch, split))
 
     model.eval()
     losses = AverageMeter()
     multi_scores = [AverageMeter() for _ in range(len(target_columns))]
-    for i, (inputs, targets, vids) in enumerate(data_loader):
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
+    for i, (inputs, masks, targets, vids) in enumerate(data_loader):
+        res = model(inputs)
+
+        seg_outputs, reg_outputs, reg_actmap = tuple(zip(*res))
+
+        loss = 0.2 * criterion1(seg_outputs, masks) + \
+            0.8 * criterion2(reg_outputs, targets)
         score = score_func(
             target_transform.inverse_transform(targets.numpy()),
             target_transform.inverse_transform(
-                torch.cat(outputs).detach().cpu().numpy()),
+                torch.cat(reg_outputs).detach().cpu().numpy()),
             multioutput='raw_values',
         )
 
@@ -184,25 +257,37 @@ def validate(step, epoch, split, data_loader,
         plotter.plot(target_columns[n] + '_score', 'val', target_columns[n] +
                      '_' + 'score' + '__' + 'trace', step[0], score[n])
 
+    # reg_actmap = reg_actmap[0][0].detach().cpu().numpy()
+    # input_img = inputs[0].cpu().numpy()
+
+    # weight_output = list(model.parameters())[-2].cpu().data.numpy()
+
+    # # draw activation maps
+    # draw_actmap(reg_actmap, input_img, weight_output, plotter, opt)
+
     return avg_loss, avg_score
 
 
 class Trainer(object):
     def __init__(self,
                  model,
-                 criterion,
+                 criterion1, criterion2,
                  optimizer,
                  scheduler,
                  opt,
-                 input_transform=None, target_transform=None,
+                 spatial_transform=None,
+                 temporal_transform=None,
+                 target_transform=None,
                  score_func=r2_score):
 
         self.model = model
-        self.criterion = criterion
+        self.criterion1 = criterion1
+        self.criterion2 = criterion2
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.opt = opt
-        self.input_transform = input_transform
+        self.spatial_transform = spatial_transform
+        self.temporal_transform = temporal_transform
         self.target_transform = target_transform
 
         self.score_func = score_func
@@ -239,36 +324,36 @@ class Trainer(object):
             train_vids, valid_vids = entire_vids[train], entire_vids[valid]
 
             train_loader = dataloader_generator(self.opt, ds, train_vids, ds_class,
-                                                self.input_transform,
-                                                self.target_transform,
+                                                phase='train',
+                                                spatial_transform=self.spatial_transform['train'],
+                                                temporal_transform=self.temporal_transform['train'],
                                                 shuffle=True)
             valid_loader = dataloader_generator(self.opt, ds, valid_vids, ds_class,
-                                                self.input_transform,
-                                                self.target_transform,
-                                                shuffle=False)
+                                                phase='valid',
+                                                spatial_transform=self.spatial_transform['test'],
+                                                temporal_transform=self.temporal_transform['test'],
+                                                shuffle=True)
 
             epoch_status = defaultdict(list)
-
             for epoch in range(self.opt.n_iter):
                 # train loop
                 train_epoch(step, epoch, split, train_loader, self.model,
-                            self.criterion, self.optimizer,
+                            self.criterion1, self.criterion2, self.optimizer,
                             self.opt, plotter,
                             self.score_func, self.target_transform,
                             self.target_columns)
-
                 with torch.no_grad():
                     # at every train epoch, validate model!
                     valid_loss, valid_score = validate(step, epoch, split,
                                                        valid_loader,
                                                        self.model,
-                                                       self.criterion,
+                                                       self.criterion1, self.criterion2,
+                                                       self.opt,
                                                        plotter,
                                                        self.score_func,
                                                        self.target_transform,
                                                        self.target_columns)
-
-                self.scheduler.step(valid_loss)
+                # self.scheduler.step(valid_loss)
 
                 epoch_status['loss'].append(valid_loss)
                 epoch_status['score'].append(valid_score)
@@ -278,8 +363,8 @@ class Trainer(object):
 
             CV_results[f'split-{split}'].append(
                 dict(loss=last_loss,
-                     score=last_score)
-            )
+                     score=last_score
+                     ))
 
             # todo. add only last epoch into cv_loss
             cv_loss += last_loss
@@ -288,7 +373,7 @@ class Trainer(object):
             if not self.opt.warm_start:
                 # if warm-starting is False, re-init the state
                 print('Re-initializing states...')
-                self.model, self.optimizer, self.scheduler = init_state(
+                self.model, self.criterion1, self.criterion2, self.optimizer, self.scheduler = init_state(
                     self.opt)
 
             # at every end of split save cv_results ( as it takes too much time...)

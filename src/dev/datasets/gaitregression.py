@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 
+import copy
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
@@ -9,6 +10,11 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from natsort import natsorted
+import sys
+import random
+import torchvision.transforms as TF
+import torchvision.transforms.functional as tf_func
+import torch.nn.functional as F
 
 
 def pid2vid(pid):
@@ -53,7 +59,7 @@ def split_dataset_with_vids(input_df, target_df, vids,
 
 
 def prepare_dataset(input_file, target_file,
-                    target_columns, chunk_parts):
+                    target_columns, chunk_parts, target_transform=None):
 
     # if data generation is not the case..
     prefix, ext = os.path.splitext(input_file)
@@ -79,6 +85,10 @@ def prepare_dataset(input_file, target_file,
 
     target_df = target_df.dropna()
 
+    if target_transform:
+        scaled_values = target_transform.fit_transform(target_df)
+        target_df.loc[:, :] = scaled_values
+
     # split dataset (train/test)
     train_X, train_y, train_vids, test_X, test_y, test_vids =\
         split_dataset_with_vids(
@@ -92,8 +102,9 @@ def prepare_dataset(input_file, target_file,
 
 def generate_dataloader_for_crossvalidation(opt, ds, vids,
                                             ds_class,
-                                            input_transform=None,
-                                            target_transform=None,
+                                            phase=None,
+                                            spatial_transform=None,
+                                            temporal_transform=None,
                                             shuffle=True):
 
     from torch.utils.data import DataLoader
@@ -101,20 +112,27 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
         ds.X, vids), filter_target_df_with_vids(ds.y, vids)
 
     ds = ds_class(X, y,
-                  opt=opt,
-                  input_transform=input_transform,
-                  target_transform=target_transform)
+                  opt=opt, phase=phase,
+                  spatial_transform=spatial_transform,
+                  temporal_transform=temporal_transform)
+
+    ds[0]
 
     # define dataloader
     loader = DataLoader(ds,
                         batch_size=opt.batch_size,
                         shuffle=shuffle,
-                        num_workers=opt.n_threads)
+                        num_workers=opt.n_threads, drop_last=True)
 
     return loader
 
 
-def video_loader(data_root, vid, frame_indices, mode='PIL'):
+def video_loader(data_root, vid, frame_indices, size, mode='PIL'):
+    assert type(size) in [tuple, int], 'size should be tuple or int'
+
+    if type(size) == int:
+        size = (size, size)
+
     if mode == 'numpy':
         res = np.load(os.path.join(data_root, vid) + '.npy')
     elif mode == 'PIL':
@@ -122,7 +140,7 @@ def video_loader(data_root, vid, frame_indices, mode='PIL'):
         subdir = os.path.join(data_root, vid)
         for i in frame_indices:
             f = os.path.join(subdir, f"thumb{int(i):04d}.jpg")
-            img = Image.open(f).resize((256, 256))
+            img = Image.open(f).resize(size)
             res.append(img)
 
     return res
@@ -136,39 +154,60 @@ def process_as_tensor_image(imgs, padding):
         1, 0, 2, 3)     # (C,D,H,W)
 
     # zero-pad
-    import torch.nn.functional as F
     imgs = F.pad(imgs, padding)
 
     return imgs
 
 
-def get_input_and_mask(video_data, patient_positions, input_transform, padding):
+def get_input(video_data, spatial_transform, padding, seed):
     input_ = []
-    mask_ = []
-
-    raitio = {
-        'height': 256/480,
-        'width': 256/640
-    }
 
     for idx in range(len(video_data)):
-        img, pos = video_data[idx], patient_positions[idx]
-        t_img = input_transform(img)   # Tensor image (C,H,W)
+        random.seed(seed)
+        img = video_data[idx]
+        t_img = spatial_transform(img)   # Tensor image (C,H,W)
         input_.append(t_img)
 
+    input_ = process_as_tensor_image(input_, padding)
+
+    return input_
+
+
+def get_mask(patient_positions, crop_position, angle, padding, opt):
+    ratio = {
+        'height': opt.img_size/opt.raw_h,
+        'width': opt.img_size/opt.raw_w
+    }
+
+    mask_ = []
+
+    for idx in range(len(patient_positions)):
+        pos = patient_positions[idx]
         xmin, ymin, xmax, ymax = eval(pos)
 
-        xmin, xmax = [round(raitio['width']*v) for v in [xmin, xmax]]
-        ymin, ymax = [round(raitio['height']*v) for v in [ymin, ymax]]
+        xmin, xmax = [round(ratio['width']*v) for v in [xmin, xmax]]
+        ymin, ymax = [round(ratio['height']*v) for v in [ymin, ymax]]
 
-        mask = torch.zeros_like(t_img)
-        mask[:, ymin:ymax, xmin:xmax] = 1
-        mask_.append(mask)
+        mask = np.stack([np.ones((opt.img_size, opt.img_size)),
+                         np.zeros((opt.img_size, opt.img_size))])
+        for i in range(2):
+            mask[i, ymin:ymax, xmin:xmax] = i % 2
 
-    input_ = process_as_tensor_image(input_, padding)
+        mask_.append(
+            torch.cat([
+                tf_func.to_tensor(
+                    tf_func.resized_crop(
+                        tf_func.rotate(
+                            Image.fromarray(mask[i]), angle),
+                        *crop_position, size=(opt.sample_size, opt.sample_size)
+                    )
+                ) for i in range(2)
+            ])
+        )
+
     mask_ = process_as_tensor_image(mask_, padding)
 
-    return input_, mask_
+    return mask_
 
 
 class GAITDataset(Dataset):
@@ -176,7 +215,7 @@ class GAITDataset(Dataset):
                  X,
                  y,
                  opt,
-                 input_transform=None, target_transform=None):
+                 spatial_transform=None, temporal_transform=None):
 
         self.X = X
         self.y = y
@@ -185,17 +224,13 @@ class GAITDataset(Dataset):
 
         self.sample_duration = opt.sample_duration
 
-        self.input_transform = input_transform
-        self.target_transform = target_transform
+        self.spatial_transform = spatial_transform
+        self.temporal_transform = temporal_transform
 
         self.opt = opt
 
         self.feats_dir = os.path.join(
             os.path.dirname(opt.data_root), 'FeatsArrays', opt.arch)
-
-        if target_transform:
-            scaled_values = target_transform.transform(y)
-            self.y.loc[:, :] = scaled_values
 
     def __len__(self):
         return len(self.vids)
@@ -221,9 +256,9 @@ class GAITDataset(Dataset):
                                      (0, 0), (0, 0), (0, 0)),
                             'constant', constant_values=0)
 
-            if self.input_transform:
-                self.input_transform.randomize_parameters()
-                inputs = [self.input_transform(
+            if self.spatial_transform:
+                self.spatial_transform.randomize_parameters()
+                inputs = [self.spatial_transform(
                     Image.fromarray(img)) for img in inputs]
 
             inputs = torch.stack(inputs, 0).permute(1, 0, 2, 3)
@@ -240,7 +275,8 @@ class GAITSegRegDataset(Dataset):
                  X,
                  y,
                  opt,
-                 input_transform=None, target_transform=None):
+                 phase,
+                 spatial_transform=None, temporal_transform=None):
 
         self.X = X
         self.y = y
@@ -249,36 +285,77 @@ class GAITSegRegDataset(Dataset):
 
         self.sample_duration = opt.sample_duration
 
-        self.input_transform = input_transform
-        self.target_transform = target_transform
+        self.spatial_transform = spatial_transform
+        self.temporal_transform = temporal_transform
 
         self.opt = opt
-
-        if target_transform:
-            scaled_values = target_transform.transform(y)
-            self.y.loc[:, :] = scaled_values
+        self.phase = phase
 
     def __len__(self):
         return len(self.vids)
 
-    def __getitem__(self, idx):
-        vid = self.vids[idx]
+    def process_sampled_data(self, cur_X, vid):
+        if self.temporal_transform:
+            indices_sampled = self.temporal_transform(list(range(len(cur_X))))
+        else:
+            indices_sampled = list(range(0, len(cur_X), self.opt.delta))
 
-        # uniform sampling with delta(=6)
-        cur_X = self.X[self.X.vids == vid].iloc[::self.opt.delta]
+        cur_X = cur_X.iloc[indices_sampled]
 
         frame_indices, patient_positions = cur_X.idx.values, cur_X.pos.values
         video_data = video_loader(
-            self.opt.data_root, vid, frame_indices, mode='PIL')
+            self.opt.data_root, vid, frame_indices,
+            size=self.opt.img_size, mode='PIL')
 
-        input_imgs, mask_imgs = get_input_and_mask(
-            video_data,
-            patient_positions, self.input_transform,
-            padding=(
-                0, 0,
-                0, 0,
-                0, self.sample_duration - len(frame_indices))
-        )
+        seed = random.randint(-sys.maxsize, sys.maxsize)
+
+        if self.phase == 'train':
+            # @ train; fixed rotation angle for entire video frames
+            rotation_method, crop_method = self.spatial_transform.transforms[:2]
+
+            random.seed(seed)
+
+            angle = rotation_method.get_params(
+                rotation_method.degrees
+            )
+
+            random.seed(seed)
+
+            # for fixed cropping for entire video frames
+            crop_position = crop_method.get_params(
+                video_data[0], crop_method.scale, crop_method.ratio)
+
+        else:
+            # @ test; without tilt and croping
+            _start = (self.opt.img_size-self.opt.sample_size)//2
+            angle = 0.0
+            crop_position = (
+                _start, _start, self.opt.sample_size, self.opt.sample_size)
+
+        input_imgs = get_input(video_data,
+                               self.spatial_transform,
+                               padding=(
+                                   0, 0,
+                                   0, 0,
+                                   0, self.sample_duration - len(frame_indices)),
+                               seed=seed)
+
+        mask_imgs = get_mask(patient_positions,
+                             crop_position, angle,
+                             padding=(
+                                 0, 0,
+                                 0, 0,
+                                 0, self.sample_duration - len(frame_indices)),
+                             opt=self.opt)
+
+        return input_imgs, mask_imgs
+
+    def __getitem__(self, idx):
+        vid = self.vids[idx]
+
+        cur_X = self.X[self.X.vids == vid]
+
+        input_imgs, mask_imgs = self.process_sampled_data(cur_X, vid)
 
         # target is always same!
         targets = torch.tensor(

@@ -8,7 +8,7 @@ from utils.train_utils import AverageMeter
 import torch
 
 
-def test(data_loader, model, opt,
+def test(data_loader, model, opt, plotter,
          logpath, score_func, target_transform, target_columns):
 
     mode = 'uniform_average' if opt.score_avg else 'raw_values'
@@ -20,17 +20,17 @@ def test(data_loader, model, opt,
     y_true, y_pred = [], []
 
     for _ in range(len(data_loader)):
-        inputs, targets, vids = next(data_loader)
+        inputs, masks, targets, vids = next(data_loader)
 
-        outputs = model(inputs)
+        res = model(inputs)
+        seg_outputs, reg_outputs, x4s = tuple(zip(*res))
 
         targets = targets.numpy()
-        outputs = target_transform.inverse_transform(
-            torch.cat(outputs).detach().cpu().numpy())
+        reg_outputs = torch.cat(reg_outputs).detach().cpu().numpy()
 
         score_val = score_func(
             targets,
-            outputs,
+            reg_outputs,
             multioutput=mode
         )
 
@@ -38,7 +38,7 @@ def test(data_loader, model, opt,
 
         # y_true, y_pred for later usage
         y_true.append(targets)
-        y_pred.append(outputs)
+        y_pred.append(reg_outputs)
 
     # end of epoch, avged score for entire testset
     score_map = {
@@ -62,24 +62,27 @@ class Tester(object):
                  model,
                  opt,
                  score_func=None,
-                 input_transform=None, target_transform=None):
+                 spatial_transform=None,
+                 temporal_transform=None,
+                 target_transform=None):
 
         self.model = model
         self.opt = opt
         self.score_func = score_func
 
-        self.input_transform = input_transform
+        self.spatial_transform = spatial_transform
+        self.temporal_transform = temporal_transform
         self.target_transform = target_transform
 
         self.target_columns = get_target_columns(opt)
 
-    def fit(self, ds):
+    def fit(self, ds, plotter):
         print('Start testing...')
 
         from torch.utils.data import DataLoader
 
-        setattr(ds, 'input_transform', self.input_transform)
-        setattr(ds, 'target_transform', self.target_transform)
+        setattr(ds, 'spatial_transform', self.spatial_transform)
+        setattr(ds, 'temporal_transform', self.temporal_transform)
 
         # define dataloader
         test_loader = DataLoader(ds,
@@ -92,7 +95,7 @@ class Tester(object):
 
         with torch.no_grad():
             # test model!
-            y_true, y_pred = test(test_loader, self.model, self.opt,
+            y_true, y_pred = test(test_loader, self.model, self.opt, plotter,
                                   self.opt.logpath, self.score_func,
                                   self.target_transform, self.target_columns)
 

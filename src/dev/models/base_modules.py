@@ -57,3 +57,32 @@ class MultiInputSequential(nn.Sequential):
             else:  # tensor case
                 inputs = module(inputs)
         return inputs
+
+
+class UpConv(nn.Module):
+    def __init__(self, in_ch, out_ch, interpolate=True):
+        super().__init__()
+
+        if interpolate:
+            self.up = nn.Upsample(
+                scale_factor=2, mode='trilinear', align_corners=True)
+        else:
+            self.up = nn.ConvTranspose3d(in_ch//2,
+                                         in_ch//2, 2, stride=2)
+
+        self.conv = nn.Sequential(
+            nn.Conv3d(in_ch, out_ch, 3, padding=1),
+            nn.BatchNorm3d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(out_ch, out_ch, 3, padding=1),
+            nn.BatchNorm3d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+
+        x = torch.cat([x2, x1], dim=1)
+        x = self.conv(x)
+
+        return x

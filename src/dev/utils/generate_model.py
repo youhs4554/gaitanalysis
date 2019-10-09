@@ -8,6 +8,7 @@ import models.regression_model as regression_model
 from torch import optim
 from torch.optim import lr_scheduler
 from torchvision import models
+import torch.nn.utils as torch_utils
 
 
 def generate_backbone(opt):
@@ -15,15 +16,25 @@ def generate_backbone(opt):
     net = None
 
     if opt.backbone == '3D-resnet':
-        if opt.model_depth == 50:
+        if opt.model_depth == 18:
+            net = resnet.resnet18(
+                sample_size=opt.sample_size,
+                sample_duration=opt.sample_duration, shortcut_type='A')
+
+        elif opt.model_depth == 34:
+            net = resnet.resnet34(
+                sample_size=opt.sample_size,
+                sample_duration=opt.sample_duration, shortcut_type='A')
+
+        elif opt.model_depth == 50:
             net = resnet.resnet50(
                 sample_size=opt.sample_size,
-                sample_duration=opt.sample_duration)
+                sample_duration=opt.sample_duration, shortcut_type='B')
 
         elif opt.model_depth == 101:
             net = resnet.resnet101(
                 sample_size=opt.sample_size,
-                sample_duration=opt.sample_duration)
+                sample_duration=opt.sample_duration, shortcut_type='B')
 
         else:
             ValueError("Invalid model depth")
@@ -64,6 +75,8 @@ def generate_regression_model(backbone, opt):
 
     net = None
 
+    criterion = nn.MSELoss()
+
     if opt.backbone == "3D-resnet":
 
         if opt.model_arch == 'SPP':
@@ -72,7 +85,7 @@ def generate_regression_model(backbone, opt):
                 num_units=opt.num_units, n_factors=opt.n_factors,
                 kernel_size=3, drop_rate=opt.drop_rate)
 
-        if opt.model_arch == "HPP":
+        elif opt.model_arch == "HPP":
             if opt.merge_type == 'addition':
                 net = regression_model.HPP_Addition_Net(
                     num_units=opt.num_units, n_factors=opt.n_factors,
@@ -87,6 +100,13 @@ def generate_regression_model(backbone, opt):
 
         elif opt.model_arch == 'SRegression':
             net = regression_model.SRegessionNet(backbone)
+            # for name, child in net.named_children():
+            #     if name in ['inp_enc']:
+            #         for p in child.parameters():
+            #             p.requires_grad = False
+
+            criterion1 = nn.BCELoss()
+            criterion2 = nn.MSELoss()
 
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
@@ -106,7 +126,13 @@ def generate_regression_model(backbone, opt):
         net = DataParallelModel(net, device_ids=eval(
             opt.device_ids + ',', )).cuda()
 
-    return net
+        criterion1 = DataParallelCriterion(
+            criterion1, device_ids=eval(opt.device_ids + ",")).cuda()
+
+        criterion2 = DataParallelCriterion(
+            criterion2, device_ids=eval(opt.device_ids + ",")).cuda()
+
+    return net, criterion1, criterion2
 
 
 def init_state(opt):
@@ -114,24 +140,32 @@ def init_state(opt):
     backbone = generate_backbone(opt)
 
     # define regression model
-    net = generate_regression_model(backbone, opt)
+    net, criterion1, criterion2 = generate_regression_model(backbone, opt)
 
     if opt.nesterov:
         dampening = 0
     else:
         dampening = opt.dampening
 
-    optimizer = optim.SGD(
-        net.parameters(),
-        lr=opt.learning_rate,
-        momentum=opt.momentum,
-        dampening=dampening,
-        weight_decay=opt.weight_decay,
-        nesterov=opt.nesterov)
+    # optimizer = optim.SGD(
+    #     net.parameters(),
+    #     lr=opt.learning_rate,
+    #     momentum=opt.momentum,
+    #     dampening=dampening,
+    #     weight_decay=opt.weight_decay,
+    #     nesterov=opt.nesterov)
+
+    optimizer = optim.Adam(
+        net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
+    )
+
+    # In orther to avoid gradient exploding, we apply gradient clipping
+    torch_utils.clip_grad_norm(net.parameters(), opt.max_gradnorm)
+
     scheduler = lr_scheduler.ReduceLROnPlateau(
         optimizer, 'min', verbose=True, patience=opt.lr_patience)
 
-    return net, optimizer, scheduler
+    return net, criterion1, criterion2, optimizer, scheduler
 
 
 def load_trained_ckpt(opt, net):

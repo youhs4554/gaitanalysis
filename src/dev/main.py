@@ -9,7 +9,8 @@ from visualdl import LogWriter
 from opts import parse_opts
 from utils.generate_model import init_state, load_trained_ckpt
 from utils.transforms import (
-    Compose, ToTensor, MultiScaleRandomCrop, MultiScaleCornerCrop, Normalize)
+    Compose, ToTensor, MultiScaleRandomCrop, MultiScaleCornerCrop, Normalize,
+    TemporalRandomCrop, TemporalCenterCrop)
 from utils.train_utils import Trainer, Logger
 from utils.testing_utils import Tester
 from utils.target_columns import (
@@ -22,6 +23,8 @@ from utils.preprocessing import (
     HumanScaleAnalyizer,
     Worker,
 )
+import torch.nn.functional as F
+import torchvision.transforms as TF
 from preprocess.darknet.python.extract_bbox import set_gpu
 
 if __name__ == "__main__":
@@ -37,11 +40,7 @@ if __name__ == "__main__":
     target_columns = get_target_columns(opt)
 
     # define regression model
-    net, optimizer, scheduler = init_state(opt)
-
-    criterion = nn.MSELoss()
-    criterion = DataParallelCriterion(
-        criterion, device_ids=eval(opt.device_ids + ",")).cuda()
+    net, criterion1, criterion2, optimizer, scheduler = init_state(opt)
 
     opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
     opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
@@ -64,25 +63,31 @@ if __name__ == "__main__":
     spatial_transform = {
         "train": Compose(
             [
-                # crop_method, #### disable crop method
-                # RandomHorizontalFlip(), ### disable flip
+                TF.RandomRotation(degrees=(-15, 15)),
+                TF.RandomResizedCrop(size=opt.sample_size,
+                                     scale=(opt.sample_size/opt.img_size, 1.0)),
                 ToTensor(opt.norm_value),
                 norm_method,
             ]
         ),
         "test": Compose(
             [
-                # crop_method, #### disable crop method
+                TF.CenterCrop(opt.sample_size),
                 ToTensor(opt.norm_value),
                 norm_method,
             ]
         ),
     }
 
-    # temporal_transform = TemporalRandomCrop(
-    #     opt.sample_duration)  # disable temporal crop method
+    temporal_transform = {
+        "train": TemporalRandomCrop(opt.sample_duration),
+        "test": TemporalCenterCrop(opt.sample_duration),
+    }
 
-    target_transform_func = sklearn.preprocessing.QuantileTransformer
+    # target transform
+    target_transform = sklearn.preprocessing.QuantileTransformer(
+        random_state=0, output_distribution="normal"
+    )
 
     model_indicator = '_'.join(filter(lambda x: x != '', [opt.attention_str,
                                                           opt.model_arch,
@@ -96,30 +101,7 @@ if __name__ == "__main__":
 
     opt.logpath = logpath
 
-    import torch
-    import numpy as np
-
-    class VisdomLinePlotter(object):
-        """Plots to Visdom"""
-
-        def __init__(self, env_name='main'):
-            self.viz = visdom.Visdom()
-            self.env = env_name
-            self.plots = {}
-
-        def plot(self, var_name, split_name, title_name, x, y):
-            if var_name not in self.plots:
-                self.plots[var_name] = self.viz.line(X=np.array([x, x]), Y=np.array([y, y]), env=self.env, opts=dict(
-                    legend=[split_name],
-                    title=title_name,
-                    xlabel='iterations',
-                    ylabel=var_name
-                ))
-            else:
-                self.viz.line(X=np.array([x]), Y=np.array(
-                    [y]), env=self.env, win=self.plots[var_name], name=split_name, update='append')
-
-    plotter = VisdomLinePlotter(env_name=model_indicator)
+    plotter = viz.VisdomPlotter(env_name=model_indicator)
 
     if opt.dataset == "Gaitparams_PD":
         # prepare dataset  (train/test split)
@@ -128,6 +110,7 @@ if __name__ == "__main__":
             target_file=opt.target_file,
             target_columns=target_columns,
             chunk_parts=opt.chunk_parts,
+            target_transform=target_transform,
         )
 
         if opt.with_segmentation:
@@ -136,21 +119,16 @@ if __name__ == "__main__":
             ds_class = datasets.gaitregression.GAITDataset
 
         train_ds = ds_class(
-            X=data["train_X"], y=data["train_y"], opt=opt
+            X=data["train_X"], y=data["train_y"], opt=opt, phase='train',
         )
 
         test_ds = ds_class(
-            X=data["test_X"], y=data["test_y"], opt=opt
+            X=data["test_X"], y=data["test_y"], opt=opt, phase='test',
         )
 
         dataloader_generator = (
             datasets.gaitregression.generate_dataloader_for_crossvalidation
         )
-
-        # target transform
-        target_transform = target_transform_func(
-            random_state=0, output_distribution="normal"
-        ).fit(data["target_df"].values)
 
     else:
         NotImplementedError("Does not support other datasets until now..")
@@ -158,11 +136,12 @@ if __name__ == "__main__":
     if opt.mode == "train":
         trainer = Trainer(
             model=net,
-            criterion=criterion,
+            criterion1=criterion1, criterion2=criterion2,
             optimizer=optimizer,
             scheduler=scheduler,
             opt=opt,
-            input_transform=spatial_transform[opt.mode],
+            spatial_transform=spatial_transform,
+            temporal_transform=temporal_transform,
             target_transform=target_transform,
         )
 
@@ -178,11 +157,12 @@ if __name__ == "__main__":
             model=net,
             opt=opt,
             score_func=sklearn.metrics.r2_score,
-            input_transform=spatial_transform[opt.mode],
+            spatial_transform=spatial_transform[opt.mode],
+            temporal_transform=temporal_transform[opt.mode],
             target_transform=target_transform,
         )
 
-        y_true, y_pred = tester.fit(ds=test_ds, logpath=logpath)
+        y_true, y_pred = tester.fit(ds=test_ds, plotter=plotter)
 
         # visualize
         viz.scatterplots(target_columns, y_true, y_pred, save_dir="./tmp")

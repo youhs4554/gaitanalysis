@@ -102,10 +102,16 @@ def parse_opts():
         help='GPU id for yolo detector.',
     )
     parser.add_argument(
-        '--sample_size',
-        default=224,
+        '--img_size',
+        default=144,
         type=tuple,
-        help='Input image size (h,w) fed into backbone',
+        help='Resized input image size',
+    )
+    parser.add_argument(
+        '--sample_size',
+        default=128,
+        type=tuple,
+        help='Sampled input image size fed into backbone',
     )
     parser.add_argument(
         '--raw_h',
@@ -121,7 +127,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--sample_duration',
-        default=50,
+        default=64,
         type=int,
         help='Input image lenght fed into backbone',
     )
@@ -225,9 +231,15 @@ def parse_opts():
     parser.set_defaults(nesterov=False)
     parser.add_argument(
         '--lr_patience',
-        default=5,
+        default=10,
         type=int,
         help='Patience of LR scheduler. See documentation of ReduceLROnPlateau.'
+    )
+    parser.add_argument(
+        '--max_gradnorm',
+        default=0.5,
+        type=float,
+        help='Maximum value of gradients used for gradient-clipping.'
     )
     parser.add_argument(
         '--checkpoint',

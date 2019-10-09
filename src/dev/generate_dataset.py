@@ -71,7 +71,7 @@ if __name__ == '__main__':
             norm_method = Normalize(opt.mean, opt.std)
 
         # input transform
-        input_transform = Compose(
+        spatial_transform = Compose(
             [
                 # crop_method, #### disable crop method
                 # RandomHorizontalFlip(), ### disable flip
@@ -88,9 +88,9 @@ if __name__ == '__main__':
         ).fit(y.values)
 
         ds = GAITDataset(X=X, y=y, opt=opt,
-                         input_transform=input_transform,
+                         spatial_transform=spatial_transform,
                          target_transform=target_transform)
-        ds_loader = DataLoader(ds, batch_size=opt.batch_size)
+        ds_loader = DataLoader(ds, batch_size=opt.batch_size, drop_last=True)
         ds_loader = iter(ds_loader)
 
         net = generate_backbone(opt)
