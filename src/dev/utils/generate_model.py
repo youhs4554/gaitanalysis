@@ -9,9 +9,10 @@ from torch import optim
 from torch.optim import lr_scheduler
 from torchvision import models
 import torch.nn.utils as torch_utils
+import torch.nn.functional as F
 
 
-def generate_backbone(opt):
+def generate_backbone(opt, pretrained=True):
 
     net = None
 
@@ -43,18 +44,21 @@ def generate_backbone(opt):
     if opt.backbone == '2D-resnet':
         if opt.mode == "preprocess__feature":
             if opt.model_depth == 50:
-                net = models.resnet50(pretrained=True)
+                net = models.resnet50(pretrained=pretrained)
 
             elif opt.model_depth == 101:
-                net = models.resnet101(pretrained=True)
+                net = models.resnet101(pretrained=pretrained)
 
             elif opt.model_depth == 152:
-                net = models.resnet152(pretrained=True)
+                net = models.resnet152(pretrained=pretrained)
 
             for param in net.parameters():
                 param.requires_grad = False
         else:
             return net
+
+    if opt.backbone == 'r2plus1d_18':
+        net = models.video.r2plus1d_18(pretrained=pretrained)
 
     # if pre-trained modelfile exists...
     if opt.pretrained_path:
@@ -100,13 +104,13 @@ def generate_regression_model(backbone, opt):
 
         elif opt.model_arch == 'SRegression':
             net = regression_model.SRegessionNet(backbone)
-            # for name, child in net.named_children():
-            #     if name in ['inp_enc']:
-            #         for p in child.parameters():
-            #             p.requires_grad = False
+            for name, child in net.named_children():
+                if name in ['conv2', 'conv3', 'conv4', 'conv5']:
+                    for p in child.parameters():
+                        p.requires_grad = False
 
-            criterion1 = nn.BCELoss()
-            criterion2 = nn.MSELoss()
+            criterion1 = nn.BCELoss(reduction='sum')
+            criterion2 = nn.MSELoss(reduction='mean')
 
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
@@ -120,6 +124,27 @@ def generate_regression_model(backbone, opt):
                                            n_factors=opt.n_factors,
                                            num_freq=100,
                                            drop_rate=opt.drop_rate)
+    elif opt.backbone == 'r2plus1d_18':
+        if opt.model_arch == 'SRegression':
+            net = regression_model.SRegessionNet(backbone)
+
+            class MultiScaled_BCELoss(nn.Module):
+                def __init__(self, n_scales):
+                    super().__init__()
+                    self.n_scales = n_scales
+                    self.loss_func = nn.BCELoss()
+
+                def forward(self, input, target):
+                    l = []
+                    for i in range(self.n_scales):
+                        target = F.interpolate(target,
+                                               size=input[i].size()[2:])
+                        l.append(self.loss_func(input[i], target))
+
+                    return torch.stack(l).mean()
+
+            criterion1 = nn.MSELoss()
+            criterion2 = MultiScaled_BCELoss(n_scales=5)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
@@ -159,8 +184,13 @@ def init_state(opt):
         net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
     )
 
+    # optimizer = optim.RMSprop(
+    #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay,
+    #     momentum=opt.momentum,
+    # )
+
     # In orther to avoid gradient exploding, we apply gradient clipping
-    torch_utils.clip_grad_norm(net.parameters(), opt.max_gradnorm)
+    torch_utils.clip_grad_norm_(net.parameters(), opt.max_gradnorm)
 
     scheduler = lr_scheduler.ReduceLROnPlateau(
         optimizer, 'min', verbose=True, patience=opt.lr_patience)

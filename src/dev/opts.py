@@ -109,7 +109,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--sample_size',
-        default=128,
+        default=112,
         type=tuple,
         help='Sampled input image size fed into backbone',
     )
@@ -237,7 +237,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--max_gradnorm',
-        default=0.5,
+        default=5.0,
         type=float,
         help='Maximum value of gradients used for gradient-clipping.'
     )

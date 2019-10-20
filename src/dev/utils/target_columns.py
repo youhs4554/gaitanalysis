@@ -33,5 +33,6 @@ def get_target_columns(opt):
 
     return group_map[opt.target_columns]
 
+
 def get_target_columns_by_group(group):
     return group_map[group]

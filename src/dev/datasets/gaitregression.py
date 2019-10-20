@@ -15,6 +15,18 @@ import random
 import torchvision.transforms as TF
 import torchvision.transforms.functional as tf_func
 import torch.nn.functional as F
+import collections
+
+
+def get_direction(patient_positions):
+    start_pos, end_pos = [patient_positions[0], patient_positions[-1]]
+    s_xmin, s_ymin, s_xmax, s_ymax = eval(start_pos)
+    e_xmin, e_ymin, e_xmax, e_ymax = eval(end_pos)
+    s_c = (s_xmin + s_xmax) / 2, (s_ymin + s_ymax) / 2
+    e_c = (e_xmin + e_xmax) / 2, (e_ymin + e_ymax) / 2
+    res = 'approaching' if e_c[1] > s_c[1] else 'leaving'
+
+    return res
 
 
 def pid2vid(pid):
@@ -116,7 +128,8 @@ def generate_dataloader_for_crossvalidation(opt, ds, vids,
                   spatial_transform=spatial_transform,
                   temporal_transform=temporal_transform)
 
-    ds[0]
+    # for i in range(16):
+    #     ds[i]
 
     # define dataloader
     loader = DataLoader(ds,
@@ -146,34 +159,73 @@ def video_loader(data_root, vid, frame_indices, size, mode='PIL'):
     return res
 
 
-def process_as_tensor_image(imgs, padding):
+def process_as_tensor_image(imgs, padding, pad_mode):
     imgs = torch.stack([img
                         for img in imgs])
 
     imgs = imgs.permute(
         1, 0, 2, 3)     # (C,D,H,W)
 
-    # zero-pad
-    imgs = F.pad(imgs, padding)
+    if pad_mode == 'replicate':
+        # replicated-padding
+        imgs = F.pad(imgs.permute(0, 2, 3, 1), padding,
+                     mode=pad_mode).permute(0, 3, 1, 2)
+    elif pad_mode == 'zeropad':
+        # zero padding
+        imgs = F.pad(imgs, padding)
 
     return imgs
 
 
-def get_input(video_data, spatial_transform, padding, seed):
+def get_input(video_data, spatial_transform, padding, pad_mode, seed, direction):
     input_ = []
 
     for idx in range(len(video_data)):
         random.seed(seed)
         img = video_data[idx]
+        if direction == 'approaching':
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)      # flip left-right
         t_img = spatial_transform(img)   # Tensor image (C,H,W)
         input_.append(t_img)
 
-    input_ = process_as_tensor_image(input_, padding)
+    input_ = process_as_tensor_image(input_, padding, pad_mode)
 
     return input_
 
 
-def get_mask(patient_positions, crop_position, angle, padding, opt):
+def get_flows(input_imgs,
+              mean=[0.43216, 0.394666, 0.37645],
+              std=[0.22803, 0.22145, 0.216989]):
+
+    np_imgs = input_imgs.permute(1, 2, 3, 0).numpy()
+
+    def denormalize_img(img):
+        img = std * img + mean
+        img = np.clip(img, 0, 1)
+        img = cv2.normalize(img, None, 0, 255,
+                            cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+
+        return img
+
+    prev = denormalize_img(np_imgs[0])
+    prev = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
+
+    flows = []
+    for i in range(1, len(np_imgs)):
+        nxt = denormalize_img(np_imgs[i])
+        nxt = cv2.cvtColor(nxt, cv2.COLOR_BGR2GRAY)
+        flows.append(
+            torch.from_numpy(
+                cv2.calcOpticalFlowFarneback(
+                    prev, nxt, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+            )
+        )
+        prev = nxt
+
+    return torch.stack(flows).permute(3, 0, 1, 2)
+
+
+def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt, direction):
     ratio = {
         'height': opt.img_size/opt.raw_h,
         'width': opt.img_size/opt.raw_w
@@ -188,24 +240,38 @@ def get_mask(patient_positions, crop_position, angle, padding, opt):
         xmin, xmax = [round(ratio['width']*v) for v in [xmin, xmax]]
         ymin, ymax = [round(ratio['height']*v) for v in [ymin, ymax]]
 
-        mask = np.stack([np.ones((opt.img_size, opt.img_size)),
-                         np.zeros((opt.img_size, opt.img_size))])
-        for i in range(2):
-            mask[i, ymin:ymax, xmin:xmax] = i % 2
+        mask = np.stack([np.zeros((opt.img_size, opt.img_size)),
+                         np.ones((opt.img_size, opt.img_size))])
+
+        mask_imgs = []
+        coord = collections.OrderedDict(
+            {'fg': 1,
+             'bg': 0})
+
+        ch_order = ['fg', 'bg']
+
+        for i in range(len(ch_order)):
+            fill_val = coord.get(ch_order[i])
+            mask[i, ymin:ymax, xmin:xmax] = fill_val
+            mask_img = Image.fromarray(mask[i])
+            if direction == 'approaching':
+                mask_img = mask_img.transpose(
+                    Image.FLIP_LEFT_RIGHT)      # flip left-right
+            mask_imgs.append(mask_img)
 
         mask_.append(
             torch.cat([
                 tf_func.to_tensor(
                     tf_func.resized_crop(
                         tf_func.rotate(
-                            Image.fromarray(mask[i]), angle),
+                            mask_imgs[i], angle),
                         *crop_position, size=(opt.sample_size, opt.sample_size)
                     )
-                ) for i in range(2)
+                ) for i in range(len(ch_order))
             ])
         )
 
-    mask_ = process_as_tensor_image(mask_, padding)
+    mask_ = process_as_tensor_image(mask_, padding, pad_mode)
 
     return mask_
 
@@ -296,7 +362,8 @@ class GAITSegRegDataset(Dataset):
 
     def process_sampled_data(self, cur_X, vid):
         if self.temporal_transform:
-            indices_sampled = self.temporal_transform(list(range(len(cur_X))))
+            indices_sampled = self.temporal_transform(
+                list(range(0, len(cur_X), self.opt.delta)))
         else:
             indices_sampled = list(range(0, len(cur_X), self.opt.delta))
 
@@ -306,6 +373,8 @@ class GAITSegRegDataset(Dataset):
         video_data = video_loader(
             self.opt.data_root, vid, frame_indices,
             size=self.opt.img_size, mode='PIL')
+
+        direction = get_direction(patient_positions)
 
         seed = random.randint(-sys.maxsize, sys.maxsize)
 
@@ -338,7 +407,15 @@ class GAITSegRegDataset(Dataset):
                                    0, 0,
                                    0, 0,
                                    0, self.sample_duration - len(frame_indices)),
-                               seed=seed)
+                               pad_mode='zeropad',
+                               seed=seed,
+                               direction=direction)
+
+        # # optical flow imgs
+        # flows = get_flows(input_imgs)
+
+        # # merge rgb img & optical flow through channel dims
+        # input_imgs = torch.cat([input_imgs[:, :-1], flows])
 
         mask_imgs = get_mask(patient_positions,
                              crop_position, angle,
@@ -346,19 +423,22 @@ class GAITSegRegDataset(Dataset):
                                  0, 0,
                                  0, 0,
                                  0, self.sample_duration - len(frame_indices)),
-                             opt=self.opt)
+                             pad_mode='zeropad',
+                             opt=self.opt,
+                             direction=direction)
 
-        return input_imgs, mask_imgs
+        return input_imgs, mask_imgs, len(frame_indices)
 
     def __getitem__(self, idx):
         vid = self.vids[idx]
 
         cur_X = self.X[self.X.vids == vid]
 
-        input_imgs, mask_imgs = self.process_sampled_data(cur_X, vid)
+        input_imgs, mask_imgs, valid_lengths = self.process_sampled_data(
+            cur_X, vid)
 
         # target is always same!
         targets = torch.tensor(
             self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
 
-        return input_imgs, mask_imgs, targets, vid
+        return input_imgs, mask_imgs, targets, vid, valid_lengths

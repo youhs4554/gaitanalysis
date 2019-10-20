@@ -12,6 +12,13 @@ import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 import cv2
 import torchvision.transforms.functional as F
+from itertools import islice
+import collections
+
+
+def chunk(it, size):
+    it = iter(it)
+    return iter(lambda: tuple(islice(it, size)), ())
 
 
 def normalize_img(img):
@@ -19,43 +26,10 @@ def normalize_img(img):
     return np.uint8(255 * img)
 
 
-def draw_actmap(reg_actmap, inputs, weight_output, plotter, opt):
-    nc, L, h, w = reg_actmap.shape
-    step = inputs.shape[1] // L
-    mean = np.array(opt.mean)
-    std = np.array(opt.std)
-
-    for t in range(L):
-        actmap = reg_actmap[:, t]  # (nc,h,w)
-        # (128, 128, 3)
-        input_img = (inputs.transpose(1, 2, 3, 0)[
-                     step*t:step*(t+1)]*std + mean).mean(0)
-        heatmaps = []
-        for n in range(nc):
-            # dot-product for all logits
-            actmap_img = weight_output[n].dot(
-                actmap.reshape((nc, h*w))).reshape((h, w))
-            actmap_img = normalize_img(actmap_img)
-            input_img = normalize_img(input_img)
-            actmap_img = cv2.resize(actmap_img,
-                                    (opt.sample_size, opt.sample_size))
-            actmap_img = cv2.applyColorMap(
-                actmap_img, cv2.COLORMAP_JET)
-
-            # bgr -> rgb
-            actmap_img = cv2.cvtColor(actmap_img, cv2.COLOR_BGR2RGB)
-            input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
-
-            res = torch.clamp(F.to_tensor(actmap_img) * 0.3 +
-                              F.to_tensor(input_img) * 0.5, 0., 1.)
-
-            heatmaps.append(res)
-
-        actmap_grid = make_grid(heatmaps)
-        plotter.viz.image(actmap_grid, win='actmap_hist', env=plotter.env,
-                          opts=dict(caption=f't={t}',
-                                    store_history=True,
-                                    title=f'Activation_Maps at {t}-th'),)
+def normalize_video(video):
+    video = (video-video.min())/(video.max()-video.min())*255
+    video = torch.from_numpy(video.cpu().numpy().astype(np.uint8))
+    return video
 
 
 class AverageMeter(object):
@@ -101,6 +75,32 @@ class Logger(object):
         self.log_file.flush()
 
 
+def get_mtl_loss(named_params, layers_to_share=['layer3', 'layer4'], alpha=0.1):
+
+    params_of_task = collections.defaultdict(list)
+
+    for name, p in named_params:
+        task_name, layer_name = name.split('.')[1:3]
+        if p.requires_grad and \
+                layer_name in layers_to_share:
+            params_of_task[task_name].append(p.view(-1))
+
+    for k, v in params_of_task.items():
+        params_of_task[k] = torch.cat(v)
+
+    centroid_of_params = torch.stack(
+        list(params_of_task.values())).mean(dim=0)
+
+    # # for multi-task (soft weight sharing)
+    distanceNorms_from_centroids = torch.stack([
+        (v-centroid_of_params).norm(2) for v in params_of_task.values()]).mean(dim=0)
+
+    mtl_penalty = centroid_of_params.norm(2) + \
+        alpha * distanceNorms_from_centroids
+
+    return mtl_penalty
+
+
 def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, optimizer, opt,
                 plotter, score_func, target_transform, target_columns):
 
@@ -114,15 +114,17 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
     # update plotter at every 1/10 of epoch
     update_cycle = len(data_loader) // 10
 
-    for i, (inputs, masks, targets, vids) in enumerate(data_loader):
+    for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
-        seg_outputs, reg_outputs, reg_actmap = tuple(zip(*res))
+        reg_outputs, seg_outputs = tuple(zip(*res))
 
-        loss = 0.2 * criterion1(seg_outputs, masks) + \
-            0.8 * criterion2(reg_outputs, targets)
+        reg_loss = criterion1(reg_outputs, targets)
+        seg_loss = criterion2(seg_outputs, masks)
+
+        loss = reg_loss + seg_loss
 
         score = score_func(
-            target_transform.inverse_transform(targets.numpy()),
+            target_transform.inverse_transform(targets.cpu().numpy()),
             target_transform.inverse_transform(
                 torch.cat(reg_outputs).detach().cpu().numpy()),
             multioutput='raw_values',
@@ -165,24 +167,6 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
                              'score' + '__' + 'trace',
                              step[0], _scores[n])
 
-            input_video = inputs[0, :].permute(1, 2, 3, 0)
-            plotter.draw_video('train__input_video',
-                               f'Input (epoch : {epoch}, step : {step[0]})',
-                               torch.tensor((input_video-input_video.min())/(input_video.max()-input_video.min())*255, dtype=torch.uint8))
-
-            cmap = plt.get_cmap('jet')
-
-            output_video = cmap(
-                seg_outputs[0][0, 1].detach().cpu().numpy())[..., :3]
-            plotter.draw_video('train__output_video',
-                               f'Output (epoch : {epoch}, step : {step[0]})',
-                               torch.tensor((output_video-output_video.min())/(output_video.max()-output_video.min())*255, dtype=torch.uint8))
-
-            target_video = cmap(masks[0, 1].numpy())[..., :3]
-            plotter.draw_video('train__target_video',
-                               f'Target (epoch : {epoch}, step : {step[0]})',
-                               torch.tensor((target_video-target_video.min())/(target_video.max()-target_video.min())*255, dtype=torch.uint8))
-
             # re-init running_loss & running_scores
             running_loss = 0.0
             running_scores = [0.0 for _ in range(len(target_columns))]
@@ -217,15 +201,18 @@ def validate(step, epoch, split, data_loader,
     model.eval()
     losses = AverageMeter()
     multi_scores = [AverageMeter() for _ in range(len(target_columns))]
-    for i, (inputs, masks, targets, vids) in enumerate(data_loader):
+    for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
 
-        seg_outputs, reg_outputs, reg_actmap = tuple(zip(*res))
+        reg_outputs, seg_outputs = tuple(zip(*res))
 
-        loss = 0.2 * criterion1(seg_outputs, masks) + \
-            0.8 * criterion2(reg_outputs, targets)
+        reg_loss = criterion1(reg_outputs, targets)
+        seg_loss = criterion2(seg_outputs, masks)
+
+        loss = reg_loss + seg_loss
+
         score = score_func(
-            target_transform.inverse_transform(targets.numpy()),
+            target_transform.inverse_transform(targets.cpu().numpy()),
             target_transform.inverse_transform(
                 torch.cat(reg_outputs).detach().cpu().numpy()),
             multioutput='raw_values',
@@ -256,14 +243,6 @@ def validate(step, epoch, split, data_loader,
     for n in range(len(target_columns)):
         plotter.plot(target_columns[n] + '_score', 'val', target_columns[n] +
                      '_' + 'score' + '__' + 'trace', step[0], score[n])
-
-    # reg_actmap = reg_actmap[0][0].detach().cpu().numpy()
-    # input_img = inputs[0].cpu().numpy()
-
-    # weight_output = list(model.parameters())[-2].cpu().data.numpy()
-
-    # # draw activation maps
-    # draw_actmap(reg_actmap, input_img, weight_output, plotter, opt)
 
     return avg_loss, avg_score
 
@@ -332,7 +311,7 @@ class Trainer(object):
                                                 phase='valid',
                                                 spatial_transform=self.spatial_transform['test'],
                                                 temporal_transform=self.temporal_transform['test'],
-                                                shuffle=True)
+                                                shuffle=False)
 
             epoch_status = defaultdict(list)
             for epoch in range(self.opt.n_iter):

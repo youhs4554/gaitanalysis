@@ -10,7 +10,7 @@ from opts import parse_opts
 from utils.generate_model import init_state, load_trained_ckpt
 from utils.transforms import (
     Compose, ToTensor, MultiScaleRandomCrop, MultiScaleCornerCrop, Normalize,
-    TemporalRandomCrop, TemporalCenterCrop)
+    TemporalRandomCrop, TemporalCenterCrop, LoopPadding)
 from utils.train_utils import Trainer, Logger
 from utils.testing_utils import Tester
 from utils.target_columns import (
@@ -80,8 +80,8 @@ if __name__ == "__main__":
     }
 
     temporal_transform = {
-        "train": TemporalRandomCrop(opt.sample_duration),
-        "test": TemporalCenterCrop(opt.sample_duration),
+        "train": None,  # TemporalRandomCrop(opt.sample_duration),
+        "test": None,  # TemporalCenterCrop(opt.sample_duration),
     }
 
     # target transform
