@@ -109,6 +109,8 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
     model.train()
 
     running_loss = 0.0
+    running_reg_loss = 0.0
+    running_seg_loss = 0.0
     running_scores = [0.0 for _ in range(len(target_columns))]
 
     # update plotter at every 1/10 of epoch
@@ -131,6 +133,9 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
         )
 
         running_loss += loss.item()
+        running_reg_loss += reg_loss.item()
+        running_seg_loss += seg_loss.item()
+
         for n in range(len(target_columns)):
             running_scores[n] += score[n]
 
@@ -142,20 +147,29 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
 
         if (i + 1) % update_cycle == 0:
             _loss = running_loss / update_cycle
+            _reg_loss = running_reg_loss / update_cycle
+            _seg_loss = running_seg_loss / update_cycle
             _scores = [running_scores[n] /
                        update_cycle for n in range(len(target_columns))]
             print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
-                  'Loss {loss:.4f}\t'
+                  'Reg. Loss {reg_loss:.4f}\t'
+                  'Seg. Loss {seg_loss:.4f}\t'
                   'Score {avg_score:.3f}'.format(
                       epoch,
                       i + 1,
                       len(data_loader),
                       split,
-                      loss=_loss,
+                      reg_loss=_reg_loss,
+                      seg_loss=_seg_loss,
                       avg_score=np.mean(_scores)))
 
             # update visdom window
-            plotter.plot('loss', 'train', 'avg_loss__trace', step[0], _loss)
+            plotter.plot('loss', 'train', 'avg_loss__trace',
+                         step[0], _loss)
+            plotter.plot('reg_loss', 'train', 'avg_reg_loss__trace',
+                         step[0], _reg_loss)
+            plotter.plot('seg_loss', 'train', 'avg_seg_loss__trace',
+                         step[0], _seg_loss)
             plotter.plot('score', 'train', 'avg_score__trace',
                          step[0], np.mean(_scores))
             plotter.plot('lr', 'train', 'lr', step[0],
@@ -169,6 +183,8 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
 
             # re-init running_loss & running_scores
             running_loss = 0.0
+            running_reg_loss = 0.0
+            running_seg_loss = 0.0
             running_scores = [0.0 for _ in range(len(target_columns))]
 
     if epoch % opt.checkpoint == 0:
@@ -200,6 +216,8 @@ def validate(step, epoch, split, data_loader,
 
     model.eval()
     losses = AverageMeter()
+    reg_losses = AverageMeter()
+    seg_losses = AverageMeter()
     multi_scores = [AverageMeter() for _ in range(len(target_columns))]
     for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
@@ -219,24 +237,37 @@ def validate(step, epoch, split, data_loader,
         )
 
         losses.update(loss.item(), inputs.size(0))
+        reg_losses.update(reg_loss.item(), inputs.size(0))
+        seg_losses.update(seg_loss.item(), inputs.size(0))
+
         for n in range(len(target_columns)):
             multi_scores[n].update(score[n], inputs.size(0))
 
     avg_loss = losses.avg
+    avg_reg_loss = reg_losses.avg
+    avg_seg_loss = seg_losses.avg
+
     avg_score = sum([s.avg for s in multi_scores])/len(multi_scores)
 
     print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
-          'Loss {loss:.4f}\t'
+          'Reg. Loss {reg_loss:.4f}\t'
+          'Seg. Loss {seg_loss:.4f}\t'
           'Score {avg_score:.3f}'.format(
               epoch,
               i + 1,
               len(data_loader),
               split,
-              loss=avg_loss,
+              reg_loss=avg_reg_loss,
+              seg_loss=avg_seg_loss,
               avg_score=avg_score))
 
     # update visdom window
-    plotter.plot('loss', 'val', 'avg_loss__trace', step[0], avg_loss)
+    plotter.plot('loss', 'val', 'avg_loss__trace',
+                 step[0], avg_loss)
+    plotter.plot('reg_loss', 'val', 'avg_reg_loss__trace',
+                 step[0], avg_reg_loss)
+    plotter.plot('seg_loss', 'val', 'avg_seg_loss__trace',
+                 step[0], avg_seg_loss)
     plotter.plot('score', 'val', 'avg_score__trace',
                  step[0], np.mean(avg_score))
 
@@ -358,6 +389,8 @@ class Trainer(object):
             # at every end of split save cv_results ( as it takes too much time...)
             with open(CV_logpath, 'w') as fp:
                 json.dump(CV_results, fp)
+
+            break
 
         CV_results['avg_loss'] = cv_loss / self.opt.CV
         CV_results['avg_score'] = cv_score / self.opt.CV
