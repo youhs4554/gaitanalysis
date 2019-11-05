@@ -97,6 +97,10 @@ def prepare_dataset(input_file, target_file,
 
     target_df = target_df.dropna()
 
+    # drop rows with any zero value
+    target_df = target_df[~(target_df == 0).any(axis=1)]
+    possible_vids = [pid2vid(pid) for pid in target_df.index]
+
     if target_transform:
         scaled_values = target_transform.fit_transform(target_df)
         target_df.loc[:, :] = scaled_values
@@ -177,14 +181,12 @@ def process_as_tensor_image(imgs, padding, pad_mode):
     return imgs
 
 
-def get_input(video_data, spatial_transform, padding, pad_mode, seed, direction):
+def get_input(video_data, spatial_transform, padding, pad_mode, seed):
     input_ = []
 
     for idx in range(len(video_data)):
         random.seed(seed)
         img = video_data[idx]
-        if direction == 'approaching':
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)      # flip left-right
         t_img = spatial_transform(img)   # Tensor image (C,H,W)
         input_.append(t_img)
 
@@ -225,7 +227,7 @@ def get_flows(input_imgs,
     return torch.stack(flows).permute(3, 0, 1, 2)
 
 
-def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt, direction):
+def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
     ratio = {
         'height': opt.img_size/opt.raw_h,
         'width': opt.img_size/opt.raw_w
@@ -254,9 +256,6 @@ def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt, di
             fill_val = coord.get(ch_order[i])
             mask[i, ymin:ymax, xmin:xmax] = fill_val
             mask_img = Image.fromarray(mask[i])
-            if direction == 'approaching':
-                mask_img = mask_img.transpose(
-                    Image.FLIP_LEFT_RIGHT)      # flip left-right
             mask_imgs.append(mask_img)
 
         mask_.append(
@@ -374,8 +373,6 @@ class GAITSegRegDataset(Dataset):
             self.opt.data_root, vid, frame_indices,
             size=self.opt.img_size, mode='PIL')
 
-        direction = get_direction(patient_positions)
-
         seed = random.randint(-sys.maxsize, sys.maxsize)
 
         if self.phase == 'train':
@@ -408,8 +405,7 @@ class GAITSegRegDataset(Dataset):
                                    0, 0,
                                    0, self.sample_duration - len(frame_indices)),
                                pad_mode='zeropad',
-                               seed=seed,
-                               direction=direction)
+                               seed=seed)
 
         # # optical flow imgs
         # flows = get_flows(input_imgs)
@@ -424,8 +420,7 @@ class GAITSegRegDataset(Dataset):
                                  0, 0,
                                  0, self.sample_duration - len(frame_indices)),
                              pad_mode='zeropad',
-                             opt=self.opt,
-                             direction=direction)
+                             opt=self.opt)
 
         return input_imgs, mask_imgs, len(frame_indices)
 

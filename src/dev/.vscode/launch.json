@@ -90,7 +90,7 @@
         "--test_epoch",
         "200",
         "--model_arch",
-        "SRegression"
+        "AGNet"
         //"--merge_type",
         //"1x1_C"
         //"--n_groups",
@@ -126,7 +126,7 @@
         "--mode",
         "train",
         "--model_arch",
-        "SRegression",
+        "AGNet",
         //"--merge_type",
         //"1x1_C",
         "--n_iter",

@@ -31,7 +31,12 @@ def get_target_columns(opt):
 
     assert opt.target_columns in group_map.keys(), "Invalid columns names for target"
 
-    return group_map[opt.target_columns]
+    return ['Swing % of Cycle/L', 'Swing % of Cycle/R', 'Stance % of Cycle/L',
+            'Stance % of Cycle/R', 'Double Supp % Cycle/L', 'Double Supp % Cycle/R',
+            'CV Stride Length/L', 'CV Stride Length/R', 'CV Stride Time/L',
+            'CV Stride Time/R']
+
+    # return group_map[opt.target_columns]
 
 
 def get_target_columns_by_group(group):

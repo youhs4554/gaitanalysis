@@ -265,7 +265,7 @@ def parse_opts():
         '--model_arch',
         default='HPP',
         type=str,
-        help='Specify mode for regression model (naive | HPP | SPP | SRegression)')
+        help='Specify mode for regression model (naive | HPP | SPP | AGNet)')
     parser.add_argument(
         '--merge_type',
         default='',

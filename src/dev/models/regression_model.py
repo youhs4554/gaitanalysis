@@ -5,9 +5,11 @@ from models.base_modules import (
 import torch
 from torch import nn
 from torch.nn.functional import (
-    avg_pool2d, max_pool2d, softmax, relu, avg_pool3d, max_pool3d)
+    avg_pool2d, max_pool2d, softmax, relu, avg_pool3d, max_pool3d, pad)
 import math
 import copy
+from models.resnet import Bottleneck
+import torch.nn.functional as F
 
 pooling_dim = {
     'height': 2,
@@ -488,140 +490,133 @@ def freeze_layers(layers):
             p.requires_grad = False
 
 
-class ResUNet(nn.Module):
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0.01)
+    elif type(m) == nn.Conv3d:
+        torch.nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.xavier_uniform_(m.bias)
+
+
+def init_layers(layers):
+    for child in layers:
+        child.apply(init_weights)
+
+
+class BackboneLayers(nn.Module):
     def __init__(self, backbone):
         super().__init__()
-        self.stem = copy.deepcopy(backbone.stem)
-        self.layer1 = copy.deepcopy(backbone.layer1)
-        self.layer2 = copy.deepcopy(backbone.layer2)
-        self.layer3 = copy.deepcopy(backbone.layer3)
-        self.layer4 = copy.deepcopy(backbone.layer4)
-
-        # freeze encoder layers!
-        freeze_layers(layers=[self.stem, self.layer1, self.layer2])
-
-        self.up_conv1 = UpConv(512+256, 256)
-        self.up_conv2 = UpConv(256+128, 128)
-        self.up_conv3 = UpConv(128+64, 64)
-
-        self.out = nn.Sequential(
-            nn.Upsample(scale_factor=(1, 2, 2),
-                        mode='trilinear', align_corners=True),
-            nn.Conv3d(64+64, 3, 1),
-            nn.Sigmoid())
+        self.backbone = backbone
 
     def forward(self, x):
-        x1 = self.stem(x)    # (N,64,64,56,56)
-        x2 = self.layer1(x1)    # (N,64,64,56,56)
-        x3 = self.layer2(x2)     # (N,128,32,28,28)
-        x4 = self.layer3(x3)     # (N,256,16,14,14)
-        x5 = self.layer4(x4)     # (N,512,8,7,7)
+        e1 = self.backbone.stem(x)    # (N,64,64,56,56)
+        e2 = self.backbone.layer1(e1)    # (N,64,64,56,56)
+        e3 = self.backbone.layer2(e2)     # (N,128,32,28,28)
+        e4 = self.backbone.layer3(e3)    # (N,256,16,14,14)
+        e5 = self.backbone.layer4(e4)     # (N,512,8,7,7)
 
-        x = self.up_conv1(x5, x4)     # (N,256,16,14,14)
-        x = self.up_conv2(x, x3)     # (N,128,32,28,28)
-        x = self.up_conv3(x, x2)     # (N,64,64,56,56)
+        return e1, e2, e3, e4, e5
 
-        x = torch.cat([x1, x], dim=1)   # (N,64+64,64,56,56)
 
-        # segmentation output layer
-        x = self.out(x)               # (N,3,64,112,112)
+class ResUNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.up_conv1 = UpConv(
+            512, 256, interpolate=False, upscale_input=True)
+        self.up_conv2 = UpConv(
+            256, 128, interpolate=False, upscale_input=True)
+        self.up_conv3 = UpConv(
+            128, 64, interpolate=False, upscale_input=True)
+
+        self.conv = nn.Sequential(
+            nn.Conv3d(64+64, 64, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm3d(64),
+            nn.ReLU(True),
+            nn.Conv3d(64, 64, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm3d(64),
+            nn.ReLU(True),
+        )
+
+    def forward(self, pm_out, enc_outs):
+        # pm_out : (N,512,8,7,7)
+
+        # e1 : (N,64,64,56,56) / e2 : (N,64,64,56,56) / e3 : (N,128,32,28,28)
+        # e4 : (N,256,16,14,14)
+        e1, e2, e3, e4 = enc_outs
+
+        x = self.up_conv1(pm_out, e4)     # (N,256,16,14,14)
+        x = self.up_conv2(x, e3)     # (N,128,32,28,28)
+        x = self.up_conv3(x, e2)     # (N,64,64,56,56)
+
+        x = torch.cat([e1, x], dim=1)   # (N,64+64,64,56,56)
+
+        # before output layer
+        x = self.conv(x)          # (N,64,64,56,56)
 
         return x
 
 
-class SRegessionNet(nn.Module):
-    def __init__(self, backbone, freeze=False):
-        super(SRegessionNet, self).__init__()
+class AGNet(nn.Module):
+    def __init__(self, backbone,
+                 backbone_dims=[64, 64, 128, 256, 512], freeze=False):
+        super(AGNet, self).__init__()
 
         if freeze:
             freeze_layers(layers=backbone.children())
 
-        self.backbone = backbone
+        self.backbone = nn.Sequential(*list(backbone.children())[:-2])
 
-        self.seg1 = nn.Sequential(
-            nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm3d(64),
-            nn.ReLU(True),
-            nn.Conv3d(64, 2, kernel_size=1),
-            nn.Sigmoid())
+        self.pooling_sizes = [0, 8, 4, 2, 0]
 
-        self.seg2 = nn.Sequential(
-            nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm3d(64),
-            nn.ReLU(True),
-            nn.Conv3d(64, 2, kernel_size=1),
-            nn.Sigmoid())
-
-        self.seg3 = nn.Sequential(
-            nn.Conv3d(128, 128, kernel_size=3, padding=1),
-            nn.BatchNorm3d(128),
-            nn.ReLU(True),
-            nn.Conv3d(128, 2, kernel_size=1),
-            nn.Sigmoid())
-
-        self.seg4 = nn.Sequential(
-            nn.Conv3d(256, 256, kernel_size=3, padding=1),
-            nn.BatchNorm3d(256),
-            nn.ReLU(True),
-            nn.Conv3d(256, 2, kernel_size=1),
-            nn.Sigmoid())
-
-        self.seg5 = nn.Sequential(
-            nn.Conv3d(512, 512, kernel_size=3, padding=1),
-            nn.BatchNorm3d(512),
-            nn.ReLU(True),
-            nn.Conv3d(512, 2, kernel_size=1),
-            nn.Sigmoid())
+        self.seg_layers = nn.ModuleList()
+        for dim in backbone_dims:
+            self.seg_layers.append(
+                nn.Sequential(
+                    nn.Conv3d(dim, dim, kernel_size=3, padding=1, bias=False),
+                    nn.BatchNorm3d(dim),
+                    nn.LeakyReLU(0.2),
+                    nn.Conv3d(dim, 2, kernel_size=1, bias=False),
+                    nn.Sigmoid())
+            )
 
         self.conv_1x1 = nn.Sequential(
-            nn.Conv3d(64+128+256+512, 512, kernel_size=1),
+            nn.Conv3d(64+128+256+512, 512, kernel_size=1, bias=False),
             nn.BatchNorm3d(512),
-            nn.ReLU(True))
+            nn.LeakyReLU(0.2))
 
-        self.reg = nn.Linear(512, 15)
+        self.reg = nn.Sequential(
+            nn.Linear(512, 1),
+            nn.LeakyReLU(0.2),
+            nn.Linear(1, 10, bias=False)
+        )
+
+    def internal_loop(self, x):
+        seg_list = []
+        merged_feats = []
+
+        for backbone_layer, seg_layer, pooling_size in zip(self.backbone.children(),
+                                                           self.seg_layers,
+                                                           self.pooling_sizes):
+            x = backbone_layer(x)
+            seg = seg_layer(x)
+            x = x * seg[:, 0].unsqueeze(1)
+            if pooling_size > 0:
+                pooled_x = max_pool3d(x, pooling_size)
+                merged_feats.append(pooled_x)
+            seg_list.append(seg)
+
+        return x, seg_list, merged_feats
 
     def forward(self, x):
         # x; (N,3,64,112,112)
+        x, seg_list, merged_feats = self.internal_loop(x)
 
-        seg_list = []
-
-        x = self.backbone.stem(x)    # (N,64,64,56,56)
-        seg = self.seg1(x)
-        x = x * seg[:, 0].unsqueeze(1)
-        # img = x.mean(1)[0, 0]
-        # img = (img-img.min())/(img.max()-img.min())
-        # import visdom
-        # viz = visdom.Visdom('http://133.186.162.37')
-        # import matplotlib.pyplot as plt
-        # cmap = plt.get_cmap('jet')
-        # viz.image(cmap(img.detach().cpu().numpy())[..., :3].transpose(
-        #     2, 0, 1), opts=dict(height=224, width=224, title=f'x*seg1 epoch-200'))
-        seg_list.append(seg)
-
-        x = self.backbone.layer1(x)    # (N,64,64,56,56)
-        seg = self.seg2(x)
-        x = x * seg[:, 0].unsqueeze(1)
-        x1 = max_pool3d(x, 8)       # (N,64,8,7,7)
-        seg_list.append(seg)
-
-        x = self.backbone.layer2(x)     # (N,128,32,28,28)
-        seg = self.seg3(x)
-        x = x * seg[:, 0].unsqueeze(1)
-        x2 = max_pool3d(x, 4)       # (N,128,8,7,7)
-        seg_list.append(seg)
-
-        x = self.backbone.layer3(x)     # (N,256,16,14,14)
-        seg = self.seg4(x)
-        x = x * seg[:, 0].unsqueeze(1)  # (N,512,8,7,7)
-        x3 = max_pool3d(x, 2)       # (N,256,8,7,7)
-        seg_list.append(seg)
-
-        x = self.backbone.layer4(x)     # (N,512,8,7,7)
-        seg = self.seg5(x)
-        x = x * seg[:, 0].unsqueeze(1)
-        seg_list.append(seg)
-
-        x = torch.cat([x1, x2, x3, x], dim=1)       # (N,64+128+256+512,8,7,7)
+        # (N,64+128+256+512,8,7,7)
+        x = torch.cat(merged_feats + [x], dim=1)
         x = self.conv_1x1(x)                        # (N,512,8,7,7)
 
         # spatiotemporal pooling

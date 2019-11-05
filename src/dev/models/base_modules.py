@@ -60,27 +60,31 @@ class MultiInputSequential(nn.Sequential):
 
 
 class UpConv(nn.Module):
-    def __init__(self, in_ch, out_ch, interpolate=True):
+    def __init__(self, in_ch, out_ch, interpolate=True, upscale_input=True):
         super().__init__()
 
-        if interpolate:
-            self.up = nn.Upsample(
-                scale_factor=2, mode='trilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose3d(in_ch//2,
-                                         in_ch//2, 2, stride=2)
+        if upscale_input:
+            if interpolate:
+                self.up = nn.Upsample(
+                    scale_factor=2, mode='trilinear', align_corners=True)
+            else:
+                self.up = nn.ConvTranspose3d(in_ch,
+                                             in_ch//2, 2, stride=2, bias=False)
+
+        self.upscale_input = upscale_input
 
         self.conv = nn.Sequential(
-            nn.Conv3d(in_ch, out_ch, 3, padding=1),
+            nn.Conv3d(in_ch, out_ch, 3, padding=1, bias=False),
             nn.BatchNorm3d(out_ch),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(out_ch, out_ch, 3, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.Conv3d(out_ch, out_ch, 3, padding=1, bias=False),
             nn.BatchNorm3d(out_ch),
-            nn.ReLU(inplace=True)
+            nn.LeakyReLU(0.2)
         )
 
     def forward(self, x1, x2):
-        x1 = self.up(x1)
+        if self.upscale_input:
+            x1 = self.up(x1)
 
         x = torch.cat([x2, x1], dim=1)
         x = self.conv(x)

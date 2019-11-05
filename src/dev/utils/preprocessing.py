@@ -189,11 +189,27 @@ class Worker(object):
                 # todo. parameterize column selection func with opt
                 # target data part
                 create_target_df(meta_home=opt.meta_home, save_path=opt.target_file,
-                                 single_cols=['Velocity', 'Cadence',
-                                              'Functional Amb. Profile'],
-                                 pair_cols=['Cycle Time(sec)', 'Stride Length(cm)', 'HH Base Support(cm)',
-                                            'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)', 'Toe In / Out']
+                                 single_cols=[],
+                                 pair_cols=['Cycle Time(sec)', 'Stride Length(cm)',
+                                            "Swing % of Cycle", "Stance % of Cycle", "Double Supp % Cycle",
+                                            "Stride Length Std Dev", "Stride Time Std Dev"]
                                  )
+
+                target_df = pd.read_pickle(opt.target_file)
+
+                old_columns = [('Stride Length Std Dev', 'Stride Length(cm)'),
+                               ('Stride Time Std Dev', 'Cycle Time(sec)')]
+                new_columns = ['CV Stride Length', 'CV Stride Time']
+
+                for new_col, old_cols in zip(new_columns, old_columns):
+                    for tail in ['/L', '/R']:
+                        target_df[new_col + tail] = 100 * target_df[old_cols[0] +
+                                                                    tail] / target_df[old_cols[1]+tail]
+                        for old_col in old_cols:
+                            target_df = target_df.drop(columns=old_col+tail)
+
+                # save data frame as pickle file
+                target_df.to_pickle(opt.target_file)
 
     def _run(self, video, localizer, interval_selector, input_lines=None):
         vid = os.path.splitext(os.path.basename(video))[0]

@@ -102,8 +102,8 @@ def generate_regression_model(backbone, opt):
                     attention=opt.attention,
                     n_groups=opt.n_groups)
 
-        elif opt.model_arch == 'SRegression':
-            net = regression_model.SRegessionNet(backbone)
+        elif opt.model_arch == 'AGNet':
+            net = regression_model.AGNet(backbone)
             for name, child in net.named_children():
                 if name in ['conv2', 'conv3', 'conv4', 'conv5']:
                     for p in child.parameters():
@@ -125,8 +125,8 @@ def generate_regression_model(backbone, opt):
                                            num_freq=100,
                                            drop_rate=opt.drop_rate)
     elif opt.backbone == 'r2plus1d_18':
-        if opt.model_arch == 'SRegression':
-            net = regression_model.SRegessionNet(backbone)
+        if opt.model_arch == 'AGNet':
+            net = regression_model.AGNet(backbone)
 
             class MultiScaled_BCELoss(nn.Module):
                 def __init__(self, n_scales):
