@@ -208,7 +208,7 @@ def parse_opts():
         '--weight_decay', default=1e-3, type=float, help='Weight Decay')
     parser.add_argument(
         '--mean_dataset',
-        default='activitynet',
+        default='kinetics',
         type=str,
         help='dataset for mean values of mean subtraction (imagenet | activitynet | kinetics)')
     parser.add_argument(

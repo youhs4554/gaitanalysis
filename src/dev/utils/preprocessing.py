@@ -12,6 +12,7 @@ import torch
 import pandas as pd
 import os
 import numpy as np
+import torch.nn.functional as F
 
 # # Add COP Files containing start/end timing info
 
@@ -158,55 +159,81 @@ class Worker(object):
         self.opt = opt
 
         if opt.data_gen:
-            # input data part
-            input_lines = ['']
+            # # input data part
+            # input_lines = ['']
 
-            if not os.path.exists(opt.chunk_vid_home):
-                os.system(f'mkdir -p {opt.chunk_vid_home}')
-                all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
-                                   not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
-                for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
-                    with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
-                        f.writelines(partial)
+            # if not os.path.exists(opt.chunk_vid_home):
+            #     os.system(f'mkdir -p {opt.chunk_vid_home}')
+            #     all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
+            #                        not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
+            #     for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
+            #         with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
+            #             f.writelines(partial)
 
-            with open(f'{opt.chunk_vid_home}/vids-part{opt.device_yolo}.txt') as f:
-                video_files = list(x.strip() for x in f.readlines())
+            # with open(f'{opt.chunk_vid_home}/vids-part{opt.device_yolo}.txt') as f:
+            #     video_files = list(x.strip() for x in f.readlines())
 
-            pbar = tqdm(video_files)
-            for video in pbar:
-                pbar.set_description(
-                    f"Processing ***** {os.path.basename(video)}")
-                self._run(video, localizer, interval_selector, input_lines)
+            # pbar = tqdm(video_files)
+            # for video in pbar:
+            #     pbar.set_description(
+            #         f"Processing ***** {os.path.basename(video)}")
+            #     self._run(video, localizer, interval_selector, input_lines)
 
-            prefix, ext = os.path.splitext(opt.input_file)
-            input_file_path = prefix + '-' + str(opt.device_yolo) + ext
+            # prefix, ext = os.path.splitext(opt.input_file)
+            # input_file_path = prefix + '-' + str(opt.device_yolo) + ext
 
-            pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
-                         columns=['vids', 'idx', 'pos']).to_pickle(input_file_path)
+            # pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
+            #              columns=['vids', 'idx', 'pos']).to_pickle(input_file_path)
 
             if opt.device_yolo == 0:
                 # for prevent safe file saving
                 # todo. parameterize column selection func with opt
                 # target data part
                 create_target_df(meta_home=opt.meta_home, save_path=opt.target_file,
-                                 single_cols=[],
-                                 pair_cols=['Cycle Time(sec)', 'Stride Length(cm)',
-                                            "Swing % of Cycle", "Stance % of Cycle", "Double Supp % Cycle",
+                                 single_cols=['Velocity', 'Cadence'],
+                                 pair_cols=['Cycle Time(sec)', 'Stride Length(cm)', 'Stride Velocity', 'HH Base Support(cm)',
+                                            'Swing Time(sec)', 'Stance Time(sec)', 'Double Supp. Time(sec)',
+                                            'Toe In / Out',
                                             "Stride Length Std Dev", "Stride Time Std Dev"]
                                  )
 
                 target_df = pd.read_pickle(opt.target_file)
 
+                old_columns = [('Stride Length(cm)', 'Stride Velocity')]
+                new_columns = ['Stride Time(sec)']
+
+                for new_col, old_cols in zip(new_columns, old_columns):
+                    for tail in ['/L', '/R']:
+                        target_df[new_col + tail] = target_df[old_cols[0]+tail] / \
+                            target_df[old_cols[1]+tail]
+
                 old_columns = [('Stride Length Std Dev', 'Stride Length(cm)'),
-                               ('Stride Time Std Dev', 'Cycle Time(sec)')]
-                new_columns = ['CV Stride Length', 'CV Stride Time']
+                               ('Stride Time Std Dev', 'Stride Time(sec)')]
+
+                new_columns = ['Stride Length(cm)^2',
+                               'Stride Time(sec)^2']
+
+                for new_col, old_cols in zip(new_columns, old_columns):
+                    for tail in ['/L', '/R']:
+                        target_df[new_col + tail] = target_df[old_cols[0] +
+                                                              tail]**2 + target_df[old_cols[1]+tail]**2
+
+                old_columns = [('Stride Length Std Dev', 'Stride Length(cm)'),
+                               ('Stride Time Std Dev', 'Cycle Time(sec)'),
+                               ('Swing Time(sec)', 'Cycle Time(sec)'),
+                               ('Stance Time(sec)', 'Cycle Time(sec)'),
+                               ('Double Supp. Time(sec)', 'Cycle Time(sec)')]
+
+                new_columns = ['CV Stride Length', 'CV Stride Time',
+                               "Swing % of Cycle", "Stance % of Cycle", "Double Supp % Cycle"]
 
                 for new_col, old_cols in zip(new_columns, old_columns):
                     for tail in ['/L', '/R']:
                         target_df[new_col + tail] = 100 * target_df[old_cols[0] +
                                                                     tail] / target_df[old_cols[1]+tail]
-                        for old_col in old_cols:
-                            target_df = target_df.drop(columns=old_col+tail)
+
+                target_df['Stride Length Var/L'] = target_df['Stride Length Std Dev/L']**2
+                target_df['Stride Length Var/R'] = target_df['Stride Length Std Dev/R']**2
 
                 # save data frame as pickle file
                 target_df.to_pickle(opt.target_file)
@@ -227,7 +254,8 @@ class Worker(object):
         inputs = []
 
         for cropped in input_data[::self.opt.delta]:
-            img = cv2.resize(cropped, self.opt.sample_size[::-1])
+            img = cv2.resize(
+                cropped, (self.opt.sample_size, self.opt.sample_size))
             inputs.append(img)
 
         # zero padding
@@ -239,7 +267,9 @@ class Worker(object):
 
         return inputs
 
-    def _run_demo(self, net, video, localizer, interval_selector, spatial_transform, target_transform):
+    def _run_demo(self, net, video, localizer, interval_selector,
+                  startTime, endTime,
+                  spatial_transform, target_transform):
 
         net.eval()
 
@@ -252,10 +282,34 @@ class Worker(object):
         # todo. develop interval selection methods....\
         # depth calculation / same ratio of human bboxes
 
-        input_data = self._run(video, localizer, interval_selector)
-        input_data = self._preprocess_inputdata(input_data, spatial_transform)
+        #input_data = self._run(video, localizer, interval_selector)
+        #input_data = self._preprocess_inputdata(input_data, spatial_transform)
 
-        y_pred = net(input_data[None, :])
+        start_ix, end_ix = [int(self.opt.fps * t)
+                            for t in [startTime, endTime]]
+        cap = cv2.VideoCapture(video)
+
+        frames = []
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            img = Image.fromarray(frame).resize(
+                (self.opt.img_size, self.opt.img_size))
+            img_tensor = spatial_transform(img)
+            frames.append(img_tensor)
+
+        frame_indices = torch.arange(start_ix, end_ix)[::self.opt.delta]
+        input_data = torch.stack(frames)[frame_indices].permute(1, 0, 2, 3)
+
+        padding = (0, 0,
+                   0, 0,
+                   0, self.opt.sample_duration - len(frame_indices))
+
+        # zero padding
+        input_data = F.pad(input_data, padding)
+
+        y_pred, _ = net(input_data[None, :])
         y_pred = target_transform.inverse_transform(
             y_pred.detach().cpu().numpy())
 

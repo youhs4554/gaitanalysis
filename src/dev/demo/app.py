@@ -27,11 +27,12 @@ class Runner():
 
         self.net = load_trained_ckpt(opt, net)
 
-    def run(self, path):
+    def run(self, path, startTime, endTime):
         t0 = time.time()
         y_pred = self.worker._run_demo(
             self.net, path, self.localizer,
             self.interval_selector,
+            startTime, endTime,
             spatial_transform=self.spatial_transform['test'],
             target_transform=self.target_transform)
         print('runtime : ', time.time() - t0)
@@ -64,10 +65,10 @@ def allowed_file(filename):
 
 @app.route('/', methods=['GET', 'POST'])
 def main():
-    return render_template('index.html')
+    return render_template('index.html', data={'filename': ""})
 
 
-@app.route('/upload_file', methods=['POST'])
+@app.route('/upload_file', methods=['GET', 'POST'])
 def upload_file():
     # check if the post request has the file part
     if 'file' not in request.files:
@@ -84,7 +85,8 @@ def upload_file():
 
     session['vname'] = file.filename
 
-    return redirect('/')
+    return render_template('index.html',
+                           data={'filename': os.path.join("static", file.filename)})
 
 
 @app.route('/api')
@@ -98,13 +100,11 @@ def api_call():
     VariableInterface.USERID = 'AIM'
 
     VariableInterface.DATA_PREFIX = "http://192.168.100.121/his031edu/attach"
-    VariableInterface.VIDEO_PATH = './demo/static/tmp.avi'
 
     data = pd.read_sql("SELECT * FROM com.zfmmfile",
                        VariableInterface.db._engine)
     VariableInterface.query_res = data.query(
-        "filekey==@VariableInterface.FILEKEY \
-        and fileseq==@VariableInterface.FILESEQ")
+        "filekey==@VariableInterface.FILEKEY")
 
     VariableInterface.codeNameTable = json.load(
         open('./demo/static/codeNameTable.json'))
@@ -113,21 +113,37 @@ def api_call():
     VariableInterface.response = bad_request(
         status='ERR', message='Unknown Error.')
 
+    from sqlalchemy.orm import scoped_session, sessionmaker
+
+    engine = VariableInterface.db._engine
+    session = scoped_session(sessionmaker(
+        autocommit=False, autoflush=False, bind=engine))
+
+    sess = session()
+    VariableInterface.sess = sess
     try:
-        # fetch video file!
-        fetch_file()
+        for n in range(len(VariableInterface.query_res.filepath.values)):
+            VariableInterface.VIDEO_PATH = f'./demo/static/tmp_{n}.avi'
 
-        # run model!
-        run_model()
+            # fetch video file!
+            fetch_file(fileseq=n)
 
-        # write result to DB!
-        write_result()
+            # run model!
+            run_model()
+
+            # write result to DB!
+            write_result()
 
         # callback of success, notifying task is done!
         success_callback()
 
+        sess.commit()
+
     except BadRequestException:
+        sess.rollback()
         return VariableInterface.BadResponse
+    finally:
+        sess.close()
 
     return VariableInterface.GreetingResponse
 
@@ -136,12 +152,14 @@ def api_call():
 def run():
     vname = session.get('vname', None)
     start = request.args.get('start', False, type=bool)
+    startTime = eval(request.args.get('startTime'))
+    endTime = eval(request.args.get('endTime'))
 
     if vname and start and not session.get('res', None):
         path = os.path.join(app.config['UPLOAD_FOLDER'], vname)
 
         # run model here?
-        res = runner.run(path)
+        res = runner.run(path, startTime, endTime)
         session['res'] = res
 
         return '1'

@@ -11,4 +11,5 @@
 *logs
 *pretrained
 *.bak
+*.mp4
 .history

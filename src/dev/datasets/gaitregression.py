@@ -242,32 +242,17 @@ def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
         xmin, xmax = [round(ratio['width']*v) for v in [xmin, xmax]]
         ymin, ymax = [round(ratio['height']*v) for v in [ymin, ymax]]
 
-        mask = np.stack([np.zeros((opt.img_size, opt.img_size)),
-                         np.ones((opt.img_size, opt.img_size))])
-
-        mask_imgs = []
-        coord = collections.OrderedDict(
-            {'fg': 1,
-             'bg': 0})
-
-        ch_order = ['fg', 'bg']
-
-        for i in range(len(ch_order)):
-            fill_val = coord.get(ch_order[i])
-            mask[i, ymin:ymax, xmin:xmax] = fill_val
-            mask_img = Image.fromarray(mask[i])
-            mask_imgs.append(mask_img)
+        mask = np.zeros((opt.img_size, opt.img_size))
+        mask[ymin:ymax, xmin:xmax] = 1.0
 
         mask_.append(
-            torch.cat([
-                tf_func.to_tensor(
-                    tf_func.resized_crop(
-                        tf_func.rotate(
-                            mask_imgs[i], angle),
-                        *crop_position, size=(opt.sample_size, opt.sample_size)
-                    )
-                ) for i in range(len(ch_order))
-            ])
+            tf_func.to_tensor(
+                tf_func.resized_crop(
+                    tf_func.rotate(
+                        Image.fromarray(mask), angle),
+                    *crop_position, size=(opt.sample_size, opt.sample_size)
+                )
+            )
         )
 
     mask_ = process_as_tensor_image(mask_, padding, pad_mode)

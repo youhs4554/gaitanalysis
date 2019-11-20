@@ -6,6 +6,7 @@ import json
 # todo. encrypted access-key (JWT?)
 keys = json.load(open('demo/static/AccessKey.json'))
 
+
 class DatabaseHelper:
 
     # default values
@@ -32,17 +33,18 @@ class DatabaseHelper:
         oracle_connection_string = 'oracle://{username}:{password}@{hostname}:{port}/{database}'
 
         self._engine = create_engine(
-        oracle_connection_string.format(
-            username=self._username,
-            password=self._password,
-            hostname=self._hostname,
-            port=self._port,
-            database=self._database,
-            charset=self._charset,
-            encoding=self._encoding,
-            unicode_error=self._unicode_error
+            oracle_connection_string.format(
+                username=self._username,
+                password=self._password,
+                hostname=self._hostname,
+                port=self._port,
+                database=self._database,
+                charset=self._charset,
+                encoding=self._encoding,
+                unicode_error=self._unicode_error
+            )
         )
-        )
+
 
 class HIS_Database(DatabaseHelper):
     # connection information for HIS DB
@@ -55,22 +57,21 @@ class HIS_Database(DatabaseHelper):
     encoding = keys['HIS']['encoding']
     unicode_error = keys['HIS']['unicode_error']
 
-    def update_status(self, **status):
-        with self._engine.connect() as conn:
-            statement = text("""
-                    UPDATE AIMMREQP
-                    SET STATUS='{STATUS}'
-                        ,ERRMSG='{ERRMSG}'
-                        ,LASTUPDTRID='{LASTUPDTRID}'
-                        ,LASTUPDTDT={LASTUPDTDT}
-                    WHERE GUBUN='{GUBUN}'
-                    AND PID='{PID}'
-                    AND SEQNO='{SEQNO}'
-                """.format(**status))
-            conn.execute(statement)
+    def update_status(self, sess, **status):
+        statement = text("""
+                UPDATE AIMMREQP
+                SET STATUS='{STATUS}'
+                    ,ERRMSG='{ERRMSG}'
+                    ,LASTUPDTRID='{LASTUPDTRID}'
+                    ,LASTUPDTDT={LASTUPDTDT}
+                WHERE GUBUN='{GUBUN}'
+                AND PID='{PID}'
+                AND SEQNO='{SEQNO}'
+            """.format(**status))
+        sess.execute(statement)
 
-    def update_result(self, data):
+    def update_result(self, data, sess):
         # write result to DB!
-        with self._engine.connect() as con:
+        for inst in data:
             statement = text("""INSERT INTO AIMMRSLT(GUBUN, PID, SEQNO, FILEKEY, FILESEQ, RSLTDT, RSLTCD, RSLTVAL, FSTRGSTRID, FSTRGSTDT) VALUES(:GUBUN, :PID, :SEQNO, :FILEKEY, :FILESEQ, :RSLTDT, :RSLTCD, :RSLTVAL, :FSTRGSTRID, systimestamp)""")
-            con.execute(statement, *data)
+            sess.execute(statement, inst)

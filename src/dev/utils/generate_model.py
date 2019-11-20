@@ -143,8 +143,8 @@ def generate_regression_model(backbone, opt):
 
                     return torch.stack(l).mean()
 
-            criterion1 = nn.MSELoss()
-            criterion2 = MultiScaled_BCELoss(n_scales=5)
+            criterion1 = nn.SmoothL1Loss(reduction='sum')
+            criterion2 = MultiScaled_BCELoss(n_scales=4)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
@@ -179,6 +179,12 @@ def init_state(opt):
     #     dampening=dampening,
     #     weight_decay=opt.weight_decay,
     #     nesterov=opt.nesterov)
+
+    # import swats
+
+    # optimizer = swats.SWATS(
+    #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
+    # )
 
     optimizer = optim.Adam(
         net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay

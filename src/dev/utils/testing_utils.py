@@ -23,13 +23,16 @@ def test(data_loader, model, opt, plotter,
         inputs, masks, targets, vids, valid_lengths = next(data_loader)
 
         res = model(inputs)
-        reg_outputs, seg_outputs = tuple(zip(*res))
+        mu, std, seg_outputs = tuple(zip(*res))
 
-        seg_loss = criterion(seg_outputs, masks)
+        mu = torch.cat(mu)
+        std = torch.cat(std)
+
+        reg_outputs = torch.cat([mu, std], 1)
 
         targets = target_transform.inverse_transform(targets.cpu().numpy())
         reg_outputs = target_transform.inverse_transform(
-            torch.cat(reg_outputs).detach().cpu().numpy())
+            reg_outputs.detach().cpu().numpy())
 
         score_val = score_func(
             targets,
@@ -50,6 +53,19 @@ def test(data_loader, model, opt, plotter,
 
     if not os.path.exists(logpath):
         os.system(f'mkdir -p {logpath}')
+
+    y_true = np.vstack(y_true)
+    y_pred = np.vstack(y_pred)
+
+    merged = np.concatenate([y_true, y_pred], 1)
+
+    import pandas as pd
+    df = pd.DataFrame(merged, columns=[
+        ['y_true']*len(target_columns) + ['y_pred']*len(target_columns),
+        target_columns * 2
+    ])
+
+    df.to_pickle(os.path.join(logpath, 'full_testing_results.pkl'))
 
     # log it!
     with open(os.path.join(logpath, 'results.json'), 'w') as fp:

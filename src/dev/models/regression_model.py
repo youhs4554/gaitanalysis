@@ -491,14 +491,17 @@ def freeze_layers(layers):
 
 
 def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_uniform_(m.weight)
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+    elif classname.find('Linear') != -1:
+        torch.nn.init.xavier_normal_(m.weight)
         if m.bias is not None:
             m.bias.data.fill_(0.01)
-    elif type(m) == nn.Conv3d:
-        torch.nn.init.xavier_uniform_(m.weight)
-        if m.bias is not None:
-            torch.nn.init.xavier_uniform_(m.bias)
 
 
 def init_layers(layers):
@@ -566,46 +569,63 @@ class AGNet(nn.Module):
         super(AGNet, self).__init__()
 
         if freeze:
-            freeze_layers(layers=backbone.children())
+            freeze_layers(
+                layers=[backbone.stem, backbone.layer1, backbone.layer2])
 
-        self.backbone = nn.Sequential(*list(backbone.children())[:-2])
-
-        self.pooling_sizes = [0, 8, 4, 2, 0]
+        self.stem = backbone.stem
+        self.backbone = nn.Sequential(*list(backbone.children())[1:-2])
 
         self.seg_layers = nn.ModuleList()
-        for dim in backbone_dims:
+        self.matching_layers = nn.ModuleList()
+        for inp_dim, out_dim in zip(backbone_dims[:-1], backbone_dims[1:]):
             self.seg_layers.append(
+                nn.Conv3d(out_dim, 1, kernel_size=1, bias=False))
+            self.matching_layers.append(
                 nn.Sequential(
-                    nn.Conv3d(dim, dim, kernel_size=3, padding=1, bias=False),
-                    nn.BatchNorm3d(dim),
-                    nn.LeakyReLU(0.2),
-                    nn.Conv3d(dim, 2, kernel_size=1, bias=False),
-                    nn.Sigmoid())
+                    nn.Conv3d(inp_dim, out_dim, kernel_size=1, bias=False),
+                    nn.BatchNorm3d(out_dim),
+                    nn.ReLU(True)
+                )
             )
 
         self.conv_1x1 = nn.Sequential(
             nn.Conv3d(64+128+256+512, 512, kernel_size=1, bias=False),
             nn.BatchNorm3d(512),
-            nn.LeakyReLU(0.2))
+            nn.ReLU(True))
 
-        self.reg = nn.Sequential(
-            nn.Linear(512, 1),
+        self.mu = nn.Sequential(
+            nn.Linear(512, 128),
             nn.LeakyReLU(0.2),
-            nn.Linear(1, 10, bias=False)
+            nn.Dropout(0.2),
+            nn.Linear(128, 16)
         )
 
-    def internal_loop(self, x):
+        self.std = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.2),
+            nn.Linear(128, 4)
+        )
+
+        init_layers([self.seg_layers, self.matching_layers,
+                     self.conv_1x1, self.mu, self.std])
+
+    def internal_loop(self, x, multi_pooling_sizes=[8, 4, 2, 0]):
         seg_list = []
         merged_feats = []
 
-        for backbone_layer, seg_layer, pooling_size in zip(self.backbone.children(),
-                                                           self.seg_layers,
-                                                           self.pooling_sizes):
-            x = backbone_layer(x)
-            seg = seg_layer(x)
-            x = x * seg[:, 0].unsqueeze(1)
-            if pooling_size > 0:
-                pooled_x = max_pool3d(x, pooling_size)
+        for backbone_layer, seg_layer, matching_layer, multi_pooling_size in zip(self.backbone.children(),
+                                                                                 self.seg_layers, self.matching_layers, multi_pooling_sizes):
+            out = backbone_layer(x)
+            seg = torch.sigmoid(seg_layer(out))
+            neighboring_pooling_size = [
+                int(x.size(i)/out.size(i)) for i in range(2, 5)]
+            x = out * seg + \
+                matching_layer(max_pool3d(
+                    x, neighboring_pooling_size)) * (1-seg)
+
+            if multi_pooling_size > 0:
+                pooled_x = max_pool3d(x, multi_pooling_size)
                 merged_feats.append(pooled_x)
             seg_list.append(seg)
 
@@ -613,16 +633,18 @@ class AGNet(nn.Module):
 
     def forward(self, x):
         # x; (N,3,64,112,112)
+        x = self.stem(x)
         x, seg_list, merged_feats = self.internal_loop(x)
 
         # (N,64+128+256+512,8,7,7)
         x = torch.cat(merged_feats + [x], dim=1)
         x = self.conv_1x1(x)                        # (N,512,8,7,7)
 
-        # spatiotemporal pooling
-        x = avg_pool3d(x, (8, 7, 7)).view(-1, 512)
+        # avg pooling
+        x = x.mean((2, 3, 4))
 
         # regression output
-        x = self.reg(x)
+        mu = self.mu(x)
+        std = self.std(x)
 
-        return x, seg_list
+        return mu, std, seg_list

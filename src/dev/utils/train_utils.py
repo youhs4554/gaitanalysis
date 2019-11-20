@@ -1,4 +1,4 @@
-from sklearn.metrics.regression import r2_score
+from sklearn.metrics.regression import r2_score, mean_absolute_error
 from utils.generate_model import init_state
 from sklearn.model_selection import KFold
 import torch
@@ -111,33 +111,35 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
     running_loss = 0.0
     running_reg_loss = 0.0
     running_seg_loss = 0.0
-    running_scores = [0.0 for _ in range(len(target_columns))]
 
-    # update plotter at every 1/10 of epoch
-    update_cycle = len(data_loader) // 10
+    # update plotter at every epoch
+    update_cycle = len(data_loader)
+
+    y_pred = []
+    y_true = []
 
     for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
-        reg_outputs, seg_outputs = tuple(zip(*res))
-
-        reg_loss = criterion1(reg_outputs, targets)
+        mu, std, seg_outputs = tuple(zip(*res))
+        reg_loss = criterion1(
+            mu, targets[:, :-4]) + criterion1(std, targets[:, -4:])
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss
 
-        score = score_func(
-            target_transform.inverse_transform(targets.cpu().numpy()),
-            target_transform.inverse_transform(
-                torch.cat(reg_outputs).detach().cpu().numpy()),
-            multioutput='raw_values',
-        )
+        mu = torch.cat(mu)
+        std = torch.cat(std)
+
+        reg_outputs = torch.cat([mu, std], 1)
+
+        y_true.append(target_transform.inverse_transform(
+            targets.cpu().numpy()))
+        y_pred.append(target_transform.inverse_transform(
+            reg_outputs.detach().cpu().numpy()))
 
         running_loss += loss.item()
         running_reg_loss += reg_loss.item()
         running_seg_loss += seg_loss.item()
-
-        for n in range(len(target_columns)):
-            running_scores[n] += score[n]
 
         optimizer.zero_grad()
         loss.backward()
@@ -149,19 +151,15 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
             _loss = running_loss / update_cycle
             _reg_loss = running_reg_loss / update_cycle
             _seg_loss = running_seg_loss / update_cycle
-            _scores = [running_scores[n] /
-                       update_cycle for n in range(len(target_columns))]
             print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
                   'Reg. Loss {reg_loss:.4f}\t'
-                  'Seg. Loss {seg_loss:.4f}\t'
-                  'Score {avg_score:.3f}'.format(
+                  'Seg. Loss {seg_loss:.4f}'.format(
                       epoch,
                       i + 1,
                       len(data_loader),
                       split,
                       reg_loss=_reg_loss,
-                      seg_loss=_seg_loss,
-                      avg_score=np.mean(_scores)))
+                      seg_loss=_seg_loss))
 
             # update visdom window
             plotter.plot('loss', 'train', 'avg_loss__trace',
@@ -170,22 +168,29 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
                          step[0], _reg_loss)
             plotter.plot('seg_loss', 'train', 'avg_seg_loss__trace',
                          step[0], _seg_loss)
-            plotter.plot('score', 'train', 'avg_score__trace',
-                         step[0], np.mean(_scores))
             plotter.plot('lr', 'train', 'lr', step[0],
                          optimizer.param_groups[0]['lr'])
 
-            for n in range(len(target_columns)):
-                plotter.plot(target_columns[n] + '_score', 'train',
-                             target_columns[n] + '_' +
-                             'score' + '__' + 'trace',
-                             step[0], _scores[n])
-
-            # re-init running_loss & running_scores
+            # re-init running_loss
             running_loss = 0.0
             running_reg_loss = 0.0
             running_seg_loss = 0.0
-            running_scores = [0.0 for _ in range(len(target_columns))]
+
+    # log scores
+    score = score_func(
+        np.vstack(y_true),
+        np.vstack(y_pred),
+        multioutput='raw_values',
+    )
+
+    plotter.plot('score', 'train', 'avg_score__trace',
+                 step[0], score.mean())
+
+    for n in range(len(target_columns)):
+        plotter.plot(target_columns[n] + '_score', 'train',
+                     target_columns[n] + '_' +
+                     'score' + '__' + 'trace',
+                     step[0], score[n])
 
     if epoch % opt.checkpoint == 0:
         ckpt_dir = os.path.join(opt.ckpt_dir,
@@ -218,36 +223,41 @@ def validate(step, epoch, split, data_loader,
     losses = AverageMeter()
     reg_losses = AverageMeter()
     seg_losses = AverageMeter()
-    multi_scores = [AverageMeter() for _ in range(len(target_columns))]
+    y_pred = []
+    y_true = []
+
     for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
-
-        reg_outputs, seg_outputs = tuple(zip(*res))
-
-        reg_loss = criterion1(reg_outputs, targets)
+        mu, std, seg_outputs = tuple(zip(*res))
+        reg_loss = criterion1(
+            mu, targets[:, :-4]) + criterion1(std, targets[:, -4:])
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss
 
-        score = score_func(
-            target_transform.inverse_transform(targets.cpu().numpy()),
-            target_transform.inverse_transform(
-                torch.cat(reg_outputs).detach().cpu().numpy()),
-            multioutput='raw_values',
-        )
+        mu = torch.cat(mu)
+        std = torch.cat(std)
+
+        reg_outputs = torch.cat([mu, std], 1)
+
+        y_true.append(target_transform.inverse_transform(
+            targets.cpu().numpy()))
+        y_pred.append(target_transform.inverse_transform(
+            reg_outputs.detach().cpu().numpy()))
 
         losses.update(loss.item(), inputs.size(0))
         reg_losses.update(reg_loss.item(), inputs.size(0))
         seg_losses.update(seg_loss.item(), inputs.size(0))
 
-        for n in range(len(target_columns)):
-            multi_scores[n].update(score[n], inputs.size(0))
-
     avg_loss = losses.avg
     avg_reg_loss = reg_losses.avg
     avg_seg_loss = seg_losses.avg
 
-    avg_score = sum([s.avg for s in multi_scores])/len(multi_scores)
+    score = score_func(
+        np.vstack(y_true),
+        np.vstack(y_pred),
+        multioutput='raw_values',
+    )
 
     print('Epoch@Split: [{0}][{1}/{2}]@{3}\t'
           'Reg. Loss {reg_loss:.4f}\t'
@@ -259,7 +269,7 @@ def validate(step, epoch, split, data_loader,
               split,
               reg_loss=avg_reg_loss,
               seg_loss=avg_seg_loss,
-              avg_score=avg_score))
+              avg_score=score.mean()))
 
     # update visdom window
     plotter.plot('loss', 'val', 'avg_loss__trace',
@@ -269,13 +279,13 @@ def validate(step, epoch, split, data_loader,
     plotter.plot('seg_loss', 'val', 'avg_seg_loss__trace',
                  step[0], avg_seg_loss)
     plotter.plot('score', 'val', 'avg_score__trace',
-                 step[0], np.mean(avg_score))
+                 step[0], score.mean())
 
     for n in range(len(target_columns)):
         plotter.plot(target_columns[n] + '_score', 'val', target_columns[n] +
                      '_' + 'score' + '__' + 'trace', step[0], score[n])
 
-    return avg_loss, avg_score
+    return avg_loss, score.mean()
 
 
 class Trainer(object):

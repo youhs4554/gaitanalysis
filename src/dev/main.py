@@ -13,8 +13,7 @@ from utils.transforms import (
     TemporalRandomCrop, TemporalCenterCrop, LoopPadding)
 from utils.train_utils import Trainer, Logger
 from utils.testing_utils import Tester
-from utils.target_columns import (
-    get_target_columns, get_target_columns_by_group)
+from utils.target_columns import get_target_columns
 import utils.visualization as viz
 from utils.mean import get_mean, get_std
 from utils.preprocessing import (
@@ -84,10 +83,15 @@ if __name__ == "__main__":
         "test": None,  # TemporalCenterCrop(opt.sample_duration),
     }
 
+    from sklearn.preprocessing import MinMaxScaler, FunctionTransformer, StandardScaler, QuantileTransformer
+    from sklearn.pipeline import Pipeline
+
     # target transform
-    target_transform = sklearn.preprocessing.QuantileTransformer(
-        random_state=0, output_distribution="normal"
-    )
+    # target_transform = QuantileTransformer(
+    #     random_state=0, output_distribution="normal"
+    # )
+
+    target_transform = StandardScaler()
 
     model_indicator = '_'.join(filter(lambda x: x != '', [opt.attention_str,
                                                           opt.model_arch,
@@ -167,33 +171,6 @@ if __name__ == "__main__":
 
         # visualize
         viz.scatterplots(target_columns, y_true, y_pred, save_dir="./tmp")
-
-        for group, grid_size, fig_size in zip(
-            ["temporal", "spatial", "etc"],
-            [(4, 2), (2, 2), (2, 2)],
-            [(20, 20), (20, 11), (20, 11)],
-        ):
-            group_cols = get_target_columns_by_group(group)
-            viz.dist_plots(
-                target_columns,
-                group_cols,
-                y_true,
-                y_pred,
-                save_dir="./tmp",
-                grid_size=grid_size,
-                figsize=fig_size,
-                group=group,
-            )
-            viz.margin_plots(
-                target_columns,
-                group_cols,
-                y_true,
-                y_pred,
-                save_dir="./tmp",
-                grid_size=grid_size,
-                figsize=fig_size,
-                group=group,
-            )
 
     elif opt.mode == "demo":
         from demo import app as flask_app

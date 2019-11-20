@@ -1,43 +1,40 @@
 def get_target_columns(opt):
-    # spatial params
-    spatial_params = [
-        'Stride Length(cm)/L', 'Stride Length(cm)/R',
-        'HH Base Support(cm)/L', 'HH Base Support(cm)/R',
-    ]
+    target_columns = ['Velocity', 'Cadence', 'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
+                      'Stride Length(cm)/L', 'Stride Length(cm)/R', 'HH Base Support(cm)/L',
+                      'HH Base Support(cm)/R', 'Swing Time(sec)/L', 'Swing Time(sec)/R',
+                      'Stance Time(sec)/L', 'Stance Time(sec)/R', 'Double Supp. Time(sec)/L',
+                      'Double Supp. Time(sec)/R',
+                      'Swing % of Cycle/L', 'Swing % of Cycle/R', 'Stance % of Cycle/L',
+                      'Stance % of Cycle/R', 'Double Supp % Cycle/L', 'Double Supp % Cycle/R',
+                      'Toe In / Out/L', 'Toe In / Out/R',
+                      'Stride Length Std Dev/L', 'Stride Length Std Dev/R',
+                      'Stride Time Std Dev/L', 'Stride Time Std Dev/R', 'CV Stride Length/L',
+                      'CV Stride Length/R', 'CV Stride Time/L', 'CV Stride Time/R']
 
-    # temporal params
-    temporal_params = [
-        'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
-        'Stance Time(sec)/L', 'Stance Time(sec)/R',
-        'Double Supp. Time(sec)/L', 'Double Supp. Time(sec)/R',
-        'Swing Time(sec)/L', 'Swing Time(sec)/R',
-    ]
+    opt.target_columns_to_train = target_columns_to_train = \
+        ['Velocity', 'Cadence', 'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
+         'Stride Length(cm)/L', 'Stride Length(cm)/R', 'HH Base Support(cm)/L',
+         'HH Base Support(cm)/R', 'Swing Time(sec)/L', 'Swing Time(sec)/R',
+         'Stance Time(sec)/L', 'Stance Time(sec)/R', 'Double Supp. Time(sec)/L',
+         'Double Supp. Time(sec)/R', 'Toe In / Out/L', 'Toe In / Out/R',
+         'Stride Length Std Dev/L', 'Stride Length Std Dev/R',
+         'Stride Time Std Dev/L', 'Stride Time Std Dev/R']
 
-    # etc params
-    etc_params = [
-        'Functional Amb. Profile',
-        'Velocity',
-        'Cadence',
-    ]
+    opt.target_columns_to_eval = target_columns_to_eval = \
+        ['Velocity', 'Cadence', 'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
+         'Stride Length(cm)/L', 'Stride Length(cm)/R', 'HH Base Support(cm)/L',
+         'HH Base Support(cm)/R', 'Swing % of Cycle/L', 'Swing % of Cycle/R',
+         'Stance % of Cycle/L', 'Stance % of Cycle/R', 'Double Supp % Cycle/L',
+         'Double Supp % Cycle/R', 'Toe In / Out/L', 'Toe In / Out/R',
+         'CV Stride Length/L', 'CV Stride Length/R',
+         'CV Stride Time/L', 'CV Stride Time/R']
 
-    global group_map
+    target_ixs_to_train = list(target_columns.index(e)
+                               for e in target_columns_to_train)
+    target_ixs_to_eval = list(target_columns.index(e)
+                              for e in target_columns_to_eval)
 
-    group_map = {
-        'all': spatial_params + temporal_params + etc_params,
-        'spatial': spatial_params,
-        'temporal': temporal_params,
-        'etc': etc_params
-    }
+    opt.target_ixs_to_train = target_ixs_to_train
+    opt.target_ixs_to_eval = target_ixs_to_eval
 
-    assert opt.target_columns in group_map.keys(), "Invalid columns names for target"
-
-    return ['Swing % of Cycle/L', 'Swing % of Cycle/R', 'Stance % of Cycle/L',
-            'Stance % of Cycle/R', 'Double Supp % Cycle/L', 'Double Supp % Cycle/R',
-            'CV Stride Length/L', 'CV Stride Length/R', 'CV Stride Time/L',
-            'CV Stride Time/R']
-
-    # return group_map[opt.target_columns]
-
-
-def get_target_columns_by_group(group):
-    return group_map[group]
+    return target_columns_to_eval
