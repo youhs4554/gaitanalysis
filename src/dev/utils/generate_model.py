@@ -139,7 +139,7 @@ def generate_regression_model(backbone, opt):
 
             net = regression_model.AGNet(
                 pretrained_agnet,
-                backbone, hidden_size=16+512, out_size=4)
+                backbone, hidden_size=1024, out_size=4)
         elif opt.model_arch == 'AGNet-pretrain':
             net = regression_model.AGNet_Mean(
                 backbone, hidden_size=512, out_size=16, drop_rate=0.2)
