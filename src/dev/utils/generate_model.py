@@ -12,6 +12,22 @@ import torch.nn.utils as torch_utils
 import torch.nn.functional as F
 
 
+class MultiScaled_BCELoss(nn.Module):
+    def __init__(self, n_scales):
+        super().__init__()
+        self.n_scales = n_scales
+        self.loss_func = nn.BCELoss()
+
+    def forward(self, input, target):
+        l = []
+        for i in range(self.n_scales):
+            target = F.interpolate(target,
+                                   size=input[i].size()[2:])
+            l.append(self.loss_func(input[i], target))
+
+        return torch.stack(l).mean()
+
+
 def generate_backbone(opt, pretrained=True):
 
     net = None
@@ -102,16 +118,6 @@ def generate_regression_model(backbone, opt):
                     attention=opt.attention,
                     n_groups=opt.n_groups)
 
-        elif opt.model_arch == 'AGNet':
-            net = regression_model.AGNet(backbone)
-            for name, child in net.named_children():
-                if name in ['conv2', 'conv3', 'conv4', 'conv5']:
-                    for p in child.parameters():
-                        p.requires_grad = False
-
-            criterion1 = nn.BCELoss(reduction='sum')
-            criterion2 = nn.MSELoss(reduction='mean')
-
         elif opt.model_arch == 'naive':
             net = regression_model.Naive_Flatten_Net(num_units=opt.num_units,
                                                      n_factors=opt.n_factors,
@@ -126,25 +132,20 @@ def generate_regression_model(backbone, opt):
                                            drop_rate=opt.drop_rate)
     elif opt.backbone == 'r2plus1d_18':
         if opt.model_arch == 'AGNet':
-            net = regression_model.AGNet(backbone)
+            pretrained_agnet = regression_model.AGNet_Mean(
+                backbone, hidden_size=512, out_size=16, drop_rate=0.0, freeze=True)
+            pretrained_agnet = load_pretrained_ckpt(opt,
+                                                    pretrained_agnet)
 
-            class MultiScaled_BCELoss(nn.Module):
-                def __init__(self, n_scales):
-                    super().__init__()
-                    self.n_scales = n_scales
-                    self.loss_func = nn.BCELoss()
+            net = regression_model.AGNet(
+                pretrained_agnet,
+                backbone, hidden_size=16+512, out_size=4)
+        elif opt.model_arch == 'AGNet-pretrain':
+            net = regression_model.AGNet_Mean(
+                backbone, hidden_size=512, out_size=16, drop_rate=0.2)
 
-                def forward(self, input, target):
-                    l = []
-                    for i in range(self.n_scales):
-                        target = F.interpolate(target,
-                                               size=input[i].size()[2:])
-                        l.append(self.loss_func(input[i], target))
-
-                    return torch.stack(l).mean()
-
-            criterion1 = nn.SmoothL1Loss(reduction='sum')
-            criterion2 = MultiScaled_BCELoss(n_scales=4)
+        criterion1 = nn.SmoothL1Loss(reduction='sum')
+        criterion2 = MultiScaled_BCELoss(n_scales=4)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
@@ -186,8 +187,9 @@ def init_state(opt):
     #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
     # )
 
+    params = [p for p in net.parameters() if p.requires_grad]
     optimizer = optim.Adam(
-        net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
+        params, lr=opt.learning_rate, weight_decay=opt.weight_decay
     )
 
     # optimizer = optim.RMSprop(
@@ -219,6 +221,29 @@ def load_trained_ckpt(opt, net):
 
     # laod pre-trained model
     pretrain = torch.load(model_path)
+    net.load_state_dict(pretrain['state_dict'])
+
+    return net
+
+
+def load_pretrained_ckpt(opt, net):
+
+    net = nn.DataParallel(net)
+
+    ckpt_dir = os.path.join(opt.ckpt_dir,
+                            '_'.join(filter(lambda x: x != '',
+                                            [opt.attention_str,
+                                             opt.model_arch+'-pretrain',
+                                             opt.merge_type,
+                                             opt.arch,
+                                             opt.group_str])))
+
+    model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
+    print(f"Load pretrained model from {model_path}...")
+
+    # laod pre-trained model
+    pretrain = torch.load(model_path,
+                          map_location=torch.device('cpu'))
     net.load_state_dict(pretrain['state_dict'])
 
     return net

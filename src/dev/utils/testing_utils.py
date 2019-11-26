@@ -23,16 +23,14 @@ def test(data_loader, model, opt, plotter,
         inputs, masks, targets, vids, valid_lengths = next(data_loader)
 
         res = model(inputs)
-        mu, std, seg_outputs = tuple(zip(*res))
-
-        mu = torch.cat(mu)
-        std = torch.cat(std)
-
-        reg_outputs = torch.cat([mu, std], 1)
+        if opt.model_arch == 'AGNet-pretrain':
+            reg_outputs, _, seg_outputs = tuple(zip(*res))
+        else:
+            reg_outputs, seg_outputs = tuple(zip(*res))
 
         targets = target_transform.inverse_transform(targets.cpu().numpy())
         reg_outputs = target_transform.inverse_transform(
-            reg_outputs.detach().cpu().numpy())
+            torch.cat(reg_outputs).detach().cpu().numpy())
 
         score_val = score_func(
             targets,

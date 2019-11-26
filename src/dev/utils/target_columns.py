@@ -29,12 +29,13 @@ def get_target_columns(opt):
          'CV Stride Length/L', 'CV Stride Length/R',
          'CV Stride Time/L', 'CV Stride Time/R']
 
-    target_ixs_to_train = list(target_columns.index(e)
-                               for e in target_columns_to_train)
-    target_ixs_to_eval = list(target_columns.index(e)
-                              for e in target_columns_to_eval)
-
-    opt.target_ixs_to_train = target_ixs_to_train
-    opt.target_ixs_to_eval = target_ixs_to_eval
+    if opt.model_arch == 'AGNet-pretrain':
+        return [
+            'Velocity', 'Cadence', 'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
+            'Stride Length(cm)/L', 'Stride Length(cm)/R', 'HH Base Support(cm)/L',
+            'HH Base Support(cm)/R', 'Swing % of Cycle/L', 'Swing % of Cycle/R',
+            'Stance % of Cycle/L', 'Stance % of Cycle/R', 'Double Supp % Cycle/L',
+            'Double Supp % Cycle/R', 'Toe In / Out/L', 'Toe In / Out/R'
+        ]
 
     return target_columns_to_eval

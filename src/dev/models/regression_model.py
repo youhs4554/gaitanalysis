@@ -563,14 +563,16 @@ class ResUNet(nn.Module):
         return x
 
 
-class AGNet(nn.Module):
+class BaseAGNet(nn.Module):
     def __init__(self, backbone,
-                 backbone_dims=[64, 64, 128, 256, 512], freeze=False):
-        super(AGNet, self).__init__()
+                 hidden_size,
+                 backbone_dims=[64, 64, 128, 256, 512],
+                 freeze=False):
+
+        super(BaseAGNet, self).__init__()
 
         if freeze:
-            freeze_layers(
-                layers=[backbone.stem, backbone.layer1, backbone.layer2])
+            freeze_layers(layers=backbone.children())
 
         self.stem = backbone.stem
         self.backbone = nn.Sequential(*list(backbone.children())[1:-2])
@@ -592,23 +594,6 @@ class AGNet(nn.Module):
             nn.Conv3d(64+128+256+512, 512, kernel_size=1, bias=False),
             nn.BatchNorm3d(512),
             nn.ReLU(True))
-
-        self.mu = nn.Sequential(
-            nn.Linear(512, 128),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(0.2),
-            nn.Linear(128, 16)
-        )
-
-        self.std = nn.Sequential(
-            nn.Linear(512, 128),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(0.2),
-            nn.Linear(128, 4)
-        )
-
-        init_layers([self.seg_layers, self.matching_layers,
-                     self.conv_1x1, self.mu, self.std])
 
     def internal_loop(self, x, multi_pooling_sizes=[8, 4, 2, 0]):
         seg_list = []
@@ -641,10 +626,75 @@ class AGNet(nn.Module):
         x = self.conv_1x1(x)                        # (N,512,8,7,7)
 
         # avg pooling
-        x = x.mean((2, 3, 4))
+        feats = x.mean((2, 3, 4))
+
+        return feats, seg_list
+
+
+class AGNet_Mean(nn.Module):
+    def __init__(self, backbone,
+                 hidden_size, out_size, drop_rate=0.2,
+                 backbone_dims=[64, 64, 128, 256, 512],
+                 freeze=False):
+
+        super(AGNet_Mean, self).__init__()
+
+        self.agnet = BaseAGNet(copy.deepcopy(backbone), hidden_size)
+
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 128),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(drop_rate),
+            nn.Linear(128, out_size)
+        )
+
+        if freeze:
+            freeze_layers(layers=list(self.agnet.children()) + [self.fc])
+
+    def forward(self, x):
+        # x; (N,3,64,112,112)
+        feats, seg_list = self.agnet(x)
 
         # regression output
-        mu = self.mu(x)
-        std = self.std(x)
+        out = self.fc(feats)
 
-        return mu, std, seg_list
+        return out, feats, seg_list
+
+
+class AGNet(nn.Module):
+    def __init__(self,
+                 pretrained_agnet,
+                 backbone,
+                 hidden_size, out_size,
+                 backbone_dims=[64, 64, 128, 256, 512],
+                 freeze=False):
+
+        super(AGNet, self).__init__()
+
+        # this pretrained agnet should be frozen before init!
+        self.pretrained_agnet = nn.Sequential(
+            *list(pretrained_agnet.children()))
+        self.agnet = BaseAGNet(backbone, hidden_size)
+
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 128),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.2),
+            nn.Linear(128, out_size)
+        )
+
+    def forward(self, x):
+        # x; (N,3,64,112,112)
+        mean_out, mean_feats, _ = self.pretrained_agnet(x)
+
+        std_feats, seg_list = self.agnet(x)
+
+        #
+        x = torch.cat([mean_feats, std_feats], 1)
+
+        # regression output
+        out = self.fc(x)
+
+        out = torch.cat([mean_out, out], 1)
+
+        return out, seg_list

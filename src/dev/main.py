@@ -35,13 +35,13 @@ if __name__ == "__main__":
     # attention indicator
     opt.attention_str = 'Attentive' if opt.attention else 'NonAttentive'
     opt.group_str = f"G{opt.n_groups}" if opt.n_groups > 0 else ''
+    opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
 
     target_columns = get_target_columns(opt)
 
     # define regression model
     net, criterion1, criterion2, optimizer, scheduler = init_state(opt)
 
-    opt.arch = "{}-{}".format(opt.backbone, opt.model_depth)
     opt.mean = get_mean(opt.norm_value, dataset=opt.mean_dataset)
     opt.std = get_std(opt.norm_value, dataset=opt.mean_dataset)
 

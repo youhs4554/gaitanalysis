@@ -120,22 +120,20 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
 
     for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
-        mu, std, seg_outputs = tuple(zip(*res))
-        reg_loss = criterion1(
-            mu, targets[:, :-4]) + criterion1(std, targets[:, -4:])
+        if opt.model_arch == 'AGNet-pretrain':
+            reg_outputs, _, seg_outputs = tuple(zip(*res))
+        else:
+            reg_outputs, seg_outputs = tuple(zip(*res))
+        reg_loss = criterion1([reg_outputs[i][:, -4:]
+                               for i in range(len(reg_outputs))], targets[:, -4:])
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss
 
-        mu = torch.cat(mu)
-        std = torch.cat(std)
-
-        reg_outputs = torch.cat([mu, std], 1)
-
         y_true.append(target_transform.inverse_transform(
             targets.cpu().numpy()))
         y_pred.append(target_transform.inverse_transform(
-            reg_outputs.detach().cpu().numpy()))
+            torch.cat(reg_outputs).detach().cpu().numpy()))
 
         running_loss += loss.item()
         running_reg_loss += reg_loss.item()
@@ -228,22 +226,21 @@ def validate(step, epoch, split, data_loader,
 
     for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
         res = model(inputs)
-        mu, std, seg_outputs = tuple(zip(*res))
-        reg_loss = criterion1(
-            mu, targets[:, :-4]) + criterion1(std, targets[:, -4:])
+        if opt.model_arch == 'AGNet-pretrain':
+            reg_outputs, _, seg_outputs = tuple(zip(*res))
+        else:
+            reg_outputs, seg_outputs = tuple(zip(*res))
+
+        reg_loss = criterion1([reg_outputs[i][:, -4:]
+                               for i in range(len(reg_outputs))], targets[:, -4:])
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss
 
-        mu = torch.cat(mu)
-        std = torch.cat(std)
-
-        reg_outputs = torch.cat([mu, std], 1)
-
         y_true.append(target_transform.inverse_transform(
             targets.cpu().numpy()))
         y_pred.append(target_transform.inverse_transform(
-            reg_outputs.detach().cpu().numpy()))
+            torch.cat(reg_outputs).detach().cpu().numpy()))
 
         losses.update(loss.item(), inputs.size(0))
         reg_losses.update(reg_loss.item(), inputs.size(0))
