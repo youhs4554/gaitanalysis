@@ -238,7 +238,7 @@ def load_pretrained_ckpt(opt, net):
                                              opt.arch,
                                              opt.group_str])))
 
-    model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
+    model_path = os.path.join(ckpt_dir, 'save_' + opt.pretrain_epoch + '.pth')
     print(f"Load pretrained model from {model_path}...")
 
     # laod pre-trained model

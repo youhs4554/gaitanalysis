@@ -257,6 +257,11 @@ def parse_opts():
         type=str,
         help='Epoch to test')
     parser.add_argument(
+        '--pretrain_epoch',
+        default=90,
+        type=str,
+        help='Epoch of pretrained model')
+    parser.add_argument(
         '--score_avg',
         action='store_true',
         help='If true, averaged score is calculated. If false, scores per each gait-params are calculated')
