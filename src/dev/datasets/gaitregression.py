@@ -345,11 +345,9 @@ class GAITSegRegDataset(Dataset):
         return len(self.vids)
 
     def process_sampled_data(self, cur_X, vid):
+        indices_sampled = list(range(0, len(cur_X), self.opt.delta))
         if self.temporal_transform:
-            indices_sampled = self.temporal_transform(
-                list(range(0, len(cur_X), self.opt.delta)))
-        else:
-            indices_sampled = list(range(0, len(cur_X), self.opt.delta))
+            indices_sampled = self.temporal_transform(indices_sampled)
 
         cur_X = cur_X.iloc[indices_sampled]
 
