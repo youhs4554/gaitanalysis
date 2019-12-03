@@ -85,7 +85,7 @@ def prepare_dataset(input_file, target_file,
     input_df = pd.concat(data_frames)
     input_df.to_pickle(prefix + '-' + 'merged' + ext)  # save input file
 
-    target_df = pd.read_pickle(target_file)[target_columns]
+    target_df = pd.read_pickle(target_file)
 
     possible_vids = sorted(list(set(input_df.vids)))
 
@@ -98,7 +98,7 @@ def prepare_dataset(input_file, target_file,
     target_df = target_df.dropna()
 
     # drop rows with any zero value
-    target_df = target_df[~(target_df == 0).any(axis=1)]
+    target_df = target_df[~(target_df == 0).any(axis=1)][target_columns]
     possible_vids = [pid2vid(pid) for pid in target_df.index]
 
     if target_transform:
@@ -345,7 +345,9 @@ class GAITSegRegDataset(Dataset):
         return len(self.vids)
 
     def process_sampled_data(self, cur_X, vid):
-        indices_sampled = list(range(0, len(cur_X), self.opt.delta))
+        indices_sampled = np.linspace(
+            0, len(cur_X), self.opt.sample_duration, endpoint=False).astype(np.int)
+
         if self.temporal_transform:
             indices_sampled = self.temporal_transform(indices_sampled)
 

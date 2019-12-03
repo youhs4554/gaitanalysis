@@ -62,7 +62,7 @@ if __name__ == "__main__":
     spatial_transform = {
         "train": Compose(
             [
-                TF.RandomRotation(degrees=(-15, 15)),
+                TF.RandomRotation(degrees=(0, 0)),
                 TF.RandomResizedCrop(size=opt.sample_size,
                                      scale=(opt.sample_size/opt.img_size, 1.0)),
                 ToTensor(opt.norm_value),

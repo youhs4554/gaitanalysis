@@ -122,9 +122,12 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
         res = model(inputs)
         if opt.model_arch == 'AGNet-pretrain':
             reg_outputs, _, seg_outputs = tuple(zip(*res))
+            reg_loss = criterion1(reg_outputs, targets)
         else:
             reg_outputs, seg_outputs = tuple(zip(*res))
-        reg_loss = criterion1(reg_outputs, targets)
+            reg_loss = criterion1([reg_outputs[i][:, -4:]
+                                   for i in range(len(reg_outputs))], targets[:, -4:])
+
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss
@@ -227,10 +230,12 @@ def validate(step, epoch, split, data_loader,
         res = model(inputs)
         if opt.model_arch == 'AGNet-pretrain':
             reg_outputs, _, seg_outputs = tuple(zip(*res))
+            reg_loss = criterion1(reg_outputs, targets)
         else:
             reg_outputs, seg_outputs = tuple(zip(*res))
+            reg_loss = criterion1([reg_outputs[i][:, -4:]
+                                   for i in range(len(reg_outputs))], targets[:, -4:])
 
-        reg_loss = criterion1(reg_outputs, targets)
         seg_loss = criterion2(seg_outputs, masks)
 
         loss = reg_loss + seg_loss

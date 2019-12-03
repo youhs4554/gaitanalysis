@@ -625,10 +625,7 @@ class BaseAGNet(nn.Module):
         x = torch.cat(merged_feats + [x], dim=1)
         x = self.conv_1x1(x)                        # (N,512,8,7,7)
 
-        # avg pooling
-        feats = x.mean((2, 3, 4))
-
-        return feats, seg_list
+        return x, seg_list
 
 
 class AGNet_Mean(nn.Module):
@@ -656,7 +653,7 @@ class AGNet_Mean(nn.Module):
         feats, seg_list = self.agnet(x)
 
         # regression output
-        out = self.fc(feats)
+        out = self.fc(feats.mean((2, 3, 4)))
 
         return out, feats, seg_list
 
@@ -676,8 +673,13 @@ class AGNet(nn.Module):
             *list(pretrained_agnet.children()))
         self.agnet = BaseAGNet(backbone, hidden_size)
 
+        self.conv_1x1 = nn.Sequential(
+            nn.Conv3d(hidden_size, hidden_size//2, kernel_size=1, bias=False),
+            nn.BatchNorm3d(hidden_size//2),
+            nn.ReLU(True))
+
         self.fc = nn.Sequential(
-            nn.Linear(hidden_size, 128),
+            nn.Linear(hidden_size//2, 128),
             nn.LeakyReLU(0.2),
             nn.Dropout(0.2),
             nn.Linear(128, out_size)
@@ -689,11 +691,12 @@ class AGNet(nn.Module):
 
         std_feats, seg_list = self.agnet(x)
 
-        #
+        # merge with mean feature
         x = torch.cat([mean_feats, std_feats], 1)
+        x = self.conv_1x1(x)
 
         # regression output
-        out = self.fc(x)
+        out = self.fc(x.mean((2, 3, 4)))
 
         out = torch.cat([mean_out, out], 1)
 
