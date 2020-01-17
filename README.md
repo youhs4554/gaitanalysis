@@ -16,6 +16,11 @@
 
 - pixel-wise attention will be applied
 
+### Results
+
+![tab](./img/p_tab.png)
+![chart](./img/p_chart.png)
+
 ### Requirements
 
 - Anaconda, CUDA 9.0, cuDNN 7.0.7
@@ -176,8 +181,3 @@ conda activate torch
       --n_groups=4
       --port=40000
   ```
-
-### Baseline & HPP Results
-
-![tab](./img/p_tab.png)
-![chart](./img/p_chart.png)
