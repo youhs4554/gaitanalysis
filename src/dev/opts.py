@@ -31,7 +31,7 @@ def parse_opts():
 
     parser.add_argument(
         '--data_root',
-        default="/data/GaitData/CroppedFrameArrays",
+        default=None,
         type=str,
         help='Directory path of data',
     )
@@ -96,10 +96,16 @@ def parse_opts():
         help='GPU ids to use',
     )
     parser.add_argument(
-        '--device_yolo',
+        '--segm_method',
+        default=None,
+        type=str,
+        help='Methods for person segmentation.',
+    )
+    parser.add_argument(
+        '--segm_device',
         default=9,
         type=int,
-        help='GPU id for yolo detector.',
+        help='GPU id for segmentation method (yolo | ..).',
     )
     parser.add_argument(
         '--img_size',

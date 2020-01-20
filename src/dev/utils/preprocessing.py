@@ -22,7 +22,7 @@ class COPAnalyizer(object):
         self.meta_home = meta_home
         self.fps = fps
 
-    def get_interval(self, vid):
+    def get_interval(self, vid, return_index=True):
         regex = re.compile(r'(.*)_test_(.*)_trial_(.*)')
         pid, test_ix, trial_ix = regex.search(vid).groups()
 
@@ -49,9 +49,10 @@ class COPAnalyizer(object):
         tmp = [x[0] for x in tmp if x[0] > 0 and x[1] <= 350]
 
         start, end = tmp[0], tmp[-1]
-        start_ix, end_ix = [int(self.fps * t) for t in [start, end]]
+        if return_index:
+            start, end = [int(self.fps * t) for t in [start, end]]
 
-        return start_ix, end_ix
+        return start, end
 
 
 class HumanScaleAnalyizer(object):
@@ -267,17 +268,13 @@ class Worker(object):
 
         return inputs
 
-    def _run_demo(self, net, video, localizer, interval_selector,
+    def _run_demo(self, net, video, localizer,
                   startTime, endTime,
                   spatial_transform, target_transform):
 
         net.eval()
 
         self.opt.data_root = None  # do not save arr (.npy)
-
-        if self.opt.interval_sel == 'COP':
-            # referring COP means there is no interval selection methods at demo phase..
-            interval_selector = None
 
         # todo. develop interval selection methods....\
         # depth calculation / same ratio of human bboxes
@@ -294,12 +291,19 @@ class Worker(object):
             ret, frame = cap.read()
             if not ret:
                 break
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame).resize(
                 (self.opt.img_size, self.opt.img_size))
             img_tensor = spatial_transform(img)
             frames.append(img_tensor)
 
-        frame_indices = torch.arange(start_ix, end_ix)[::self.opt.delta]
+        # time intervals of interest
+        frames = frames[start_ix:end_ix+1]
+
+        frame_indices = torch.LongTensor(
+            np.linspace(
+                0, len(frames), self.opt.sample_duration, endpoint=False).astype(np.int)
+        )
         input_data = torch.stack(frames)[frame_indices].permute(1, 0, 2, 3)
 
         padding = (0, 0,
@@ -309,8 +313,9 @@ class Worker(object):
         # zero padding
         input_data = F.pad(input_data, padding)
 
-        y_pred, _ = net(input_data[None, :])
-        y_pred = target_transform.inverse_transform(
-            y_pred.detach().cpu().numpy())
+        with torch.no_grad():
+            y_pred, _ = net(input_data[None, :])
+            y_pred = target_transform.inverse_transform(
+                y_pred.detach().cpu().numpy())
 
         return y_pred

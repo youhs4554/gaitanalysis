@@ -31,7 +31,6 @@ class Runner():
         t0 = time.time()
         y_pred = self.worker._run_demo(
             self.net, path, self.localizer,
-            self.interval_selector,
             startTime, endTime,
             spatial_transform=self.spatial_transform['test'],
             target_transform=self.target_transform)
@@ -154,6 +153,10 @@ def run():
     start = request.args.get('start', False, type=bool)
     startTime = eval(request.args.get('startTime'))
     endTime = eval(request.args.get('endTime'))
+
+    if runner.interval_selector.__class__.__name__ == 'COPAnalyizer':
+        startTime, endTime = runner.interval_selector.get_interval(
+            vid=os.path.splitext(vname)[0])
 
     if vname and start and not session.get('res', None):
         path = os.path.join(app.config['UPLOAD_FOLDER'], vname)

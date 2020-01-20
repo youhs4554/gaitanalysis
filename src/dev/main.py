@@ -175,13 +175,13 @@ if __name__ == "__main__":
     elif opt.mode == "demo":
         from demo import app as flask_app
         # patient localizer & interval selector
-        set_gpu(opt.device_yolo)
+        if opt.segm_method == 'yolo':
+            set_gpu(opt.segm_device)
 
-        localizer = PatientLocalizer(darknet_api_home=opt.darknet_api_home)
-
-        interval_selector = None
+        interval_selector, localizer = None, None
         if opt.interval_sel == "COP":
             interval_selector = COPAnalyizer(opt.meta_home, opt.fps)
+            localizer = PatientLocalizer(darknet_api_home=opt.darknet_api_home)
         elif opt.interval_sel == "Scale":
             interval_selector = HumanScaleAnalyizer(opt)
 

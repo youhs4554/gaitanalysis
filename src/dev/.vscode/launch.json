@@ -22,8 +22,6 @@
         "../../preprocess/darknet",
         "--meta_home",
         "/data/GaitData/MetaData_converted",
-        "--data_root",
-        "/data/GaitData/CroppedFrameArrays_NEW",
         "--fps",
         "24",
         "--device_yolo",
@@ -69,7 +67,7 @@
       "program": "${workspaceFolder}/main.py",
       "console": "integratedTerminal",
       "env": {
-        "CUDA_VISIBLE_DEVICES": "0,9"
+        "CUDA_VISIBLE_DEVICES": "1,2,3,4,5,6,7,8"
       },
       "args": [
         "--backbone",
@@ -83,9 +81,9 @@
         "--multi_gpu",
         "--with_segmentation",
         "--device_ids",
-        "0,1",
+        "0,1,2,3,4,5,6,7",
         "--batch_size",
-        "8",
+        "32",
         "--n_threads",
         "8",
         "--mode",
@@ -96,11 +94,6 @@
         "160",
         "--model_arch",
         "AGNet"
-        //"--merge_type",
-        //"1x1_C"
-        //"--n_groups",
-        //"3",
-        //"--attention"
       ]
     },
     {
@@ -137,18 +130,10 @@
         "160",
         "--model_arch",
         "AGNet",
-        //"--merge_type",
-        //"1x1_C",
         "--n_iter",
         "101",
         "--CV",
         "5"
-        //"--n_groups",
-        //"3",
-        //"--warm_start",
-        //"--drop_rate",
-        //"0.3"
-        //"--attention"
       ]
     },
     {
@@ -170,19 +155,14 @@
         "0",
         "--mode",
         "demo",
+        "--pretrain_epoch",
+        "160",
         "--test_epoch",
-        "100",
+        "160",
         "--model_arch",
         "AGNet",
-        // "--merge_type",
-        // "1x1_C",
-        // "--attention",
         "--interval_sel",
-        "COP",
-        "--device_yolo",
-        "8",
-        // "--n_groups",
-        // "3",
+        "",
         "--port",
         "5001"
       ]
