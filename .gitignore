@@ -3,6 +3,8 @@
 *.csv
 *.pkl
 *.txt
+*.xlsx
+*/data
 .ipynb_checkpoints
 *.dirlock
 *feats_viz
