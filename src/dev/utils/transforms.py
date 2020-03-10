@@ -1,3 +1,4 @@
+import torchvision.transforms.functional as tf_func
 import random
 import math
 import numbers
@@ -30,9 +31,15 @@ class Compose(object):
             img = t(img)
         return img
 
-    def randomize_parameters(self):
+    def randomize_parameters(self, vid):
         for t in self.transforms:
-            t.randomize_parameters()
+            name = t.__class__.__name__
+            if 'random' not in name.lower():
+                continue
+            if t.__class__.__name__ == 'RandomResizedCrop3D':
+                t.randomize_parameters(vid)
+            else:
+                t.randomize_parameters()
 
 
 class ToTensor(object):
@@ -69,7 +76,8 @@ class ToTensor(object):
         elif pic.mode == 'I;16':
             img = torch.from_numpy(np.array(pic, np.int16, copy=False))
         else:
-            img = torch.ByteTensor(torch.ByteStorage.from_buffer(pic.tobytes()))
+            img = torch.ByteTensor(
+                torch.ByteStorage.from_buffer(pic.tobytes()))
         # PIL image mode: 1, L, P, I, F, RGB, YCbCr, RGBA, CMYK
         if pic.mode == 'YCbCr':
             nchannel = 3
@@ -474,3 +482,123 @@ class TemporalRandomCrop(object):
             out.append(index)
 
         return out
+
+
+def to_normalized_float_tensor(vid):
+    vid = torch.stack([torch.as_tensor(np.array(pic)) for pic in vid])
+    return vid.to(torch.float32) / 255
+
+
+def normalize(vid, mean, std):
+    shape = (1,) * (vid.dim() - 1) + (-1,)
+    mean = torch.as_tensor(mean).reshape(shape)
+    std = torch.as_tensor(std).reshape(shape)
+    return (vid - mean) / std
+
+
+class Resize3D(object):
+    def __init__(self, size):
+        if isinstance(size, int):
+            size = (size, size)
+        self.size = size
+
+    def __call__(self, vid):
+        # vid : (T,H,W,C)
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                if vid.size(-1) == 1:
+                    pic = pic[..., 0]
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            resized = tf_func.resize(pic, self.size)
+            out.append(resized)
+
+        return out
+
+    def randomize_parameters(self):
+        pass
+
+
+class RandomResizedCrop3D(object):
+    def __init__(self, transform2D):
+        self.transform2D = transform2D
+
+    def __call__(self, vid):
+        # vid : (T,H,W,C)
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                if vid.size(-1) == 1:
+                    pic = pic[..., 0]
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            crop = tf_func.resized_crop(
+                pic, *self.crop_position, size=self.transform2D.size)
+            out.append(crop)
+
+        return out
+
+    def randomize_parameters(self, frame):
+        self.crop_position = self.transform2D.get_params(
+            frame, self.transform2D.scale, self.transform2D.ratio)
+
+
+class RandomRotation3D(object):
+    def __init__(self, transform2D):
+        self.transform2D = transform2D
+
+    def __call__(self, vid):
+        # vid : Tensor (T,H,W,C)
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            rotated = tf_func.rotate(pic, self.angle)
+            out.append(rotated)
+
+        return out
+
+    def randomize_parameters(self):
+        self.angle = self.transform2D.get_params(
+            self.transform2D.degrees
+        )
+
+
+class CenterCrop3D(object):
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, vid):
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            crop = tf_func.center_crop(pic, self.size)
+            out.append(crop)
+
+        return out
+
+
+class ToTensor3D(object):
+    def __call__(self, vid):
+        return to_normalized_float_tensor(vid)
+
+
+class Normalize3D(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, vid):
+        return normalize(vid, self.mean, self.std)

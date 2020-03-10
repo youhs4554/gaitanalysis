@@ -29,7 +29,7 @@ def get_target_columns(opt):
          'CV Stride Length/L', 'CV Stride Length/R',
          'CV Stride Time/L', 'CV Stride Time/R']
 
-    if opt.model_arch == 'AGNet-pretrain':
+    if opt.model_arch in ['AGNet-pretrain', 'GuidelessNet']:
         return [
             'Velocity', 'Cadence', 'Cycle Time(sec)/L', 'Cycle Time(sec)/R',
             'Stride Length(cm)/L', 'Stride Length(cm)/R', 'HH Base Support(cm)/L',

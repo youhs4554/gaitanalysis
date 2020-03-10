@@ -8,7 +8,7 @@ def parse_opts():
         '--dataset',
         default='Gaitparams_PD',
         type=str,
-        help='Dataset to use ( Gaitparams_PD | others... )',
+        help='Dataset to use ( Gaitparams_PD | URFD | MulticamFD | and others... )',
     )
     parser.add_argument(
         '--input_file',
@@ -18,7 +18,7 @@ def parse_opts():
     )
     parser.add_argument(
         '--target_file',
-        default="../../preprocess/data/targets_dataframe.pkl",
+        default="../../preprocess/data/targets_dataframe-Gaitparams_PD.pkl",
         type=str,
         help='File path of target dataframe file (.pkl)',
     )
@@ -102,7 +102,7 @@ def parse_opts():
         help='Methods for person segmentation.',
     )
     parser.add_argument(
-        '--segm_device',
+        '--device_yolo',
         default=9,
         type=int,
         help='GPU id for segmentation method (yolo | ..).',
@@ -170,13 +170,19 @@ def parse_opts():
         '--mode',
         default='train',
         type=str,
-        help='Specify mode ( train | test | demo | preprocess__frame | preprocess__feature )',
+        help='Specify mode ( cv | train | test | demo | preprocess__frame | preprocess__feature )',
     )
     parser.add_argument(
         '--batch_size',
         default=16,
         type=int,
         help='Batch size',
+    )
+    parser.add_argument(
+        '--valid_size',
+        default=0.2,
+        type=float,
+        help='ValidationSet size (0-1).'
     )
     parser.add_argument(
         '--n_iter',
@@ -191,10 +197,10 @@ def parse_opts():
         help='Number of thread to use for dataloader',
     )
     parser.add_argument(
-        '--CV',
+        '--n_folds',
         default=5,
         type=int,
-        help='Number of splits for K-fold cross validation',
+        help='Number of folds to cross validated. Should be between 1 to 5',
     )
     parser.add_argument(
         '--train_crop',
@@ -276,7 +282,7 @@ def parse_opts():
         '--model_arch',
         default='HPP',
         type=str,
-        help='Specify mode for regression model (naive | HPP | SPP | AGNet)')
+        help='Specify mode for regression model (naive | HPP | SPP | AGNet | GuidelessNet)')
     parser.add_argument(
         '--merge_type',
         default='',
@@ -325,7 +331,7 @@ def parse_opts():
         '--interval_sel',
         default='COP',
         type=str,
-        help='Inteval selection methods to use ( COP | DAPs ).'
+        help='Inteval selection methods to use ( COP | Scale | DAPs ).'
     )
     parser.add_argument(
         '--port',
@@ -338,7 +344,27 @@ def parse_opts():
         action='store_true',
         help='If true, you can use pretrained feature arrray as input.')
     parser.set_defaults(load_pretrained=False)
-
+    parser.add_argument(
+        '--enable_guide',
+        action='store_true',
+        help='If true, you can enable guidance mechanism.')
+    parser.set_defaults(enable_guide=False)
+    parser.add_argument(
+        '--precrop',
+        action='store_true',
+        help='If true, apply pre-cropping to get local image.')
+    parser.set_defaults(precrop=False)
+    parser.add_argument(
+        '--mask_root',
+        default='/data/torch_data/UCF-101/mask',
+        type=str,
+        help='path to msak root directory.'
+    )
+    parser.add_argument(
+        '--disable_tracking',
+        action='store_true',
+        help='If true, disable tracking patients, select only a first-detected person instead.')
+    parser.set_defaults(disable_tracking=False)
     # and so on...
 
     args = parser.parse_args()

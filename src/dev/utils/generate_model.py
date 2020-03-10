@@ -12,6 +12,27 @@ import torch.nn.utils as torch_utils
 import torch.nn.functional as F
 
 
+class FocalLoss(nn.Module):
+
+    def __init__(self, weight=None,
+                 gamma=2., reduction='none'):
+        nn.Module.__init__(self)
+        self.weight = weight
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, input_tensor, target_tensor):
+        log_prob = F.log_softmax(input_tensor, dim=-1)
+        prob = torch.exp(log_prob).clamp_max(1.0).clamp_min(0.0)
+
+        return F.nll_loss(
+            ((1 - prob) ** self.gamma) * log_prob,
+            target_tensor,
+            weight=self.weight,
+            reduction=self.reduction
+        )
+
+
 class MultiScaled_BCELoss(nn.Module):
     def __init__(self, n_scales):
         super().__init__()
@@ -23,7 +44,8 @@ class MultiScaled_BCELoss(nn.Module):
         for i in range(self.n_scales):
             target = F.interpolate(target,
                                    size=input[i].size()[2:])
-            l.append(self.loss_func(input[i], target))
+            l.append(self.loss_func(input[i].clamp_max(1.0).clamp_min(
+                0.0), target.clamp_max(1.0).clamp_min(0.0)))
 
         return torch.stack(l).mean()
 
@@ -141,10 +163,40 @@ def generate_regression_model(backbone, opt):
                 pretrained_agnet,
                 backbone, hidden_size=1024, out_size=4)
         elif opt.model_arch == 'AGNet-pretrain':
-            net = regression_model.AGNet_Mean(
-                backbone, hidden_size=512, out_size=16, drop_rate=0.2)
+            net = regression_model.AGNet_Mean(backbone, hidden_size=512,
+                                              out_size=16, drop_rate=0.2)
+        elif opt.model_arch == 'GuidelessNet':
+            net = regression_model.GuidelessNet(backbone, hidden_size=512,
+                                                out_size=16, drop_rate=0.2)
 
         criterion1 = nn.SmoothL1Loss(reduction='sum')
+        criterion2 = MultiScaled_BCELoss(n_scales=4)
+
+    # Enable GPU model & data parallelism
+    if opt.multi_gpu:
+        net = DataParallelModel(net, device_ids=eval(
+            opt.device_ids + ',', )).cuda()
+
+        criterion1 = DataParallelCriterion(
+            criterion1, device_ids=eval(opt.device_ids + ",")).cuda()
+
+        criterion2 = DataParallelCriterion(
+            criterion2, device_ids=eval(opt.device_ids + ",")).cuda()
+
+    return net, criterion1, criterion2
+
+
+def generate_classification_model(backbone, opt):
+    if opt.backbone == 'r2plus1d_18':
+        if opt.model_arch == 'AGNet-pretrain':
+            net = regression_model.AGNet_Mean(backbone, hidden_size=512,
+                                              out_size=opt.n_class, drop_rate=0.2)
+        elif opt.model_arch == 'GuidelessNet':
+            net = regression_model.GuidelessNet(backbone, hidden_size=512,
+                                                out_size=opt.n_class, drop_rate=0.2)
+
+        criterion1 = FocalLoss(reduction='sum')
+        # criterion1 = nn.CrossEntropyLoss(reduction='sum')
         criterion2 = MultiScaled_BCELoss(n_scales=4)
 
     # Enable GPU model & data parallelism
@@ -165,8 +217,13 @@ def init_state(opt):
     # define backbone
     backbone = generate_backbone(opt)
 
-    # define regression model
-    net, criterion1, criterion2 = generate_regression_model(backbone, opt)
+    if opt.benchmark:
+        opt.n_class = 2
+        net, criterion1, criterion2 = generate_classification_model(
+            backbone, opt)
+    else:
+        # define regression model
+        net, criterion1, criterion2 = generate_regression_model(backbone, opt)
 
     if opt.nesterov:
         dampening = 0

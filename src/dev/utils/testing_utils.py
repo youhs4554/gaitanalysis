@@ -19,14 +19,20 @@ def test(data_loader, model, opt, plotter,
 
     y_true, y_pred = [], []
 
+    data_loader = iter(data_loader)
+
     for _ in range(len(data_loader)):
         inputs, masks, targets, vids, valid_lengths = next(data_loader)
 
         res = model(inputs)
-        if opt.model_arch == 'AGNet-pretrain':
-            reg_outputs, _, seg_outputs = tuple(zip(*res))
+        if not opt.enable_guide:
+            reg_outputs, = tuple(zip(*res))
+
         else:
-            reg_outputs, seg_outputs = tuple(zip(*res))
+            if opt.model_arch == 'AGNet-pretrain':
+                reg_outputs, _, seg_outputs = tuple(zip(*res))
+            else:
+                reg_outputs, seg_outputs = tuple(zip(*res))
 
         targets = target_transform.inverse_transform(targets.cpu().numpy())
         reg_outputs = target_transform.inverse_transform(
@@ -93,22 +99,8 @@ class Tester(object):
 
         self.target_columns = get_target_columns(opt)
 
-    def fit(self, ds, plotter, criterion):
+    def fit(self, test_loader, plotter, criterion):
         print('Start testing...')
-
-        from torch.utils.data import DataLoader
-
-        setattr(ds, 'spatial_transform', self.spatial_transform)
-        setattr(ds, 'temporal_transform', self.temporal_transform)
-
-        # define dataloader
-        test_loader = DataLoader(ds,
-                                 batch_size=self.opt.batch_size,
-                                 shuffle=False,
-                                 num_workers=self.opt.n_threads)
-
-        # convert to iterable
-        test_loader = iter(test_loader)
 
         with torch.no_grad():
             # test model!

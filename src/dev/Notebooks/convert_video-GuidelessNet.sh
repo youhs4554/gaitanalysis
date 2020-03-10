@@ -1,0 +1,2 @@
+#!/bin/bash
+for i in /data/GaitData/ActivationMap_videos/GuidelessNet/*.avi; do mkdir -p "/data/GaitData/ActivationMap_videos/GuidelessNet/mp4" && ffmpeg -i "$i" "/data/GaitData/ActivationMap_videos/GuidelessNet/mp4/$(basename "$i" .avi)".mp4 -y; done

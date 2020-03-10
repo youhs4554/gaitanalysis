@@ -628,11 +628,88 @@ class BaseAGNet(nn.Module):
         return x, seg_list
 
 
+class GuidelessNet(nn.Module):
+    def __init__(self, backbone,
+                 hidden_size, out_size, drop_rate=0.2,
+                 backbone_dims=[64, 64, 128, 256, 512],
+                 freeze=False, activation=None):
+
+        super(GuidelessNet, self).__init__()
+
+        backbone = copy.deepcopy(backbone)
+
+        self.activation = activation
+
+        if freeze:
+            freeze_layers(layers=backbone.children())
+
+        self.stem = backbone.stem
+        self.backbone = nn.Sequential(*list(backbone.children())[1:-2])
+
+        self.matching_layers = nn.ModuleList()
+        for inp_dim, out_dim in zip(backbone_dims[:-1], backbone_dims[1:]):
+            self.matching_layers.append(
+                nn.Sequential(
+                    nn.Conv3d(inp_dim, out_dim, kernel_size=1, bias=False),
+                    nn.BatchNorm3d(out_dim),
+                    nn.ReLU(True)
+                )
+            )
+
+        self.conv_1x1 = nn.Sequential(
+            nn.Conv3d(64+128+256+512, 512, kernel_size=1, bias=False),
+            nn.BatchNorm3d(512),
+            nn.ReLU(True))
+
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 128),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(drop_rate),
+            nn.Linear(128, out_size)
+        )
+
+        if freeze:
+            freeze_layers(layers=list(self.agnet.children()) + [self.fc])
+
+    def internal_loop(self, x, multi_pooling_sizes=[8, 4, 2, 0]):
+        merged_feats = []
+
+        for backbone_layer, matching_layer, multi_pooling_size in zip(self.backbone.children(),
+                                                                      self.matching_layers, multi_pooling_sizes):
+            out = backbone_layer(x)
+            neighboring_pooling_size = [
+                int(x.size(i)/out.size(i)) for i in range(2, 5)]
+            x = matching_layer(max_pool3d(
+                x, neighboring_pooling_size))
+
+            if multi_pooling_size > 0:
+                pooled_x = max_pool3d(x, multi_pooling_size)
+                merged_feats.append(pooled_x)
+
+        return x, merged_feats
+
+    def forward(self, x):
+        # x; (N,3,64,112,112)
+        x = self.stem(x)
+        x, merged_feats = self.internal_loop(x)
+
+        # (N,64+128+256+512,8,7,7)
+        x = torch.cat(merged_feats + [x], dim=1)
+        x = self.conv_1x1(x)                        # (N,512,8,7,7)
+
+        x = self.fc(x.mean((2, 3, 4)))
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x,
+
+
 class AGNet_Mean(nn.Module):
     def __init__(self, backbone,
                  hidden_size, out_size, drop_rate=0.2,
                  backbone_dims=[64, 64, 128, 256, 512],
-                 freeze=False):
+                 freeze=False, activation=None):
 
         super(AGNet_Mean, self).__init__()
 
@@ -645,6 +722,8 @@ class AGNet_Mean(nn.Module):
             nn.Linear(128, out_size)
         )
 
+        self.activation = activation
+
         if freeze:
             freeze_layers(layers=list(self.agnet.children()) + [self.fc])
 
@@ -654,6 +733,9 @@ class AGNet_Mean(nn.Module):
 
         # regression output
         out = self.fc(feats.mean((2, 3, 4)))
+
+        if self.activation is not None:
+            out = self.activation(out)
 
         return out, feats, seg_list
 

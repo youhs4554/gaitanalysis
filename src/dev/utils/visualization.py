@@ -202,7 +202,7 @@ class VisdomPlotter(object):
     """Plots to Visdom"""
 
     def __init__(self, env_name='main'):
-        self.viz = visdom.Visdom('133.186.162.37')
+        self.viz = visdom.Visdom('155.230.214.70')
         self.env = env_name
         self.plots = {}
 
@@ -217,6 +217,9 @@ class VisdomPlotter(object):
         else:
             self.viz.line(X=np.array([x]), Y=np.array(
                 [y]), env=self.env, win=self.plots[var_name], name=split_name, update='append')
+
+    def matplot(self, var_name, plt):
+        self.viz.matplot(plt, env=self.env, win=var_name)
 
     def draw_video(self, win_name, title_name, video):
         output = encode(video)

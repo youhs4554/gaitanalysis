@@ -1,5 +1,5 @@
-#FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04
-FROM vscode-ubuntu16.04:latest
+FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04
+#FROM vscode-ubuntu16.04:latest
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH

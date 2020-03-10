@@ -1,7 +1,7 @@
 {
     "python.linting.flake8Enabled": true,
     "python.linting.enabled": true,
-    "python.pythonPath": "/opt/conda/envs/torch/bin/python",
+    "python.pythonPath": "/home/hossay/anaconda3/envs/torch/bin/python",
     "files.exclude": {
         "**/.git": true,
         "**/.svn": true,
@@ -13,5 +13,7 @@
         },
         "**/__pycache__": true
     },
-    "python.linting.pycodestyleEnabled": false
+    "python.linting.pycodestyleEnabled": false,
+    "python.linting.pylintEnabled": false,
+    "python.formatting.provider": "autopep8"
 }
