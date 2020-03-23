@@ -14,23 +14,17 @@ import torch.nn.functional as F
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, weight=None,
-                 gamma=2., reduction='none'):
-        nn.Module.__init__(self)
-        self.weight = weight
+    def __init__(self, gamma=2.):
+        super(FocalLoss, self).__init__()
         self.gamma = gamma
-        self.reduction = reduction
 
     def forward(self, input_tensor, target_tensor):
-        log_prob = F.log_softmax(input_tensor, dim=-1)
-        prob = torch.exp(log_prob).clamp_max(1.0).clamp_min(0.0)
+        logpt = -F.cross_entropy(input_tensor, target_tensor, reduction='sum')
+        pt = torch.exp(logpt)
 
-        return F.nll_loss(
-            ((1 - prob) ** self.gamma) * log_prob,
-            target_tensor,
-            weight=self.weight,
-            reduction=self.reduction
-        )
+        focal_loss = -((1 - pt) ** self.gamma) * logpt
+
+        return focal_loss
 
 
 class MultiScaled_BCELoss(nn.Module):
@@ -44,8 +38,7 @@ class MultiScaled_BCELoss(nn.Module):
         for i in range(self.n_scales):
             target = F.interpolate(target,
                                    size=input[i].size()[2:])
-            l.append(self.loss_func(input[i].clamp_max(1.0).clamp_min(
-                0.0), target.clamp_max(1.0).clamp_min(0.0)))
+            l.append(self.loss_func(input[i], target))
 
         return torch.stack(l).mean()
 
@@ -195,7 +188,7 @@ def generate_classification_model(backbone, opt):
             net = regression_model.GuidelessNet(backbone, hidden_size=512,
                                                 out_size=opt.n_class, drop_rate=0.2)
 
-        criterion1 = FocalLoss(reduction='sum')
+        criterion1 = FocalLoss()
         # criterion1 = nn.CrossEntropyLoss(reduction='sum')
         criterion2 = MultiScaled_BCELoss(n_scales=4)
 
@@ -246,7 +239,7 @@ def init_state(opt):
 
     params = [p for p in net.parameters() if p.requires_grad]
     optimizer = optim.Adam(
-        params, lr=opt.learning_rate, weight_decay=opt.weight_decay
+        params, lr=opt.learning_rate, weight_decay=opt.weight_decay,
     )
 
     # optimizer = optim.RMSprop(
@@ -255,7 +248,7 @@ def init_state(opt):
     # )
 
     # In orther to avoid gradient exploding, we apply gradient clipping
-    torch_utils.clip_grad_norm_(net.parameters(), opt.max_gradnorm)
+    torch_utils.clip_grad_norm_(params, opt.max_gradnorm)
 
     scheduler = lr_scheduler.ReduceLROnPlateau(
         optimizer, 'min', verbose=True, patience=opt.lr_patience)
@@ -271,7 +264,7 @@ def load_trained_ckpt(opt, net):
                                              opt.model_arch,
                                              opt.merge_type,
                                              opt.arch,
-                                             opt.group_str])))
+                                             opt.dataset])))
 
     model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
     print(f"Load trained model from {model_path}...")
@@ -293,7 +286,7 @@ def load_pretrained_ckpt(opt, net):
                                              opt.model_arch+'-pretrain',
                                              opt.merge_type,
                                              opt.arch,
-                                             opt.group_str])))
+                                             opt.dataset])))
 
     model_path = os.path.join(ckpt_dir, 'save_' + opt.pretrain_epoch + '.pth')
     print(f"Load pretrained model from {model_path}...")

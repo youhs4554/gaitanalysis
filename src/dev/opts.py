@@ -260,7 +260,7 @@ def parse_opts():
         help='Trained model is saved at every this epochs.')
     parser.add_argument(
         '--ckpt_dir',
-        default='./ckpt_repos',
+        default="/data/GaitData/ckpt_dir",
         type=str,
         help='Directory where trained model is saved.')
     parser.add_argument(

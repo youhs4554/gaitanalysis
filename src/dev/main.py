@@ -8,7 +8,7 @@ from utils.mean import get_mean, get_std
 import utils.visualization as viz
 from utils.target_columns import get_target_columns
 from utils.testing_utils import Tester
-from utils.train_utils import Trainer, Logger
+from utils.train_utils import Trainer
 from utils.transforms import (
     Compose, ToTensor,
     MultiScaleRandomCrop,
@@ -24,11 +24,10 @@ from utils.transforms import (
     Normalize3D,
     CenterCrop3D,
     Resize3D,
+    RandomHorizontalFlip3D
 )
 from utils.generate_model import init_state, load_trained_ckpt
 import torch
-from datasets.utils import get_train_valid_test_loader
-from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
@@ -106,8 +105,8 @@ def prepare_data(opt, fold=1):
     opt.logpath = logpath
 
     plotter = viz.VisdomPlotter(
-        env_name=opt.model_indicator + opt.dataset +
-        "-fold-{}".format(fold)
+        env_name=opt.dataset + '_' +
+        opt.model_indicator + "-fold-{}".format(fold)
     )
 
     if opt.dataset == "Gaitparams_PD":
@@ -159,15 +158,6 @@ def prepare_data(opt, fold=1):
             temporal_transform=temporal_transform["train"],
         )
 
-        valid_ds = ds_class(
-            X=data["train_X"],
-            y=data["train_y"],
-            opt=opt,
-            phase="valid",
-            spatial_transform=spatial_transform["test"],
-            temporal_transform=temporal_transform["test"],
-        )
-
         test_ds = ds_class(
             X=data["test_X"],
             y=data["test_y"],
@@ -181,25 +171,28 @@ def prepare_data(opt, fold=1):
         spatial_transform = {
             "train": Compose(
                 [
-                    Resize3D(size=opt.sample_size),
-                    # RandomResizedCrop3D(
-                    #    transform2D=TF.RandomResizedCrop(size=(opt.sample_size, opt.sample_size))),
+                    Resize3D(size=opt.img_size),
+                    RandomResizedCrop3D(
+                        transform2D=TF.RandomResizedCrop(
+                            size=(opt.sample_size, opt.sample_size))),
+                    # scale=(opt.sample_size / opt.img_size, 1.0))),
+                    RandomHorizontalFlip3D(),
                     ToTensor3D(),
-                    # Normalize3D(
-                    #     mean=opt.mean,
-                    #     std=opt.std
-                    # ),
+                    Normalize3D(
+                        mean=opt.mean,
+                        std=opt.std
+                    ),
                 ]
             ),
             "test": Compose(
                 [
-                    Resize3D(size=opt.sample_size),
-                    # CenterCrop3D((opt.sample_size, opt.sample_size)),
+                    Resize3D(size=opt.img_size),
+                    CenterCrop3D((opt.sample_size, opt.sample_size)),
                     ToTensor3D(),
-                    # Normalize3D(
-                    #     mean=opt.mean,
-                    #     std=opt.std
-                    # ),
+                    Normalize3D(
+                        mean=opt.mean,
+                        std=opt.std
+                    ),
                 ]
             ),
         }
@@ -218,24 +211,15 @@ def prepare_data(opt, fold=1):
                 os.path.dirname(opt.data_root), "TrainTestlist"
             ),
             detection_file_path=opt.input_file,
-            frames_per_clip=16,
+            frames_per_clip=opt.sample_duration,
+            # step_between_clips=10,
             fold=fold,
             transform=spatial_transform["train"],
             preCrop=opt.precrop,
         )
 
-        valid_ds = datasets.benchmark.FallDataset(
-            root=opt.data_root,
-            train=True,
-            annotation_path=os.path.join(
-                os.path.dirname(opt.data_root), "TrainTestlist"
-            ),
-            detection_file_path=opt.input_file,
-            frames_per_clip=16,
-            fold=fold,
-            transform=spatial_transform["test"],
-            preCrop=opt.precrop,
-        )
+        train_ds[10]
+
         test_ds = datasets.benchmark.FallDataset(
             root=opt.data_root,
             train=False,
@@ -243,7 +227,8 @@ def prepare_data(opt, fold=1):
                 os.path.dirname(opt.data_root), "TrainTestlist"
             ),
             detection_file_path=opt.input_file,
-            frames_per_clip=16,
+            frames_per_clip=opt.sample_duration,
+            # step_between_clips=10,
             fold=fold,
             transform=spatial_transform["test"],
             preCrop=opt.precrop,
@@ -252,10 +237,14 @@ def prepare_data(opt, fold=1):
     else:
         NotImplementedError("Does not support other datasets until now..")
 
-    # split as separated dataloaders
-    train_loader, valid_loader, test_loader = get_train_valid_test_loader(
-        train_ds, valid_ds, test_ds, opt
-    )
+    # Construct train/test dataloader for selected fold
+    train_loader = torch.utils.data.DataLoader(train_ds, pin_memory=True,
+                                               batch_size=opt.batch_size, shuffle=True,
+                                               num_workers=opt.n_threads)
+    test_loader = torch.utils.data.DataLoader(test_ds, pin_memory=True,
+                                              batch_size=opt.batch_size,
+                                              shuffle=False,
+                                              num_workers=opt.n_threads)
 
     return (
         opt,
@@ -269,14 +258,13 @@ def prepare_data(opt, fold=1):
         target_transform,
         plotter,
         train_loader,
-        valid_loader,
         test_loader,
         target_columns,
     )
 
 
-def train(opt, fold):
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, valid_loader, test_loader, target_columns = \
+def train(opt, fold, metrice='f1-score'):
+    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = \
         prepare_data(opt, fold)
 
     trainer = Trainer(
@@ -284,28 +272,40 @@ def train(opt, fold):
         criterion1=criterion1,
         criterion2=criterion2,
         optimizer=optimizer,
-        scheduler=scheduler,
+        scheduler=None,
         opt=opt,
         spatial_transform=spatial_transform,
         temporal_transform=temporal_transform,
         target_transform=target_transform,
-        plotter=plotter,
+        plotter=plotter, fold=fold
     )
 
-    trainer.fit(train_loader,
-                valid_loader if opt.mode == 'train' else test_loader)
+    score_dict = trainer.fit(train_loader, test_loader,
+                             metrice=metrice)
 
-    # return scores....
+    return score_dict
 
 
-def cross_validation(opt):
+def cross_validation(opt, metrice='f1-score'):
+    cv_scores = []
     for fold in range(1, opt.n_folds+1):
-        train(opt, fold)
+        score_dict = train(opt, fold, metrice=metrice)
+        cv_scores.append(score_dict[metrice])
+
+    print()
+    print('-'*64)
+    print('{0}-fold CV result with {1} : {2:.4f}'.format(opt.n_folds,
+                                                         metrice, np.mean(cv_scores)))
+    print()
+    print('-'*64)
+
+    return cv_scores
 
 
 def test(opt, fold):
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, valid_loader, test_loader, target_columns = \
-        prepare_data(opt, fold)
+
+    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = prepare_data(
+        opt, fold)
 
     net = load_trained_ckpt(opt, net)
 
@@ -327,8 +327,8 @@ def test(opt, fold):
 
 
 def demo(opt):
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, valid_loader, test_loader, target_columns = \
-        prepare_data(opt)
+    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = prepare_data(
+        opt)
 
     from demo import app as flask_app
 

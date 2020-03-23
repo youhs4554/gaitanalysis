@@ -33,13 +33,12 @@ class Compose(object):
 
     def randomize_parameters(self, vid):
         for t in self.transforms:
-            name = t.__class__.__name__
-            if 'random' not in name.lower():
-                continue
             if t.__class__.__name__ == 'RandomResizedCrop3D':
-                t.randomize_parameters(vid)
+                t.randomize_parameters(vid[0])
             else:
                 t.randomize_parameters()
+
+            vid = t(vid)
 
 
 class ToTensor(object):
@@ -572,6 +571,30 @@ class RandomRotation3D(object):
         )
 
 
+class RandomHorizontalFlip3D(object):
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, vid):
+        # vid : Tensor (T,H,W,C)
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            if self.num < self.p:
+                pic = tf_func.hflip(pic)
+
+            out.append(pic)
+
+        return out
+
+    def randomize_parameters(self):
+        self.num = random.random()
+
+
 class CenterCrop3D(object):
     def __init__(self, size):
         self.size = size
@@ -589,10 +612,16 @@ class CenterCrop3D(object):
 
         return out
 
+    def randomize_parameters(self):
+        pass
+
 
 class ToTensor3D(object):
     def __call__(self, vid):
         return to_normalized_float_tensor(vid)
+
+    def randomize_parameters(self):
+        pass
 
 
 class Normalize3D(object):
@@ -602,3 +631,6 @@ class Normalize3D(object):
 
     def __call__(self, vid):
         return normalize(vid, self.mean, self.std)
+
+    def randomize_parameters(self):
+        pass

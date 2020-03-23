@@ -116,8 +116,7 @@ class FallDataset(VisionDataset):
             otherwise from the ``test`` split.
         transform (callable, optional): A function/transform that  takes in a TxHxWxC video
             and returns a transformed version.
-        preCrop (boo, optional): if ``True``, apply pre-cropping to input image to get local image
-
+        preCrop (bool, optional): if ``True``, apply pre-cropping to input image to get local image
     Returns:
         video (Tensor[T, H, W, C]): the `T` video frames
         mask (Tensor[T, H, W, 1]): the `T' mask frames, representing person bbox in intereset
@@ -176,8 +175,7 @@ class FallDataset(VisionDataset):
 
     def apply_transform(self, inputs, randomize=True):
         if randomize:
-            first_frame = Image.fromarray(inputs[0].cpu().numpy())
-            self.transform.randomize_parameters(first_frame)
+            self.transform.randomize_parameters(inputs)
         inputs = self.transform(inputs)
 
         return inputs
