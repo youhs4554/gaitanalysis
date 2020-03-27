@@ -1,5 +1,5 @@
 #!/bin/bash
-PYTHON=/home/hossay/anaconda3/envs/torch/bin/python
+PYTHON=/opt/conda/envs/torch/bin/python
 
 GAIT_DETECTION_ROOT="../../preprocess/data/Gaitparams_PD"
 

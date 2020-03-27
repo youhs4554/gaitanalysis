@@ -31,6 +31,7 @@ def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', m
         main_lossfunc, = loss_funcs
 
     out_dict = {}
+    aux_outputs = None
     if model_arch == 'GuidelessNet':
         main_outputs, = tuple(zip(*net_outputs))
     elif model_arch == 'AGNet-pretrain':
@@ -46,7 +47,7 @@ def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', m
     if contain_outputs:
         out_dict['main_outputs'] = main_outputs
 
-    if masks is not None:
+    if aux_outputs is not None:
         aux_loss = aux_lossfunc(aux_outputs, masks)
         out_dict['aux_loss'] = aux_loss
         if contain_outputs:
@@ -76,6 +77,7 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
             data_loader = train_loader
         else:
             model.eval()
+            torch.manual_seed(0)  # for same result
             data_loader = test_loader
 
         running_joint_loss = 0.0
@@ -208,20 +210,7 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
             plotter.plot(key+'_avg', phase, key + '__' + 'avg' + '__' + 'trace',
                          step[0], scores[key])
 
-        with h5py.File("results.hdf5", "a") as f:
-            name = opt.dataset + '_' + opt.model_indicator
-            grp = f.require_group(name)
-            grp = grp.require_group("fold-{}".format(fold))
-            grp = grp.require_group(phase)
-            grp = grp.require_group("epoch-{}".format(epoch+1))
-            grp.require_dataset("true_vals", (len(true_vals),),
-                                dtype='i')[...] = true_vals
-            grp.require_dataset("pred_vals", (len(pred_vals),),
-                                dtype='i')[...] = pred_vals
-            grp.require_dataset("prob_vals", (len(prob_vals),),
-                                dtype='f')[...] = prob_vals
-
-    return running_joint_loss, scores
+    return running_joint_loss, scores, true_vals, pred_vals, prob_vals
 
 
 class Trainer(object):
@@ -259,10 +248,10 @@ class Trainer(object):
         best_score_dict = None
 
         for epoch in range(self.opt.n_iter):
-            test_loss, test_scores = train_model(step, epoch, train_loader, test_loader, self.model,
-                                                 self.criterion1, self.criterion2, self.optimizer,
-                                                 self.opt, self.plotter, self.target_transform,
-                                                 self.target_columns, fold=self.fold)
+            test_loss, test_scores, true_vals, pred_vals, prob_vals = train_model(step, epoch, train_loader, test_loader, self.model,
+                                                                                  self.criterion1, self.criterion2, self.optimizer,
+                                                                                  self.opt, self.plotter, self.target_transform,
+                                                                                  self.target_columns, fold=self.fold)
             if test_scores[metrice] > best_score:
                 # save model...
                 ckpt_dir = os.path.join(self.opt.ckpt_dir,
@@ -289,10 +278,25 @@ class Trainer(object):
                 best_score = test_scores[metrice]
                 best_score_dict = test_scores
 
+                best_true_vals = true_vals
+                best_pred_vals = pred_vals
+                best_prob_vals = prob_vals
+
                 print(
-                    f"Best `{best_score}` has been updated. Save best model at {save_file_path}")
+                    f"@@ EPOCH : {epoch} Best `{metrice}` has been updated (value: {best_score:.5f}). Save best model at {save_file_path}")
 
             if self.scheduler is not None:
                 self.scheduler.step(test_loss)
+
+        with h5py.File("results.hdf5", "a") as f:
+            name = self.opt.dataset + '_' + self.opt.model_indicator
+            grp = f.require_group(name)
+            grp = grp.require_group("fold-{}".format(self.fold))
+            grp.require_dataset("true_vals", (len(best_true_vals),),
+                                dtype='i')[...] = best_true_vals
+            grp.require_dataset("pred_vals", (len(best_pred_vals),),
+                                dtype='i')[...] = best_pred_vals
+            grp.require_dataset("prob_vals", (len(best_prob_vals),),
+                                dtype='f')[...] = best_prob_vals
 
         return best_score_dict

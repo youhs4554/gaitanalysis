@@ -264,15 +264,10 @@ def parse_opts():
         type=str,
         help='Directory where trained model is saved.')
     parser.add_argument(
-        '--test_epoch',
-        default=90,
-        type=str,
-        help='Epoch to test')
-    parser.add_argument(
-        '--pretrain_epoch',
-        default=90,
-        type=str,
-        help='Epoch of pretrained model')
+        '--test_fold',
+        default=1,
+        type=int,
+        help='Fold index to test')
     parser.add_argument(
         '--score_avg',
         action='store_true',

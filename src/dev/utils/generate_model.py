@@ -176,6 +176,11 @@ def generate_regression_model(backbone, opt):
         criterion2 = DataParallelCriterion(
             criterion2, device_ids=eval(opt.device_ids + ",")).cuda()
 
+    else:
+        net = net.cuda()
+        criterion1 = criterion1.cuda()
+        criterion2 = criterion2.cuda()
+
     return net, criterion1, criterion2
 
 
@@ -203,6 +208,11 @@ def generate_classification_model(backbone, opt):
         criterion2 = DataParallelCriterion(
             criterion2, device_ids=eval(opt.device_ids + ",")).cuda()
 
+    else:
+        net = net.cuda()
+        criterion1 = criterion1.cuda()
+        criterion2 = criterion2.cuda()
+
     return net, criterion1, criterion2
 
 
@@ -218,40 +228,44 @@ def init_state(opt):
         # define regression model
         net, criterion1, criterion2 = generate_regression_model(backbone, opt)
 
-    if opt.nesterov:
-        dampening = 0
-    else:
-        dampening = opt.dampening
+    optimizer = None
+    scheduler = None
+    
+    if opt.mode != 'test':
+        if opt.nesterov:
+            dampening = 0
+        else:
+            dampening = opt.dampening
 
-    # optimizer = optim.SGD(
-    #     net.parameters(),
-    #     lr=opt.learning_rate,
-    #     momentum=opt.momentum,
-    #     dampening=dampening,
-    #     weight_decay=opt.weight_decay,
-    #     nesterov=opt.nesterov)
+        # optimizer = optim.SGD(
+        #     net.parameters(),
+        #     lr=opt.learning_rate,
+        #     momentum=opt.momentum,
+        #     dampening=dampening,
+        #     weight_decay=opt.weight_decay,
+        #     nesterov=opt.nesterov)
 
-    # import swats
+        # import swats
 
-    # optimizer = swats.SWATS(
-    #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
-    # )
+        # optimizer = swats.SWATS(
+        #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay
+        # )
 
-    params = [p for p in net.parameters() if p.requires_grad]
-    optimizer = optim.Adam(
-        params, lr=opt.learning_rate, weight_decay=opt.weight_decay,
-    )
+        params = [p for p in net.parameters() if p.requires_grad]
+        optimizer = optim.Adam(
+            params, lr=opt.learning_rate, weight_decay=opt.weight_decay,
+        )
 
-    # optimizer = optim.RMSprop(
-    #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay,
-    #     momentum=opt.momentum,
-    # )
+        # optimizer = optim.RMSprop(
+        #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay,
+        #     momentum=opt.momentum,
+        # )
 
-    # In orther to avoid gradient exploding, we apply gradient clipping
-    torch_utils.clip_grad_norm_(params, opt.max_gradnorm)
+        # In orther to avoid gradient exploding, we apply gradient clipping
+        torch_utils.clip_grad_norm_(params, opt.max_gradnorm)
 
-    scheduler = lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'min', verbose=True, patience=opt.lr_patience)
+        scheduler = lr_scheduler.ReduceLROnPlateau(
+            optimizer, 'min', verbose=True, patience=opt.lr_patience)
 
     return net, criterion1, criterion2, optimizer, scheduler
 
@@ -266,7 +280,7 @@ def load_trained_ckpt(opt, net):
                                              opt.arch,
                                              opt.dataset])))
 
-    model_path = os.path.join(ckpt_dir, 'save_' + opt.test_epoch + '.pth')
+    model_path = os.path.join(ckpt_dir, f'model_fold-{opt.test_fold}.pth')
     print(f"Load trained model from {model_path}...")
 
     # laod pre-trained model
@@ -288,7 +302,7 @@ def load_pretrained_ckpt(opt, net):
                                              opt.arch,
                                              opt.dataset])))
 
-    model_path = os.path.join(ckpt_dir, 'save_' + opt.pretrain_epoch + '.pth')
+    model_path = os.path.join(ckpt_dir, f'model_fold-{opt.test_fold}.pth')
     print(f"Load pretrained model from {model_path}...")
 
     # laod pre-trained model

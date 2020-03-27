@@ -1,0 +1,29 @@
+dataset: MulticamFD
+backbone: r2plus1d_18
+model_depth: 18
+input_file: ../../../preprocess/data/person_detection_and_tracking_results_drop-MulticamFD.pkl
+data_root: /data/FallDownData/MulticamFD/video
+multi_gpu: true
+with_segmentation: true
+device_ids: "0"
+batch_size: 64
+n_threads: 8
+mode: test
+test_fold: 1
+model_arch: AGNet-pretrain
+img_size: 144
+sample_duration: 16
+sample_size: 112
+enable_guide: true
+mean_dataset: kinetics
+no_mean_norm: false
+std_norm: false
+norm_value: 255
+ckpt_dir: /data/GaitData/ckpt_dir
+attention: false
+pretrained_path:
+n_groups: -1
+merge_type:
+num_units: 256
+train_crop:
+precrop: false
