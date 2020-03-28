@@ -230,7 +230,7 @@ def init_state(opt):
 
     optimizer = None
     scheduler = None
-    
+
     if opt.mode != 'test':
         if opt.nesterov:
             dampening = 0
@@ -252,9 +252,13 @@ def init_state(opt):
         # )
 
         params = [p for p in net.parameters() if p.requires_grad]
+
         optimizer = optim.Adam(
             params, lr=opt.learning_rate, weight_decay=opt.weight_decay,
         )
+        # optimizer = optim.SGD(
+        #     params, lr=opt.learning_rate, weight_decay=opt.weight_decay, momentum=0.9
+        # )
 
         # optimizer = optim.RMSprop(
         #     net.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay,
@@ -264,8 +268,9 @@ def init_state(opt):
         # In orther to avoid gradient exploding, we apply gradient clipping
         torch_utils.clip_grad_norm_(params, opt.max_gradnorm)
 
-        scheduler = lr_scheduler.ReduceLROnPlateau(
-            optimizer, 'min', verbose=True, patience=opt.lr_patience)
+        # scheduler = lr_scheduler.ReduceLROnPlateau(
+        #     optimizer, 'min', verbose=True, patience=opt.lr_patience)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
     return net, criterion1, criterion2, optimizer, scheduler
 

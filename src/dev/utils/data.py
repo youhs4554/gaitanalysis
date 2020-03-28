@@ -164,7 +164,7 @@ def prepare_data(opt, fold=1):
             ),
             detection_file_path=opt.input_file,
             frames_per_clip=opt.sample_duration,
-            # step_between_clips=10,
+            # step_between_clips=opt.sample_duration // 2,
             fold=fold,
             transform=spatial_transform["train"],
             preCrop=opt.precrop,
@@ -178,7 +178,7 @@ def prepare_data(opt, fold=1):
             ),
             detection_file_path=opt.input_file,
             frames_per_clip=opt.sample_duration,
-            # step_between_clips=10,
+            # step_between_clips=opt.sample_duration,
             fold=fold,
             transform=spatial_transform["test"],
             preCrop=opt.precrop,
@@ -195,7 +195,7 @@ def prepare_data(opt, fold=1):
                                                batch_size=opt.batch_size, shuffle=True,
                                                num_workers=opt.n_threads)
     test_loader = torch.utils.data.DataLoader(test_ds, pin_memory=True,
-                                              batch_size=opt.batch_size, shuffle=True,
+                                              batch_size=opt.batch_size, shuffle=False,
                                               num_workers=opt.n_threads)
 
     return (

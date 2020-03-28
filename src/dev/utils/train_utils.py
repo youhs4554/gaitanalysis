@@ -19,7 +19,7 @@ from multiprocessing import Pool
 import glob
 from tqdm import tqdm
 import seaborn as sns
-import h5py
+import pandas as pd
 
 
 def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', masks=None,
@@ -77,7 +77,7 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
             data_loader = train_loader
         else:
             model.eval()
-            torch.manual_seed(0)  # for same result
+            # torch.manual_seed(0)  # for same result
             data_loader = test_loader
 
         running_joint_loss = 0.0
@@ -91,8 +91,11 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
         y_pred = []
         y_true = []
         y_prob = []
+        video_ids = []
 
         for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
+
+            video_ids += vids
 
             optimizer.zero_grad()
 
@@ -210,7 +213,7 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
             plotter.plot(key+'_avg', phase, key + '__' + 'avg' + '__' + 'trace',
                          step[0], scores[key])
 
-    return running_joint_loss, scores, true_vals, pred_vals, prob_vals
+    return running_joint_loss, scores, true_vals, pred_vals, prob_vals, video_ids
 
 
 class Trainer(object):
@@ -248,10 +251,12 @@ class Trainer(object):
         best_score_dict = None
 
         for epoch in range(self.opt.n_iter):
-            test_loss, test_scores, true_vals, pred_vals, prob_vals = train_model(step, epoch, train_loader, test_loader, self.model,
-                                                                                  self.criterion1, self.criterion2, self.optimizer,
-                                                                                  self.opt, self.plotter, self.target_transform,
-                                                                                  self.target_columns, fold=self.fold)
+            test_loss, test_scores, true_vals, pred_vals, prob_vals, video_ids =\
+                train_model(step, epoch, train_loader, test_loader, self.model,
+                            self.criterion1, self.criterion2, self.optimizer,
+                            self.opt, self.plotter, self.target_transform,
+                            self.target_columns, fold=self.fold)
+
             if test_scores[metrice] > best_score:
                 # save model...
                 ckpt_dir = os.path.join(self.opt.ckpt_dir,
@@ -278,7 +283,6 @@ class Trainer(object):
                 best_score = test_scores[metrice]
                 best_score_dict = test_scores
 
-                best_true_vals = true_vals
                 best_pred_vals = pred_vals
                 best_prob_vals = prob_vals
 
@@ -286,17 +290,22 @@ class Trainer(object):
                     f"@@ EPOCH : {epoch} Best `{metrice}` has been updated (value: {best_score:.5f}). Save best model at {save_file_path}")
 
             if self.scheduler is not None:
-                self.scheduler.step(test_loss)
+                if self.scheduler.__class__.__name__ == 'ReduceLROnPlateau':
+                    self.scheduler.step(test_loss)
+                else:
+                    self.scheduler.step()
 
-        with h5py.File("results.hdf5", "a") as f:
-            name = self.opt.dataset + '_' + self.opt.model_indicator
-            grp = f.require_group(name)
-            grp = grp.require_group("fold-{}".format(self.fold))
-            grp.require_dataset("true_vals", (len(best_true_vals),),
-                                dtype='i')[...] = best_true_vals
-            grp.require_dataset("pred_vals", (len(best_pred_vals),),
-                                dtype='i')[...] = best_pred_vals
-            grp.require_dataset("prob_vals", (len(best_prob_vals),),
-                                dtype='f')[...] = best_prob_vals
+        # save results... as HDF5
+        grp_name = self.opt.dataset + '_' + self.opt.model_indicator
+        grp_name = grp_name + '/' + "fold-{}".format(self.fold)
+
+        resulting_df = pd.DataFrame({
+            "video_ids": video_ids,
+            "true_vals": true_vals,
+            "pred_vals": best_pred_vals,
+            "prob_vals": best_prob_vals
+        })
+
+        resulting_df.to_hdf("results.hdf5", grp_name)
 
         return best_score_dict
