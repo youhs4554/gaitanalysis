@@ -96,6 +96,12 @@ def parse_opts():
         help='GPU ids to use',
     )
     parser.add_argument(
+        '--ref_level',
+        default="video",
+        type=str,
+        help='temporal level for selecting best score. ( clip | video )',
+    )
+    parser.add_argument(
         '--segm_method',
         default=None,
         type=str,
@@ -110,13 +116,13 @@ def parse_opts():
     parser.add_argument(
         '--img_size',
         default=144,
-        type=tuple,
+        type=int,
         help='Resized input image size',
     )
     parser.add_argument(
         '--sample_size',
         default=112,
-        type=tuple,
+        type=int,
         help='Sampled input image size fed into backbone',
     )
     parser.add_argument(

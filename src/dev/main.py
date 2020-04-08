@@ -14,11 +14,12 @@ import torch
 from utils.generate_model import load_trained_ckpt
 import numpy as np
 import warnings
+import json
 warnings.filterwarnings("ignore")
 
 
 def train(opt, fold, metrice='f1-score'):
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = \
+    opt, net, criterion1, criterion2, optimizer, lr_scheduler, warmup_scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = \
         utils.data.prepare_data(opt, fold)
 
     trainer = Trainer(
@@ -26,7 +27,8 @@ def train(opt, fold, metrice='f1-score'):
         criterion1=criterion1,
         criterion2=criterion2,
         optimizer=optimizer,
-        scheduler=scheduler,
+        lr_scheduler=lr_scheduler,
+        warmup_scheduler=warmup_scheduler,
         opt=opt,
         spatial_transform=spatial_transform,
         temporal_transform=temporal_transform,
@@ -44,12 +46,21 @@ def cross_validation(opt, metrice='f1-score'):
     cv_scores = []
     for fold in range(1, opt.n_folds+1):
         score_dict = train(opt, fold, metrice=metrice)
-        cv_scores.append(score_dict[metrice])
+        cv_scores.append(score_dict)
+
+    test_score_averaged = np.mean([x[metrice] for x in cv_scores])
 
     print()
     print('-'*64)
     print('{0}-fold CV result with {1} : {2:.4f}'.format(opt.n_folds,
-                                                         metrice, np.mean(cv_scores)))
+                                                         metrice, test_score_averaged))
+
+    score_histories = {'fold-' + str(i): d for i, d in enumerate(cv_scores)}
+
+    prefix = opt.dataset + '_' + opt.model_indicator
+    json.dump(score_histories, open(
+        'results/{}_CV_score_histories.json'.format(prefix), 'w'))
+
     print()
     print('-'*64)
 
@@ -58,8 +69,8 @@ def cross_validation(opt, metrice='f1-score'):
 
 def test(opt, fold):
 
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = utils.data.prepare_data(
-        opt, fold)
+    opt, net, criterion1, criterion2, optimizer, lr_scheduler, warmup_scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = \
+        utils.data.prepare_data(opt, fold)
     net = load_trained_ckpt(opt, net)
 
     # init ActivationMapProvider
@@ -106,8 +117,8 @@ def test(opt, fold):
 
 
 def demo(opt):
-    opt, net, criterion1, criterion2, optimizer, scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = utils.data.prepare_data(
-        opt)
+    opt, net, criterion1, criterion2, optimizer, lr_scheduler, warmup_scheduler, spatial_transform, temporal_transform, target_transform, plotter, train_loader, test_loader, target_columns = \
+        utils.data.prepare_data(opt)
 
     from demo import app as flask_app
 

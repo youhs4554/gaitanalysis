@@ -22,7 +22,7 @@ import seaborn as sns
 import pandas as pd
 
 
-def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', masks=None,
+def computeLoss(net_outputs, targets, loss_funcs, opt, masks=None, phase='train',
                 contain_outputs=True):
 
     if len(loss_funcs) > 1:
@@ -32,15 +32,20 @@ def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', m
 
     out_dict = {}
     aux_outputs = None
-    if model_arch == 'GuidelessNet':
-        main_outputs, = tuple(zip(*net_outputs))
-    elif model_arch == 'AGNet-pretrain':
-        main_outputs, _, aux_outputs = tuple(zip(*net_outputs))
-    elif model_arch == 'AGNet':
-        main_outputs, aux_outputs = tuple(zip(*net_outputs))
+    if opt.model_arch == 'GuidelessNet':
+        main_outputs, = net_outputs
+    elif opt.model_arch == 'AGNet-pretrain':
+        main_outputs, _, aux_outputs = net_outputs
+    elif opt.model_arch == 'AGNet':
+        main_outputs, aux_outputs = net_outputs
         main_outputs = [main_outputs[i][:, -4:]
                         for i in range(len(main_outputs))]
         targets = targets[:, -4:]
+
+    if opt.benchmark and phase == 'test':
+        clip_logits = main_outputs.view(-1, opt.nclips, 2)
+        out_dict['clip_logits'] = clip_logits
+        main_outputs = clip_logits.mean(1)
 
     main_loss = main_lossfunc(main_outputs, targets)
     out_dict['main_loss'] = main_loss
@@ -48,7 +53,8 @@ def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', m
         out_dict['main_outputs'] = main_outputs
 
     if aux_outputs is not None:
-        aux_loss = aux_lossfunc(aux_outputs, masks)
+        aux_loss = aux_lossfunc(aux_outputs, masks) / \
+            (opt.nclips if phase == 'test' else 1.0)
         out_dict['aux_loss'] = aux_loss
         if contain_outputs:
             out_dict['aux_outputs'] = aux_outputs
@@ -61,7 +67,8 @@ def computeLoss(net_outputs, targets, loss_funcs, model_arch='AGNet-pretrain', m
     return out_dict
 
 
-def train_model(step, epoch, train_loader, test_loader, model, criterion1, criterion2, optimizer, opt,
+def train_model(step, epoch, train_loader, test_loader, model, criterion1, criterion2, optimizer,
+                lr_scheduler, warmup_scheduler, opt,
                 plotter, target_transform, target_columns, fold):
 
     metrices_functions = {
@@ -71,13 +78,12 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
         'classification': classification_report
     }
 
-    for phase in ['train', 'test']:
+    for phase in ['test']:
         if phase == 'train':
             model.train()
             data_loader = train_loader
         else:
             model.eval()
-            # torch.manual_seed(0)  # for same result
             data_loader = test_loader
 
         running_joint_loss = 0.0
@@ -95,37 +101,56 @@ def train_model(step, epoch, train_loader, test_loader, model, criterion1, crite
 
         for i, (inputs, masks, targets, vids, valid_lengths) in enumerate(data_loader):
 
+            if torch.cuda.is_available():
+                inputs = inputs.cuda()
+                masks = masks.cuda()
+                targets = targets.cuda()
+
             video_ids += vids
 
-            optimizer.zero_grad()
-
             with torch.set_grad_enabled(phase == 'train'):
+                if phase == 'test':
+                    bs, nclips, *cdhw = inputs.shape
+                    inputs = inputs.view(-1, *cdhw)
+
+                    bs, nclips, *cdhw = masks.shape
+                    masks = masks.view(-1, *cdhw)
+
+                    opt.nclips = nclips
+
                 res = model(inputs)
                 out_dict = computeLoss(res, targets, loss_funcs=[criterion1, criterion2],
-                                       model_arch=opt.model_arch, masks=masks, contain_outputs=True)
+                                       opt=opt, masks=masks, phase=phase, contain_outputs=True)
 
             if phase == 'train':
+                if lr_scheduler is not None:
+                    lr_scheduler.step(epoch)
+                if warmup_scheduler is not None:
+                    warmup_scheduler.dampen()
+
+                optimizer.zero_grad()
                 out_dict['joint_loss'].backward()
                 optimizer.step()
                 step[0] += 1
 
-            running_joint_loss += out_dict['joint_loss'].item()
-            running_main_loss += out_dict['main_loss'].item()
+            bs = inputs.size(0) if phase == 'train' else bs
+            running_joint_loss += out_dict['joint_loss'].item() / bs
+            running_main_loss += out_dict['main_loss'].item() / bs
             if opt.enable_guide:
-                running_aux_loss += out_dict['aux_loss'].item()
+                running_aux_loss += out_dict['aux_loss'].item() / bs
 
             if opt.benchmark:
                 y_true.append(targets.cpu().numpy())
                 y_pred.append(
-                    torch.cat(out_dict['main_outputs']).detach().argmax(1).cpu().numpy())
+                    out_dict['main_outputs'].detach().argmax(1).cpu().numpy())
                 y_prob.append(
-                    torch.cat(out_dict['main_outputs']).detach().softmax(1).cpu().numpy()[:, 1])   # probability of falling ('1')
+                    out_dict['main_outputs'].detach().softmax(1).cpu().numpy()[:, 1])   # probability of falling ('1')
 
             else:
                 y_true.append(target_transform.inverse_transform(
                     targets.cpu().numpy()))
                 y_pred.append(target_transform.inverse_transform(
-                    torch.cat(out_dict['main_outputs']).detach().cpu().numpy()))
+                    out_dict['main_outputs'].detach().cpu().numpy()))
 
             if (i + 1) % update_cycle == 0:
                 _loss = running_joint_loss / update_cycle
@@ -221,7 +246,7 @@ class Trainer(object):
                  model,
                  criterion1, criterion2,
                  optimizer,
-                 scheduler,
+                 lr_scheduler, warmup_scheduler,
                  opt,
                  spatial_transform=None,
                  temporal_transform=None,
@@ -232,7 +257,8 @@ class Trainer(object):
         self.criterion1 = criterion1
         self.criterion2 = criterion2
         self.optimizer = optimizer
-        self.scheduler = scheduler
+        self.lr_scheduler = lr_scheduler
+        self.warmup_scheduler = warmup_scheduler
         self.opt = opt
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
@@ -250,10 +276,14 @@ class Trainer(object):
         best_score = -1.0
         best_score_dict = None
 
+        reduceLROnPlateau = (
+            self.lr_scheduler.__class__.__name__ == 'ReduceLROnPlateau')
+
         for epoch in range(self.opt.n_iter):
             test_loss, test_scores, true_vals, pred_vals, prob_vals, video_ids =\
                 train_model(step, epoch, train_loader, test_loader, self.model,
                             self.criterion1, self.criterion2, self.optimizer,
+                            self.lr_scheduler, self.warmup_scheduler,
                             self.opt, self.plotter, self.target_transform,
                             self.target_columns, fold=self.fold)
 
@@ -289,11 +319,8 @@ class Trainer(object):
                 print(
                     f"@@ EPOCH : {epoch} Best `{metrice}` has been updated (value: {best_score:.5f}). Save best model at {save_file_path}")
 
-            if self.scheduler is not None:
-                if self.scheduler.__class__.__name__ == 'ReduceLROnPlateau':
-                    self.scheduler.step(test_loss)
-                else:
-                    self.scheduler.step()
+            if reduceLROnPlateau:
+                self.lr_scheduler.step(test_loss)
 
         # save results... as HDF5
         grp_name = self.opt.dataset + '_' + self.opt.model_indicator
@@ -306,6 +333,7 @@ class Trainer(object):
             "prob_vals": best_prob_vals
         })
 
-        resulting_df.to_hdf("results.hdf5", grp_name)
+        os.system('mkdir -p results')
+        resulting_df.to_hdf("results/best_predictions.hdf5", grp_name)
 
         return best_score_dict

@@ -1,3 +1,4 @@
+import torch.nn as nn
 import torchvision.transforms.functional as tf_func
 import random
 import math
@@ -33,10 +34,11 @@ class Compose(object):
 
     def randomize_parameters(self, vid):
         for t in self.transforms:
-            if t.__class__.__name__ == 'RandomResizedCrop3D':
-                t.randomize_parameters(vid[0])
-            else:
-                t.randomize_parameters()
+            if hasattr(t, 'randomize_parameters'):
+                if t.__class__.__name__ in ['RandomResizedCrop3D', 'RandomCrop3D']:
+                    t.randomize_parameters(vid[0])
+                else:
+                    t.randomize_parameters()
 
             vid = t(vid)
 
@@ -389,6 +391,30 @@ class LoopPadding(object):
         return out
 
 
+class LoopTemporalCrop(object):
+    def __init__(self, step_between_clips=16):
+        self.step_between_clips = step_between_clips
+        self.pad_method = LoopPadding(size=step_between_clips)
+
+    def __call__(self, vid):
+        # vid : list of PIL images
+        np_vid = np.stack([np.array(pic) for pic in vid])
+        tensor_vid = torch.from_numpy(np_vid)  # (T,H,W,C)
+
+        n_frames = len(tensor_vid)
+
+        out = []
+        for i in range(0, n_frames, self.step_between_clips):
+            clip_pts = list(range(i, min(n_frames, i+self.step_between_clips)))
+            # loop-padding to guarantee same length
+            clip_pts = self.pad_method(clip_pts)
+            clip = [Image.fromarray(t.numpy()) for t in tensor_vid[clip_pts]]
+
+            out.append(clip)  # list of PIL images
+
+        return out
+
+
 class TemporalBeginCrop(object):
     """Temporally crop the given frame indices at a beginning.
 
@@ -496,10 +522,11 @@ def normalize(vid, mean, std):
 
 
 class Resize3D(object):
-    def __init__(self, size):
+    def __init__(self, size, interpolation=Image.BILINEAR):
         if isinstance(size, int):
             size = (size, size)
         self.size = size
+        self.interpolation = interpolation
 
     def __call__(self, vid):
         # vid : (T,H,W,C)
@@ -512,13 +539,38 @@ class Resize3D(object):
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
-            resized = tf_func.resize(pic, self.size)
+            resized = tf_func.resize(pic, self.size, self.interpolation)
             out.append(resized)
 
         return out
 
     def randomize_parameters(self):
         pass
+
+
+class RandomCrop3D(object):
+    def __init__(self, transform2D):
+        self.transform2D = transform2D
+
+    def __call__(self, vid):
+        # vid : (T,H,W,C)
+        out = []
+        for pic in vid:
+            if isinstance(pic, torch.Tensor):
+                if vid.size(-1) == 1:
+                    pic = pic[..., 0]
+                pic = Image.fromarray(pic.cpu().numpy())
+            elif isinstance(pic, np.ndarray):
+                pic = Image.fromarray(pic)
+
+            crop = tf_func.crop(pic, *self.crop_position)
+            out.append(crop)
+
+        return out
+
+    def randomize_parameters(self, frame):
+        self.crop_position = self.transform2D.get_params(
+            frame, self.transform2D.size)
 
 
 class RandomResizedCrop3D(object):

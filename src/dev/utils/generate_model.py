@@ -10,19 +10,24 @@ from torch.optim import lr_scheduler
 from torchvision import models
 import torch.nn.utils as torch_utils
 import torch.nn.functional as F
+import pytorch_warmup as warmup  # for LR warmup
+from functools import reduce
 
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, gamma=2.):
+    def __init__(self, gamma=2., balance_param=1.0):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
+        self.balance_param = balance_param
 
     def forward(self, input_tensor, target_tensor):
         logpt = -F.cross_entropy(input_tensor, target_tensor, reduction='sum')
         pt = torch.exp(logpt)
 
         focal_loss = -((1 - pt) ** self.gamma) * logpt
+
+        focal_loss *= self.balance_param
 
         return focal_loss
 
@@ -31,14 +36,16 @@ class MultiScaled_BCELoss(nn.Module):
     def __init__(self, n_scales):
         super().__init__()
         self.n_scales = n_scales
-        self.loss_func = nn.BCELoss()
+        self.loss_func = nn.BCELoss(reduction='sum')
 
     def forward(self, input, target):
         l = []
         for i in range(self.n_scales):
+            shapes = input[i].size()[2:]
             target = F.interpolate(target,
-                                   size=input[i].size()[2:])
-            l.append(self.loss_func(input[i], target))
+                                   size=shapes)
+            l.append(self.loss_func(
+                input[i], target) / reduce(lambda x, y: x*y, shapes))
 
         return torch.stack(l).mean()
 
@@ -188,27 +195,20 @@ def generate_classification_model(backbone, opt):
     if opt.backbone == 'r2plus1d_18':
         if opt.model_arch == 'AGNet-pretrain':
             net = regression_model.AGNet_Mean(backbone, hidden_size=512,
-                                              out_size=opt.n_class, drop_rate=0.2)
+                                              out_size=opt.n_class, drop_rate=0.5)
         elif opt.model_arch == 'GuidelessNet':
             net = regression_model.GuidelessNet(backbone, hidden_size=512,
-                                                out_size=opt.n_class, drop_rate=0.2)
+                                                out_size=opt.n_class, drop_rate=0.5)
 
-        criterion1 = FocalLoss()
-        # criterion1 = nn.CrossEntropyLoss(reduction='sum')
+        # criterion1 = FocalLoss()
+        criterion1 = nn.CrossEntropyLoss(reduction='sum')
         criterion2 = MultiScaled_BCELoss(n_scales=4)
 
     # Enable GPU model & data parallelism
     if opt.multi_gpu:
-        net = DataParallelModel(net, device_ids=eval(
-            opt.device_ids + ',', )).cuda()
+        net = nn.DataParallel(net)
 
-        criterion1 = DataParallelCriterion(
-            criterion1, device_ids=eval(opt.device_ids + ",")).cuda()
-
-        criterion2 = DataParallelCriterion(
-            criterion2, device_ids=eval(opt.device_ids + ",")).cuda()
-
-    else:
+    if torch.cuda.is_available():
         net = net.cuda()
         criterion1 = criterion1.cuda()
         criterion2 = criterion2.cuda()
@@ -253,11 +253,11 @@ def init_state(opt):
 
         params = [p for p in net.parameters() if p.requires_grad]
 
-        optimizer = optim.Adam(
+        optimizer = optim.AdamW(
             params, lr=opt.learning_rate, weight_decay=opt.weight_decay,
         )
         # optimizer = optim.SGD(
-        #     params, lr=opt.learning_rate, weight_decay=opt.weight_decay, momentum=0.9
+        #     params, lr=opt.learning_rate, weight_decay=opt.weight_decay, momentum=0.9, nesterov=True
         # )
 
         # optimizer = optim.RMSprop(
@@ -270,9 +270,18 @@ def init_state(opt):
 
         # scheduler = lr_scheduler.ReduceLROnPlateau(
         #     optimizer, 'min', verbose=True, patience=opt.lr_patience)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+        # _lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+        _lr_scheduler = lr_scheduler.MultiStepLR(
+            optimizer, milestones=[5, 15], gamma=0.1)
+        # _lr_scheduler = lr_scheduler.CosineAnnealingLR(
+        #     optimizer, T_max=opt.T_max, eta_min=opt.learning_rate*0.003)
 
-    return net, criterion1, criterion2, optimizer, scheduler
+        # _warmup_scheduler = warmup.RAdamWarmup(optimizer)
+        _warmup_scheduler = warmup.LinearWarmup(
+            optimizer, warmup_period=opt.warmup_period)
+        _warmup_scheduler.last_step = -1
+
+    return net, criterion1, criterion2, optimizer, _lr_scheduler, _warmup_scheduler
 
 
 def load_trained_ckpt(opt, net):

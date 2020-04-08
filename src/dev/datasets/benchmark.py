@@ -10,6 +10,9 @@ import numpy as np
 import cv2
 from PIL import Image
 import pandas as pd
+import tqdm
+import torchvision.transforms as TF
+from utils.transforms import Resize3D
 
 
 class BenchmarkDS(torch.utils.data.Dataset):
@@ -124,7 +127,7 @@ class FallDataset(VisionDataset):
     """
 
     def __init__(self, root, annotation_path, detection_file_path, frames_per_clip, step_between_clips=1,
-                 frame_rate=None, fold=1, train=True, transform=None, preCrop=None,
+                 frame_rate=None, fold=1, train=True, spatial_transform=None, temporal_transform=None, norm_method=None, preCrop=None, img_size=112,
                  _precomputed_metadata=None, num_workers=1, _video_width=0,
                  _video_height=0, _video_min_dimension=0, _audio_samples=0):
         super(FallDataset, self).__init__(root)
@@ -135,6 +138,7 @@ class FallDataset(VisionDataset):
         extensions = ('avi',)
         self.fold = fold
         self.train = train
+        self.frames_per_clip = frames_per_clip
         self.preCrop = preCrop
 
         self.detection_data = pd.read_pickle(detection_file_path)
@@ -151,32 +155,21 @@ class FallDataset(VisionDataset):
             self.root, class_to_idx, extensions, is_valid_file=None)
         self.classes = classes
         video_list = [x[0] for x in self.samples]
-        video_clips = VideoClips(
-            video_list,
-            frames_per_clip,
-            step_between_clips,
-            frame_rate,
-            _precomputed_metadata,
-            num_workers=num_workers,
-            _video_width=_video_width,
-            _video_height=_video_height,
-            _video_min_dimension=_video_min_dimension,
-            _audio_samples=_audio_samples,
-        )
-        self.video_clips_metadata = video_clips.metadata
         self.indices = self._select_fold(
             video_list, annotation_path, fold, train)
-        self.video_clips = video_clips.subset(self.indices)
-        self.transform = transform
 
-    @property
-    def metadata(self):
-        return self.video_clips_metadata
+        self.spatial_transform = spatial_transform
+        self.temporal_transform = temporal_transform
+        self.norm_method = norm_method
 
-    def apply_transform(self, inputs, randomize=True):
+        self.img_size = img_size
+
+    def apply_spatial_transform(self, inputs, randomize=True, normalize=True):
         if randomize:
-            self.transform.randomize_parameters(inputs)
-        inputs = self.transform(inputs)
+            self.spatial_transform.randomize_parameters(inputs)
+        inputs = self.spatial_transform(inputs)
+        if normalize:
+            inputs = self.norm_method(inputs)
 
         return inputs
 
@@ -195,61 +188,57 @@ class FallDataset(VisionDataset):
             self.root) + 1:] in selected_files]
         return indices
 
+    def fetch_data(self, idx):
+        video_path, label = self.samples[self.indices[idx]]
+        video, audio, info = torchvision.io.read_video(video_path)
+        clip_pts = list(range(len(video)))
+
+        return video, label, clip_pts, video_path
+
     def __len__(self):
-        return self.video_clips.num_clips()
+        return len(self.indices)
 
     def __getitem__(self, idx):
-        video, audio, info, video_idx, clip_pts = self.video_clips.get_clip(
-            idx)  # clip_pts-'frame index'
-
-        video_path, label = self.samples[self.indices[video_idx]]
+        video, label, clip_pts, video_path = self.fetch_data(idx)
         video_name = os.path.basename(video_path).rstrip('.avi')
 
+        if self.temporal_transform is not None:
+            clip_pts = self.temporal_transform(clip_pts)
+        # convert to tensor
+        clip_pts = torch.as_tensor(clip_pts)
+
+        # corresponding masks
         cur_detection = self.detection_data[self.detection_data.vids == video_name]
         overlap = cur_detection[cur_detection.idx.isin(clip_pts)]
 
-        h, w = video.size()[1:3]
+        masks = torch.zeros_like(video)
+        _, detecionTimeStamps, bboxPositions = overlap.values.T
+        for t, (xmin, ymin, xmax, ymax) in zip(detecionTimeStamps, bboxPositions):
+            masks[t, ymin:ymax, xmin:xmax] = 255
 
-        if len(overlap) == 0:
-            masks = torch.zeros_like(video)   # all-zero mask
-        else:
-            _, detetionTimeStamps, bboxPositions = overlap.values.T
+        # smart indexing, retrieve a subVideoClip
+        video = video[clip_pts]
+        masks = masks[clip_pts]
 
-            masks = []
-            p = 0      # count of the frame containing a person
-            for i in range(len(video)):
-                # default : zero-mask for person-less frame
-                xmin, ymin, xmax, ymax = (0, 0, 0, 0)
+        # reize frames
+        video = Resize3D(size=self.img_size,
+                         interpolation=Image.BILINEAR)(video)
+        masks = Resize3D(size=self.img_size,
+                         interpolation=Image.NEAREST)(masks)
 
-                if clip_pts[i].item() in detetionTimeStamps:
-                    # if a person posiition exists, give localization coords
-                    xmin, ymin, xmax, ymax = bboxPositions[p]
-                    p += 1
+        if self.spatial_transform is not None:
+            video = self.apply_spatial_transform(
+                video, randomize=True, normalize=True)
+            masks = self.apply_spatial_transform(
+                masks, randomize=False, normalize=False)
 
-                m = torch.zeros(h, w, 3, dtype=torch.uint8)
-                m[ymin:ymax, xmin:xmax] = 255
-
-                masks.append(m)
-
-            masks = torch.stack(masks)
-
-        if self.transform is not None:
-            video = self.apply_transform(video, randomize=True)
-            masks = self.apply_transform(masks, randomize=False)
+        permute_axis = (3, 0, 1, 2) if self.train else (0, 4, 1, 2, 3)
 
         # (T,H,W,C) => (C,T,H,W)
-        video = video.permute(3, 0, 1, 2)
-        masks = masks.permute(3, 0, 1, 2)
+        video = video.permute(*permute_axis)
+        masks = masks.permute(*permute_axis)
 
-        if self.transform.transforms[-1].__class__.__name__.startswith('Normalize'):
-            # denormalization for the mask image
-            shape = (-1,) + (1,)*(masks.dim()-1)
-            mean = torch.as_tensor(
-                self.transform.transforms[-1].mean).view(shape)
-            std = torch.as_tensor(
-                self.transform.transforms[-1].std).view(shape)
-            masks = std*masks + mean
+        masks = masks[:1] if self.train else masks[:, :1]
+        valid_len = video.size(1) if self.train else video.size(2)
 
-        masks = masks[:1]
-
-        return video, masks, label, video_name, len(video)
+        return video, masks, label, video_name, valid_len
