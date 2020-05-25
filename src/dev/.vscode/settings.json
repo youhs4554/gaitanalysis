@@ -15,6 +15,5 @@
     },
     "python.linting.pycodestyleEnabled": false,
     "python.linting.pylintEnabled": false,
-    "python.formatting.provider": "autopep8",
-    "python.jediEnabled": false
+    "python.formatting.provider": "autopep8"
 }

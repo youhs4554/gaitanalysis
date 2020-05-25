@@ -3,92 +3,16 @@ from torchvision.datasets.video_utils import VideoClips
 from torchvision.datasets.folder import make_dataset
 from torchvision.datasets.utils import list_dir
 import os
-import glob
 import torch
 import torchvision
-import numpy as np
-import cv2
 from PIL import Image
 import pandas as pd
-import tqdm
-import torchvision.transforms as TF
 from utils.transforms import Resize3D
 
 
-class BenchmarkDS(torch.utils.data.Dataset):
-    def __init__(self, localizer, frames_per_clip):
-        self.localizer = localizer
-        self.frames_per_clip = frames_per_clip
-
-    def getMask(self, video):
-        T, H, W = video.shape[:3]
-
-        mask_img = torch.zeros((1, T, H, W), dtype=torch.float32)
-        for res in self.localizer.detect_from_video(video=video):
-            pos_list, idx = res.person_pos, res.idx
-            for pos in pos_list:
-                bx, by, bw, bh = pos
-                mask_img[:, idx % self.frames_per_clip,
-                         int(by-bh/2):int(by+bh/2),
-                         int(bx-bw/2):int(bx+bw/2)] = 1.0
-
-        return mask_img
-
-
-class UCF101(torch.utils.data.Dataset):
-    def __init__(self,
-                 spatial_transform,
-                 gait_imgSize, yolo_imgSize,
-                 *args, **kwargs):
-        self.data = torchvision.datasets.UCF101(*args, **kwargs)
-
-        self.gait_imgSize = gait_imgSize
-        self.yolo_imgSize = yolo_imgSize
-
-        self.spatial_transform = None
-        if spatial_transform is not None:
-            self.spatial_transform = spatial_transform
-
-    def transform(self, inputs, randomize=True):
-        if randomize:
-            first_frame = Image.fromarray(inputs[0].cpu().numpy())
-            self.spatial_transform.randomize_parameters(first_frame)
-        inputs = self.spatial_transform(inputs)
-
-        return inputs
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        inputs0, _, _, video_ix = self.data.video_clips.get_clip(index)
-        vids, targets = self.data.samples[self.data.indices[video_ix]]
-
-        def resize_video(vid, size):
-            res = []
-            for t, f in enumerate(vid):
-                f = cv2.resize(f.numpy(), size)
-                res.append(torch.as_tensor(f))
-            return torch.stack(res)
-
-        # Resize video before transformation! to prevent extensive noise generation.
-        inputs0 = resize_video(inputs0, self.gait_imgSize)
-
-        if self.spatial_transform is not None:
-            inputs0 = self.transform(inputs0, randomize=True)
-
-        h0, w0 = inputs0.shape[1:3]
-
-        # inputs for yolov3..
-        inputs1 = resize_video(inputs0, self.yolo_imgSize)
-        h1, w1 = inputs1.shape[1:3]
-
-        shapes = torch.tensor(((((h0, w0)), ((h1/h0, w1/w0)))))
-
-        inputs0 = inputs0.permute(3, 0, 1, 2)
-        inputs1 = inputs1.permute(3, 0, 1, 2)
-
-        return inputs0, inputs1, targets, vids, shapes
+__all__ = [
+    "FallDataset"
+]
 
 
 class FallDataset(VisionDataset):
@@ -119,7 +43,6 @@ class FallDataset(VisionDataset):
             otherwise from the ``test`` split.
         transform (callable, optional): A function/transform that  takes in a TxHxWxC video
             and returns a transformed version.
-        preCrop (bool, optional): if ``True``, apply pre-cropping to input image to get local image
     Returns:
         video (Tensor[T, H, W, C]): the `T` video frames
         mask (Tensor[T, H, W, 1]): the `T' mask frames, representing person bbox in intereset
@@ -127,19 +50,18 @@ class FallDataset(VisionDataset):
     """
 
     def __init__(self, root, annotation_path, detection_file_path, frames_per_clip, step_between_clips=1,
-                 frame_rate=None, fold=1, train=True, spatial_transform=None, temporal_transform=None, norm_method=None, preCrop=None, img_size=112,
+                 frame_rate=None, fold=1, train=True, multiple_clip=False, clip_gen=False,
+                 spatial_transform=None, temporal_transform=None, norm_method=None, img_size=112,
                  _precomputed_metadata=None, num_workers=1, _video_width=0,
                  _video_height=0, _video_min_dimension=0, _audio_samples=0):
         super(FallDataset, self).__init__(root)
-        if not 1 <= fold <= 5:
-            raise ValueError(
-                "fold should be between 1 and 3, got {}".format(fold))
 
         extensions = ('avi',)
         self.fold = fold
         self.train = train
+        self.multiple_clip = multiple_clip
         self.frames_per_clip = frames_per_clip
-        self.preCrop = preCrop
+        self.clip_gen = clip_gen
 
         self.detection_data = pd.read_pickle(detection_file_path)
 
@@ -157,6 +79,22 @@ class FallDataset(VisionDataset):
         video_list = [x[0] for x in self.samples]
         self.indices = self._select_fold(
             video_list, annotation_path, fold, train)
+
+        self.dataset_size = len(self.indices)
+        if clip_gen:
+            self.video_clips = VideoClips(
+                video_list,
+                frames_per_clip,
+                step_between_clips,
+                frame_rate,
+                _precomputed_metadata,
+                num_workers=num_workers,
+                _video_width=_video_width,
+                _video_height=_video_height,
+                _video_min_dimension=_video_min_dimension,
+                _audio_samples=_audio_samples,
+            ).subset(self.indices)
+            self.dataset_size = self.video_clips.num_clips()
 
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
@@ -188,18 +126,34 @@ class FallDataset(VisionDataset):
             self.root) + 1:] in selected_files]
         return indices
 
-    def fetch_data(self, idx):
-        video_path, label = self.samples[self.indices[idx]]
+    def fetch_video_data(self, video_idx):
+        video_path, label = self.samples[self.indices[video_idx]]
         video, audio, info = torchvision.io.read_video(video_path)
         clip_pts = list(range(len(video)))
 
         return video, label, clip_pts, video_path
 
+    def fetch_clip_data(self, clip_idx):
+        try:
+            clip, audio, info, video_idx, clip_pts = self.video_clips.get_clip(
+                clip_idx)  # clip_pts-'frame index'
+        except Exception as e:
+            print(e)
+            #import ipdb
+            # ipdb.set_trace()
+        video_path, label = self.samples[self.indices[video_idx]]
+
+        return clip, label, clip_pts, video_path
+
     def __len__(self):
-        return len(self.indices)
+        return self.dataset_size
 
     def __getitem__(self, idx):
-        video, label, clip_pts, video_path = self.fetch_data(idx)
+        if self.clip_gen:
+            video, label, clip_pts, video_path = self.fetch_clip_data(idx)
+        else:
+            video, label, clip_pts, video_path = self.fetch_video_data(idx)
+
         video_name = os.path.basename(video_path).rstrip('.avi')
 
         if self.temporal_transform is not None:
@@ -211,10 +165,21 @@ class FallDataset(VisionDataset):
         cur_detection = self.detection_data[self.detection_data.vids == video_name]
         overlap = cur_detection[cur_detection.idx.isin(clip_pts)]
 
-        masks = torch.zeros_like(video)
         _, detecionTimeStamps, bboxPositions = overlap.values.T
-        for t, (xmin, ymin, xmax, ymax) in zip(detecionTimeStamps, bboxPositions):
-            masks[t, ymin:ymax, xmin:xmax] = 255
+        detecionTimeStamps = torch.from_numpy(detecionTimeStamps.astype(int))
+
+        masks = torch.zeros_like(video)
+        if self.clip_gen:
+            if len(detecionTimeStamps) > 0:
+                detecionTimeStamps -= detecionTimeStamps.min()
+            clip_pts -= clip_pts.min()
+            masks = masks[clip_pts]
+        try:
+            for t, (xmin, ymin, xmax, ymax) in zip(detecionTimeStamps, bboxPositions):
+                masks[t, ymin:ymax, xmin:xmax] = 255
+        except:
+            import ipdb
+            ipdb.set_trace()
 
         # smart indexing, retrieve a subVideoClip
         video = video[clip_pts]
@@ -227,18 +192,26 @@ class FallDataset(VisionDataset):
                          interpolation=Image.NEAREST)(masks)
 
         if self.spatial_transform is not None:
-            video = self.apply_spatial_transform(
-                video, randomize=True, normalize=True)
+            try:
+                video = self.apply_spatial_transform(
+                    video, randomize=True, normalize=True)
+            except:
+                import ipdb
+                ipdb.set_trace()
             masks = self.apply_spatial_transform(
                 masks, randomize=False, normalize=False)
 
-        permute_axis = (3, 0, 1, 2) if self.train else (0, 4, 1, 2, 3)
+        permute_axis = (0, 4, 1, 2, 3) if self.multiple_clip else (3, 0, 1, 2)
 
         # (T,H,W,C) => (C,T,H,W)
         video = video.permute(*permute_axis)
         masks = masks.permute(*permute_axis)
 
-        masks = masks[:1] if self.train else masks[:, :1]
-        valid_len = video.size(1) if self.train else video.size(2)
+        masks = masks[:, :1] if self.multiple_clip else masks[:1]
+        valid_len = video.size(
+            0)*video.size(2) if self.multiple_clip else video.size(1)
+
+        # conver label to tensor
+        label = torch.tensor(label).long()
 
         return video, masks, label, video_name, valid_len

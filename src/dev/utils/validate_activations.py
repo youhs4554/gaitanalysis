@@ -133,6 +133,7 @@ class ActivationMapProvider(object):
             layer_name = self.m_list.pop(0)
             self.m_dict[layer_name] = out
 
+        # TODO. will be branched based on model_arch
         if self.enable_guide:
             # register hook for activation visualization
             self.net.fc.register_forward_hook(hook)

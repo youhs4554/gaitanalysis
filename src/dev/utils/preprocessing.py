@@ -178,9 +178,9 @@ class Worker(object):
             os.system(f'mkdir -p {self.opt.chunk_vid_home}')
             if self.opt.benchmark:
                 all_video_files = list(v + '\n' for v in natsort.natsorted(
-                    glob.glob(self.opt.video_home + '/*/*')))
+                    glob.glob(self.opt.data_root + '/*/*')))
             else:
-                all_video_files = [os.path.join(self.opt.video_home, v) + '\n' for v in os.listdir(self.opt.video_home) if
+                all_video_files = [os.path.join(self.opt.data_root, v) + '\n' for v in os.listdir(self.opt.data_root) if
                                    not v.startswith('vid') and os.path.exists(os.path.join(self.opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
 
             for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/self.opt.chunk_parts))):
@@ -202,10 +202,11 @@ class Worker(object):
                         f'Any person are not detected from {os.path.basename(video)}, skip..., this sample is regarded as `undetected` samples resulting in all-zero mask.')
                     continue
 
-            os.system('mkdir -p {}'.format(os.path.dirname(self.opt.input_file)))
+            os.system(
+                'mkdir -p {}'.format(os.path.dirname(self.opt.detection_file)))
 
             pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
-                         columns=['vids', 'idx', 'pos']).to_pickle(self.opt.input_file)
+                         columns=['vids', 'idx', 'pos']).to_pickle(self.opt.detection_file)
 
             if self.opt.dataset == "Gaitparams_PD" and (self.opt.device_yolo == 0):
                 # for prevent safe file saving

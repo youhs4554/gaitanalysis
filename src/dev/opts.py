@@ -8,13 +8,13 @@ def parse_opts():
         '--dataset',
         default='Gaitparams_PD',
         type=str,
-        help='Dataset to use ( Gaitparams_PD | URFD | MulticamFD | and others... )',
+        help='Dataset to use ( Gaitparams_PD | FallDown | and others; will be added later... )',
     )
     parser.add_argument(
-        '--input_file',
+        '--detection_file',
         default="../../preprocess/data/person_detection_and_tracking_results_drop.pkl",
         type=str,
-        help='File path of input dataframe file (.pkl)',
+        help='File path of detection dataframe file (.pkl)',
     )
     parser.add_argument(
         '--target_file',
@@ -23,23 +23,21 @@ def parse_opts():
         help='File path of target dataframe file (.pkl)',
     )
     parser.add_argument(
-        '--log_dir',
-        default="./logs",
-        type=str,
-        help='Directory path of log',
-    )
-
-    parser.add_argument(
         '--data_root',
         default=None,
         type=str,
         help='Directory path of data',
     )
     parser.add_argument(
-        '--video_home',
-        default="/data/GaitData/Video",
+        '--model_arch',
+        default='HPP',
         type=str,
-        help='Directory path of raw video',
+        help='Specify mode for regression model ( DefaultAGNet | ConcatenatedAGNet | FineTunedConvNet )')
+    parser.add_argument(
+        '--task',
+        default='classification',
+        type=str,
+        help='Select task ( classification | regression ).'
     )
     parser.add_argument(
         '--chunk_vid_home',
@@ -67,45 +65,21 @@ def parse_opts():
     )
     parser.add_argument(
         '--target_columns',
-        default='all',
+        default='basic',
         type=str,
-        help='Target columns to use ( all | spatial | temporal )',
+        help='Target columns to use ( basic | advanced )',
     )
     parser.add_argument(
         '--pretrained_path',
         default='',
         type=str,
-        help='Path to pretrained model file',
+        help='Path to pretrained model file for concatenatedAGNet',
     )
     parser.add_argument(
         '--backbone',
-        default=None,
+        default='r2plus1d',
         type=str,
-        help='Which networks to use ( 3D-resnet | 2D-resnet )',
-    )
-    parser.add_argument(
-        '--model_depth',
-        default=50,
-        type=int,
-        help='Depth of backbone networks',
-    )
-    parser.add_argument(
-        '--device_ids',
-        default="0,1,2,3",
-        type=str,
-        help='GPU ids to use',
-    )
-    parser.add_argument(
-        '--ref_level',
-        default="video",
-        type=str,
-        help='temporal level for selecting best score. ( clip | video )',
-    )
-    parser.add_argument(
-        '--segm_method',
-        default=None,
-        type=str,
-        help='Methods for person segmentation.',
+        help='Which networks to use as a backbone ( r2plus1d | r3d_18 | mc3_18 )',
     )
     parser.add_argument(
         '--device_yolo',
@@ -167,6 +141,11 @@ def parse_opts():
         help='If true, enable multi GPU system.')
     parser.set_defaults(multi_gpu=False)
     parser.add_argument(
+        '--multiple_clip',
+        action='store_true',
+        help='If true, enable multiple_clip.')
+    parser.set_defaults(multiple_clip=False)
+    parser.add_argument(
         '--with_segmentation',
         action='store_true',
         help='If true, add segmentation dataset.'
@@ -183,12 +162,6 @@ def parse_opts():
         default=16,
         type=int,
         help='Batch size',
-    )
-    parser.add_argument(
-        '--valid_size',
-        default=0.2,
-        type=float,
-        help='ValidationSet size (0-1).'
     )
     parser.add_argument(
         '--n_iter',
@@ -209,50 +182,12 @@ def parse_opts():
         help='Number of folds to cross validated. Should be between 1 to 5',
     )
     parser.add_argument(
-        '--train_crop',
-        default='',
-        type=str,
-        help='Spatial cropping method in training. random is uniform. corner is selection from 4 corners and 1 center.  (random | corner | center)'
-    )
-    parser.add_argument(
         '--learning_rate',
         default=1e-4,
         type=float,
         help='Initial learning rate (divided by 10 while training by lr scheduler)')
-    parser.add_argument('--momentum', default=0.9, type=float, help='Momentum')
-    parser.add_argument(
-        '--dampening', default=0.9, type=float, help='dampening of SGD')
     parser.add_argument(
         '--weight_decay', default=1e-3, type=float, help='Weight Decay')
-    parser.add_argument(
-        '--mean_dataset',
-        default='kinetics',
-        type=str,
-        help='dataset for mean values of mean subtraction (imagenet | activitynet | kinetics)')
-    parser.add_argument(
-        '--no_mean_norm',
-        action='store_true',
-        help='If true, inputs are not normalized by mean.')
-    parser.set_defaults(no_mean_norm=False)
-    parser.add_argument(
-        '--std_norm',
-        action='store_true',
-        help='If true, inputs are normalized by standard deviation.')
-    parser.set_defaults(std_norm=False)
-    parser.add_argument(
-        '--norm_value',
-        default=255,
-        type=int,
-        help='If 1, range of inputs is [0-255]. If 255, range of inputs is [0-1].')
-    parser.add_argument(
-        '--nesterov', action='store_true', help='Nesterov momentum')
-    parser.set_defaults(nesterov=False)
-    parser.add_argument(
-        '--lr_patience',
-        default=10,
-        type=int,
-        help='Patience of LR scheduler. See documentation of ReduceLROnPlateau.'
-    )
     parser.add_argument(
         '--max_gradnorm',
         default=5.0,
@@ -260,74 +195,20 @@ def parse_opts():
         help='Maximum value of gradients used for gradient-clipping.'
     )
     parser.add_argument(
-        '--checkpoint',
-        default=10,
-        type=int,
-        help='Trained model is saved at every this epochs.')
-    parser.add_argument(
         '--ckpt_dir',
         default="/data/GaitData/ckpt_dir",
         type=str,
         help='Directory where trained model is saved.')
     parser.add_argument(
-        '--test_fold',
-        default=1,
-        type=int,
-        help='Fold index to test')
-    parser.add_argument(
-        '--score_avg',
-        action='store_true',
-        help='If true, averaged score is calculated. If false, scores per each gait-params are calculated')
-    parser.set_defaults(score_avg=False)
-    parser.add_argument(
-        '--model_arch',
-        default='HPP',
-        type=str,
-        help='Specify mode for regression model (naive | HPP | SPP | AGNet | GuidelessNet)')
-    parser.add_argument(
-        '--merge_type',
-        default='',
-        type=str,
-        help='Merge type of multiple scale HPP features (addition | 1x1_C)')
-    parser.add_argument(
-        '--warm_start',
-        action='store_true',
-        help='If true, you can continue training after validation step.')
-    parser.set_defaults(warm_start=False)
-    parser.add_argument(
-        '--num_units',
-        default=256,
-        type=int,
-        help='Number of units for feature embedding.'
-    )
-    parser.add_argument(
-        '--n_factors',
-        default=15,
-        type=int,
-        help='Number of factors(or gait params) to predict.'
-    )
-    parser.add_argument(
-        '--n_groups',
-        default=-1,
-        type=int,
-        help='Number of multi scale groups.'
-    )
-    parser.add_argument(
-        '--drop_rate',
-        default=0.0,
-        type=float,
-        help='Droprate in drop-out operation.'
-    )
-    parser.add_argument(
-        '--attention',
-        action='store_true',
-        help='If true, you can apply attention mechanism.')
-    parser.set_defaults(attention=False)
-    parser.add_argument(
         '--data_gen',
         action='store_true',
         help='If true, you can generate dataset.')
     parser.set_defaults(data_gen=False)
+    parser.add_argument(
+        '--balanced_batch',
+        action='store_true',
+        help='If true, you can balanced-class batch')
+    parser.set_defaults(balanced_batch=False)
     parser.add_argument(
         '--interval_sel',
         default='COP',
@@ -345,22 +226,7 @@ def parse_opts():
         action='store_true',
         help='If true, you can use pretrained feature arrray as input.')
     parser.set_defaults(load_pretrained=False)
-    parser.add_argument(
-        '--enable_guide',
-        action='store_true',
-        help='If true, you can enable guidance mechanism.')
-    parser.set_defaults(enable_guide=False)
-    parser.add_argument(
-        '--precrop',
-        action='store_true',
-        help='If true, apply pre-cropping to get local image.')
     parser.set_defaults(precrop=False)
-    parser.add_argument(
-        '--mask_root',
-        default='/data/torch_data/UCF-101/mask',
-        type=str,
-        help='path to msak root directory.'
-    )
     parser.add_argument(
         '--disable_tracking',
         action='store_true',

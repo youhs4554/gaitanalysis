@@ -474,6 +474,26 @@ class TemporalCenterCrop(object):
         return out
 
 
+class TemporalUniformCrop(object):
+    """Temporally crop the given frame indices at a uniform manner.
+
+    Args:
+        size (int): Desired output size of the crop.
+    """
+
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, frame_indices):
+        """
+        Args:
+            frame_indices (list): frame indices to be cropped.
+        Returns:
+            list: Cropped frame indices.
+        """
+        return np.linspace(0, len(frame_indices), num=self.size, endpoint=False).astype(int).tolist()
+
+
 class TemporalRandomCrop(object):
     """Temporally crop the given frame indices at a random location.
 

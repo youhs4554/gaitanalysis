@@ -17,6 +17,11 @@ import torchvision.transforms.functional as tf_func
 import torch.nn.functional as F
 import collections
 
+__all__ = [
+    "GAITDataset",
+    "GAITSegRegDataset",
+]
+
 
 def get_direction(patient_positions):
     start_pos, end_pos = [patient_positions[0], patient_positions[-1]]
@@ -254,6 +259,7 @@ class GAITDataset(Dataset):
                  X,
                  y,
                  opt,
+                 fold=1,
                  spatial_transform=None, temporal_transform=None):
 
         self.X = X
@@ -270,6 +276,8 @@ class GAITDataset(Dataset):
 
         self.feats_dir = os.path.join(
             os.path.dirname(opt.data_root), 'FeatsArrays', opt.arch)
+
+        self.fold = fold
 
     def __len__(self):
         return len(self.vids)
@@ -315,12 +323,12 @@ class GAITSegRegDataset(Dataset):
                  y,
                  opt,
                  phase,
+                 fold=1,
                  spatial_transform=None, temporal_transform=None):
-
+        # TODO. refactoring GaitDataset!, filter vids using fold index at here!
         self.X = X
         self.y = y
         self.vids = arrange_vids(natsorted(list(set(X.vids))), seed=0)
-        self.load_pretrained = opt.load_pretrained
 
         self.sample_duration = opt.sample_duration
 
@@ -329,6 +337,7 @@ class GAITSegRegDataset(Dataset):
 
         self.opt = opt
         self.phase = phase
+        self.fold = fold
 
     def __len__(self):
         return len(self.vids)
