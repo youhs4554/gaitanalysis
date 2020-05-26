@@ -33,9 +33,9 @@ class GuideNet(nn.Module):
         #     len([_ for p in self.backbone_layer.parameters() if p.requires_grad])
         # ))
 
-        self.upconv = nn.Sequential(
-            nn.ConvTranspose3d(feature_dim, feature_dim, 2, 2, 0),
-            nn.ReLU(inplace=True))
+        # self.upconv = nn.Sequential(
+        #     nn.ConvTranspose3d(feature_dim, feature_dim, 2, 2, 0),
+        #     nn.ReLU(inplace=True))
 
         self.mask_layer = nn.Sequential(
             nn.Conv3d(feature_dim, 1, kernel_size=1, bias=False),
@@ -62,12 +62,11 @@ class GuideNet(nn.Module):
         self.path2 = nn.Sequential(
             nn.Conv3d(feature_dim, feature_dim,
                       kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm3d(feature_dim),
             nn.ReLU(inplace=True)
         )
 
-        # self.criterion = BinaryDiceLoss()
-        self.criterion = nn.BCELoss()
+        self.criterion = BinaryDiceLoss()
+        # self.criterion = nn.BCELoss()
 
     def forward(self, images, masks):
         # return (feats, guide_loss)

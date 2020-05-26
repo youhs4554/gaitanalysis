@@ -115,7 +115,7 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
 
 
 for fold in range(1, opt.n_folds+1):
-    fold = 15
+    fold = 1
     # LOO cross-validation loop
     train_one_fold(fold, metrics={
         'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
