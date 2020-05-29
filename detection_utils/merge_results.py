@@ -18,13 +18,19 @@ if __name__ == '__main__':
 
     def merge_results(filenames, anno_file):
         frame_home = '/'.join(filenames[0].split('/')[:-3])
-        frame_home = frame_home.rstrip('/') + '/'  # guarantee format that ends with '/'
-        
+        # guarantee format that ends with '/'
+        frame_home = frame_home.rstrip('/') + '/'
+
         with open(anno_file, 'w') as outfile:
             for fname in tqdm(filenames):
                 with open(fname) as infile:
-                    for line in infile:
-                        outfile.write(fname[len(frame_home):]+ ' ' + line)
+                    lines = infile.readlines()
+                    if not lines:
+                        outfile.write(
+                            fname[len(frame_home):] + ' ' + " ".join(["0", ] + ["0.0"]*4) + '\n')
+                    else:
+                        for line in lines:
+                            outfile.write(fname[len(frame_home):] + ' ' + line)
 
     merge_results(ucf_files, ucf_anno_file)    # ucf
     merge_results(hmdb_files, hmdb_anno_file)  # hmdb

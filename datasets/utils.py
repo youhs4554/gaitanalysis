@@ -234,7 +234,8 @@ def get_falldown_dataset(opt, fold):
         frames_per_clip=opt.sample_duration,
         fold=fold,
         norm_method=norm_method,
-        img_size=opt.img_size
+        img_size=opt.img_size,
+        num_workers=opt.n_threads,
         # img_size=(128, 171)
     )
 
@@ -252,7 +253,8 @@ def get_falldown_dataset(opt, fold):
         step_between_clips=opt.sample_duration,
         fold=fold,
         norm_method=norm_method,
-        img_size=opt.img_size
+        img_size=opt.img_size,
+        num_workers=opt.n_threads,
         # img_size=(128, 171)
     )
 

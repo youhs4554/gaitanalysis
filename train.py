@@ -68,6 +68,13 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     model = generate_network(opt, n_outputs=n_outputs,
                              target_transform=target_transform)
 
+    # Enable GPU model & data parallelism
+    if opt.multi_gpu:
+        model = nn.DataParallel(model)
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+
     # Define optimizer & schedulers
     params = [p for p in model.parameters() if p.requires_grad]
     from ranger import Ranger  # this is from ranger.py

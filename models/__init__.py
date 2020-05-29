@@ -33,11 +33,4 @@ def generate_network(opt, n_outputs=2, target_transform=None):
     else:
         raise ValueError('Arch {} is not supported'.format(opt.model_arch))
 
-    # Enable GPU model & data parallelism
-    if opt.multi_gpu:
-        net = nn.DataParallel(net)
-
-    if torch.cuda.is_available():
-        net = net.cuda()
-
     return net
