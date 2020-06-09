@@ -44,13 +44,13 @@ class GeneralizedAGNet(nn.Module):
         feats, *_ = self.forward_guider(images, masks=None)
         return feats
 
-    def forward(self, *inputs, targets=None, return_intermediate_feats=False):
+    def forward(self, *inputs, targets=None, averaged=None, return_intermediate_feats=False):
 
         loss_dict = {}
         x, masks, guide_loss_dict = self.forward_guider(*inputs)
 
         # model output
-        out, predictor_loss_dict = self.predictor(x, targets, masks)
+        out, predictor_loss_dict = self.predictor(x, targets, masks, averaged)
 
         loss_dict.update(guide_loss_dict)
         loss_dict.update(predictor_loss_dict)

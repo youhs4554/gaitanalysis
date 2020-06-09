@@ -25,18 +25,6 @@ class GuideNet(nn.Module):
         self.backbone_layer = nn.Sequential(
             OrderedDict(dict(backbone.named_children())))
 
-        # # freeze backbone layers
-        # print('freezing backbone layers...')
-        # freeze_layers(self.backbone_layer.children())
-        # _ = ''
-        # print('After freezing, # of trainable params of a backbone layers : {}'.format(
-        #     len([_ for p in self.backbone_layer.parameters() if p.requires_grad])
-        # ))
-
-        # self.upconv = nn.Sequential(
-        #     nn.ConvTranspose3d(feature_dim, feature_dim, 2, 2, 0),
-        #     nn.ReLU(inplace=True))
-
         self.mask_layer = nn.Sequential(
             nn.Conv3d(feature_dim, 1, kernel_size=1, bias=False),
             nn.Sigmoid()
@@ -49,10 +37,6 @@ class GuideNet(nn.Module):
             nn.Conv3d(1, 1, kernel_size=1, bias=False),
             nn.Sigmoid()
         )
-        # self.conv_1x1 = nn.Sequential(
-        #     nn.Conv3d(1+feature_dim, feature_dim, 1),
-        #     nn.ReLU(inplace=True),
-        # )
 
         self.path1 = nn.Sequential(
             nn.Conv3d(feature_dim, feature_dim,

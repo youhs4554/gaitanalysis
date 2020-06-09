@@ -19,7 +19,7 @@ import collections
 import tqdm
 import numpy as np
 import os
-import manifest.target_columns
+import cfg.target_columns
 import random
 import math
 import itertools
@@ -139,9 +139,9 @@ def get_gait_dataset(opt, fold):
 
     target_transform = StandardScaler()
 
-    target_columns = manifest.target_columns.BASIC_GAIT_PARAMS
+    target_columns = cfg.target_columns.BASIC_GAIT_PARAMS
     if opt.target_columns == 'advanced':
-        target_columns = manifest.target_columns.ADVANCED_GAIT_PARAMS
+        target_columns = cfg.target_columns.ADVANCED_GAIT_PARAMS
 
     # prepare dataset  (train/test split)
     data = prepare_gait_dataset(

@@ -542,11 +542,12 @@ def normalize(vid, mean, std):
 
 
 class Resize3D(object):
-    def __init__(self, size, interpolation=Image.BILINEAR):
+    def __init__(self, size, interpolation=Image.BILINEAR, to_tensor=False):
         if isinstance(size, int):
             size = (size, size)
         self.size = size
         self.interpolation = interpolation
+        self.to_tensor = to_tensor
 
     def __call__(self, vid):
         # vid : (T,H,W,C)
@@ -560,6 +561,9 @@ class Resize3D(object):
                 pic = Image.fromarray(pic)
 
             resized = tf_func.resize(pic, self.size, self.interpolation)
+            if self.to_tensor:
+                resized = tf_func.to_tensor(resized)
+
             out.append(resized)
 
         return out
@@ -573,12 +577,13 @@ class RandomCrop3D(object):
         self.transform2D = transform2D
 
     def __call__(self, vid):
-        # vid : (T,H,W,C)
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                if vid.size(-1) == 1:
-                    pic = pic[..., 0]
+                if pic.dtype == torch.float32:
+                    pic = pic.cpu().repeat(3 if pic.size(0) == 1 else 1, 1, 1).permute(
+                        1, 2, 0).numpy()  # (C,H,W) -> (H,W,C)
+                    pic = torch.as_tensor(255 * pic, dtype=torch.uint8)
                 pic = Image.fromarray(pic.cpu().numpy())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
@@ -675,6 +680,10 @@ class CenterCrop3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
+                if pic.dtype == torch.float32:
+                    pic = pic.cpu().repeat(3 if pic.size(0) == 1 else 1, 1, 1).permute(
+                        1, 2, 0).numpy()  # (C,H,W) -> (H,W,C)
+                    pic = torch.as_tensor(255 * pic, dtype=torch.uint8)
                 pic = Image.fromarray(pic.cpu().numpy())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)

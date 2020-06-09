@@ -1,4 +1,5 @@
 import numpy as np
+import torchvision.transforms.functional as tf_func
 from PIL import Image, ImageDraw
 
 __all__ = [
@@ -40,5 +41,8 @@ def generate_maskImg(detection_res, query, W, H):
     mask = Image.new('L', size=(W, H))
     for x in res:
         ImageDraw.Draw(mask).rectangle(x, fill="white")
+
+    # to tensor
+    mask = tf_func.to_tensor(mask)
 
     return mask

@@ -43,6 +43,18 @@ def get_inflated_resnet(net_2d, net_3d):
 
 def generate_backbone(type, pretrained=True):
     net = None
+    if type in ['r2plus1d_34_32_kinetics', 'r2plus1d_34_8_kinetics', 'r2plus1d_34_32_ig65m', 'r2plus1d_34_8_ig65m']:
+        if type in ['r2plus1d_34_32_kinetics', 'r2plus1d_34_8_kinetics']:
+            num_classes = 400
+        elif type == 'r2plus1d_34_32_ig65m':
+            num_classes = 359
+        elif type == 'r2plus1d_34_8_ig65m':
+            num_classes = 487
+
+        net = torch.hub.load("moabitcoin/ig65m-pytorch",
+                             type, num_classes=num_classes, pretrained=pretrained)
+        dims = [64, 64, 128, 256, 512]
+
     if type in ['mc3_18', 'r2plus1d_18', 'r3d_18']:
         net_init_func = getattr(torchvision.models.video, type)
         net = net_init_func(pretrained=pretrained)

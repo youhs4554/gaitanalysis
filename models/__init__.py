@@ -6,7 +6,7 @@ from .baseline import *
 from .default_predictor import *
 from .guidenet import *
 from .utils import *
-from manifest.target_columns import BASIC_GAIT_PARAMS
+from cfg.target_columns import BASIC_GAIT_PARAMS
 
 
 def generate_network(opt, n_outputs=2, target_transform=None):
