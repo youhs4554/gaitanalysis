@@ -23,7 +23,7 @@ class FineTunedConvNet(nn.Module):
         images, *_ = inputs  # ignore masks
         feats = self.backbone(images)
         out, predictor_loss_dict = self.predictor(
-            feats, targets, None, averaged)
+            feats, targets, averaged)
 
         if self.target_transform is not None:
             out = self.target_transform(out)

@@ -25,7 +25,7 @@ class DefaultPredictor(nn.Module):
             self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, *inputs):
-        x, targets, _, averaged = inputs
+        x, targets, averaged = inputs
 
         bs = targets.size(0)
         nclips = x.size(0) // bs

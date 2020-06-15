@@ -541,6 +541,13 @@ def normalize(vid, mean, std):
     return (vid - mean) / std
 
 
+def denormalize(vid, mean, std):
+    shape = (1,) * (vid.dim() - 1) + (-1,)
+    mean = torch.as_tensor(mean).reshape(shape).to(vid.device)
+    std = torch.as_tensor(std).reshape(shape).to(vid.device)
+    return vid * std + mean
+
+
 class Resize3D(object):
     def __init__(self, size, interpolation=Image.BILINEAR, to_tensor=False):
         if isinstance(size, int):
@@ -554,9 +561,12 @@ class Resize3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                if vid.size(-1) == 1:
-                    pic = pic[..., 0]
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -580,11 +590,12 @@ class RandomCrop3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                if pic.dtype == torch.float32:
-                    pic = pic.cpu().repeat(3 if pic.size(0) == 1 else 1, 1, 1).permute(
-                        1, 2, 0).numpy()  # (C,H,W) -> (H,W,C)
-                    pic = torch.as_tensor(255 * pic, dtype=torch.uint8)
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -607,9 +618,12 @@ class RandomResizedCrop3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                if vid.size(-1) == 1:
-                    pic = pic[..., 0]
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -633,10 +647,14 @@ class RandomRotation3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
-
             rotated = tf_func.rotate(pic, self.angle)
             out.append(rotated)
 
@@ -657,7 +675,12 @@ class RandomHorizontalFlip3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -680,11 +703,12 @@ class CenterCrop3D(object):
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
-                if pic.dtype == torch.float32:
-                    pic = pic.cpu().repeat(3 if pic.size(0) == 1 else 1, 1, 1).permute(
-                        1, 2, 0).numpy()  # (C,H,W) -> (H,W,C)
-                    pic = torch.as_tensor(255 * pic, dtype=torch.uint8)
-                pic = Image.fromarray(pic.cpu().numpy())
+                if pic.dtype == torch.uint8:
+                    scale = 1
+                elif pic.dtype == torch.float32:
+                    scale = 255
+                pic = tf_func.to_pil_image((
+                    pic.float().cpu()*scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 

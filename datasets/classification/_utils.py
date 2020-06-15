@@ -43,6 +43,6 @@ def generate_maskImg(detection_res, query, W, H):
         ImageDraw.Draw(mask).rectangle(x, fill="white")
 
     # to tensor
-    mask = tf_func.to_tensor(mask)
+    mask = tf_func.to_tensor(mask).repeat(3, 1, 1)
 
     return mask

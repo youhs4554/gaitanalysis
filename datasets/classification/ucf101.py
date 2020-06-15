@@ -70,7 +70,7 @@ class UCF101(Dataset):
         clip_pts = torch.as_tensor(list(range(len(video)))[
                                    ::self.sample_rate]) / self.sample_rate
 
-        # spatial crop
+        # temporal crop
         # @train        : random
         # @val/test     : None
         if self.temporal_transform is not None:
@@ -78,7 +78,7 @@ class UCF101(Dataset):
 
         # convert List -> Tensor
         clip_pts = torch.as_tensor(clip_pts)
-        video = video[::self.sample_rate][clip_pts]
+        video = video[::self.sample_rate][clip_pts].permute(0, 3, 1, 2)
 
         video = Resize3D(size=self.img_size,
                          interpolation=Image.BILINEAR, to_tensor=True)(video)
@@ -145,8 +145,6 @@ class UCF101(Dataset):
         video, mask, label, clip_pts = self.fetch_video(idx)
 
         permute_axis = (3, 0, 1, 2)
-        #print(idx, self.train)
-        # if self.multi_clip_eval:
         if not self.train:
             video, mask = self.stack_multiple_clips(video, mask, clip_pts)
             permute_axis = (0, 4, 1, 2, 3)
