@@ -20,7 +20,7 @@ class FineTunedConvNet(nn.Module):
         self.target_transform = target_transform
 
     def forward(self, *inputs, averaged=None, targets=None):
-        images, *_ = inputs  # ignore masks
+        images, *_ = inputs  # ignore masks & coord
         feats = self.backbone(images)
         out, predictor_loss_dict = self.predictor(
             feats, targets, averaged)

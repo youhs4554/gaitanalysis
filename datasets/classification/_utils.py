@@ -2,14 +2,10 @@ import numpy as np
 import torchvision.transforms.functional as tf_func
 from PIL import Image, ImageDraw
 
-__all__ = [
-    "convert_box_coord",
-    "generate_maskImg"
-]
+__all__ = ["convert_box_coord", "generate_maskImg"]
 
 
-def convert_box_coord(x_center, y_center, box_width, box_height,
-                      W, H):
+def convert_box_coord(x_center, y_center, box_width, box_height, W, H):
     # recover to original scale
     x_center = x_center * W
     box_width = box_width * W
@@ -17,10 +13,10 @@ def convert_box_coord(x_center, y_center, box_width, box_height,
     y_center = y_center * H
     box_height = box_height * H
 
-    xmin = max(x_center - box_width/2, 0)
-    ymin = max(y_center - box_height/2, 0)
-    xmax = min(x_center + box_width/2, W)
-    ymax = min(y_center + box_height/2, H)
+    xmin = max(x_center - box_width / 2, 0)
+    ymin = max(y_center - box_height / 2, 0)
+    xmax = min(x_center + box_width / 2, W)
+    ymax = min(y_center + box_height / 2, H)
 
     return (xmin, ymin, xmax, ymax)
 
@@ -34,15 +30,19 @@ def generate_maskImg(detection_res, query, W, H):
             res.append(convert_box_coord(xc, yc, bw, bh, W, H))
     else:
         # single-person
-        res.append(convert_box_coord(
-            x_center, y_center, box_width, box_height, W, H))
+        res.append(convert_box_coord(x_center, y_center, box_width, box_height, W, H))
 
     # create mask image
-    mask = Image.new('L', size=(W, H))
+    mask = Image.new("L", size=(W, H))
     for x in res:
         ImageDraw.Draw(mask).rectangle(x, fill="white")
 
+    instance_mask = Image.new("L", size=(W, H))
+    for i in range(len(res)):
+        ImageDraw.Draw(instance_mask).rectangle(res[i], fill=i + 1)
+
     # to tensor
     mask = tf_func.to_tensor(mask).repeat(3, 1, 1)
+    instance_mask = tf_func.to_tensor(instance_mask).repeat(3, 1, 1)
 
-    return mask
+    return mask, instance_mask

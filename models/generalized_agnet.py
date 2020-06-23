@@ -7,9 +7,7 @@ from .guidenet import GuideNet
 from .default_predictor import DefaultPredictor
 import copy
 
-__all__ = [
-    'GeneralizedAGNet'
-]
+__all__ = ["GeneralizedAGNet"]
 
 
 class GeneralizedAGNet(nn.Module):
@@ -21,7 +19,9 @@ class GeneralizedAGNet(nn.Module):
         self.predictor = predictor
         self.target_transform = target_transform
 
-    def forward(self, *inputs, targets=None, averaged=None, return_intermediate_feats=False):
+    def forward(
+        self, *inputs, targets=None, averaged=None, return_intermediate_feats=False
+    ):
 
         loss_dict = {}
         x, guide_loss_dict = self.guider(*inputs)
