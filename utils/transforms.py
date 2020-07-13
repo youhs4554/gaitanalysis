@@ -7,10 +7,71 @@ import collections
 import numpy as np
 import torch
 from PIL import Image, ImageOps
+from typing import Dict
+
 try:
     import accimage
 except ImportError:
     accimage = None
+
+
+class VideoAugmentator:
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, *args, **kwargs) -> Dict[str, torch.Tensor]:
+
+        # seed is given at the beginning
+        seed = random.randint(-1e8, 1e8)
+
+        frames = kwargs.get("frames", None)
+        assert isinstance(
+            frames, list
+        ), "frames should be List any (torch | numpy) arrays not {}".format(
+            type(frames)
+        )
+        assert len(frames) > 0, "Empty frames is not allowed!"
+
+        mask_frames = kwargs.get("mask_frames", [None] * len(frames))
+
+        # ensure same length of mask_frames
+        assert isinstance(
+            mask_frames, list
+        ), "mask_frames should be List any (torch | numpy) arrays not {}".format(
+            type(mask_frames)
+        )
+        assert len(frames) == len(
+            mask_frames
+        ), "Length of frames and mask_frames should be identical"
+
+        res = collections.defaultdict(list)
+        for t in range(len(frames)):
+            random.seed(seed)
+            img = frames[t]
+            mask = mask_frames[t]
+
+            img, mask = [
+                x.permute(1, 2, 0).mul(255).byte()
+                if isinstance(x, torch.FloatTensor)
+                else x
+                for x in [img, mask]
+            ]
+
+            mask = mask[..., 0]  # use single-channel mask
+
+            img_arr, mask_arr = [
+                np.array(x) if isinstance(x, (torch.Tensor, np.ndarray)) else None
+                for x in [img, mask]
+            ]
+            aug = self.transform(image=img_arr, mask=mask_arr)
+
+            for key in aug:
+                res[key + "_frames"].append(aug[key])
+
+        for key in res:
+            res[key] = torch.stack(res[key]).permute(0, 2, 3, 1)
+
+        return res
 
 
 class Compose(object):
@@ -34,8 +95,8 @@ class Compose(object):
 
     def randomize_parameters(self, vid):
         for t in self.transforms:
-            if hasattr(t, 'randomize_parameters'):
-                if t.__class__.__name__ in ['RandomResizedCrop3D', 'RandomCrop3D']:
+            if hasattr(t, "randomize_parameters"):
+                if t.__class__.__name__ in ["RandomResizedCrop3D", "RandomCrop3D"]:
                     t.randomize_parameters(vid[0])
                 else:
                     t.randomize_parameters()
@@ -66,23 +127,21 @@ class ToTensor(object):
             return img.float().div(self.norm_value)
 
         if accimage is not None and isinstance(pic, accimage.Image):
-            nppic = np.zeros(
-                [pic.channels, pic.height, pic.width], dtype=np.float32)
+            nppic = np.zeros([pic.channels, pic.height, pic.width], dtype=np.float32)
             pic.copyto(nppic)
             return torch.from_numpy(nppic)
 
         # handle PIL Image
-        if pic.mode == 'I':
+        if pic.mode == "I":
             img = torch.from_numpy(np.array(pic, np.int32, copy=False))
-        elif pic.mode == 'I;16':
+        elif pic.mode == "I;16":
             img = torch.from_numpy(np.array(pic, np.int16, copy=False))
         else:
-            img = torch.ByteTensor(
-                torch.ByteStorage.from_buffer(pic.tobytes()))
+            img = torch.ByteTensor(torch.ByteStorage.from_buffer(pic.tobytes()))
         # PIL image mode: 1, L, P, I, F, RGB, YCbCr, RGBA, CMYK
-        if pic.mode == 'YCbCr':
+        if pic.mode == "YCbCr":
             nchannel = 3
-        elif pic.mode == 'I;16':
+        elif pic.mode == "I;16":
             nchannel = 1
         else:
             nchannel = len(pic.mode)
@@ -143,9 +202,9 @@ class Scale(object):
     """
 
     def __init__(self, size, interpolation=Image.BILINEAR):
-        assert isinstance(size,
-                          int) or (isinstance(size, collections.Iterable) and
-                                   len(size) == 2)
+        assert isinstance(size, int) or (
+            isinstance(size, collections.Iterable) and len(size) == 2
+        )
         self.size = size
         self.interpolation = interpolation
 
@@ -198,8 +257,8 @@ class CenterCrop(object):
         """
         w, h = img.size
         th, tw = self.size
-        x1 = int(round((w - tw) / 2.))
-        y1 = int(round((h - th) / 2.))
+        x1 = int(round((w - tw) / 2.0))
+        y1 = int(round((h - th) / 2.0))
         return img.crop((x1, y1, x1 + tw, y1 + th))
 
     def randomize_parameters(self):
@@ -207,7 +266,6 @@ class CenterCrop(object):
 
 
 class CornerCrop(object):
-
     def __init__(self, size, crop_position=None):
         self.size = size
         if crop_position is None:
@@ -215,34 +273,34 @@ class CornerCrop(object):
         else:
             self.randomize = False
         self.crop_position = crop_position
-        self.crop_positions = ['c', 'tl', 'tr', 'bl', 'br']
+        self.crop_positions = ["c", "tl", "tr", "bl", "br"]
 
     def __call__(self, img):
         image_width = img.size[0]
         image_height = img.size[1]
 
-        if self.crop_position == 'c':
+        if self.crop_position == "c":
             th, tw = (self.size, self.size)
-            x1 = int(round((image_width - tw) / 2.))
-            y1 = int(round((image_height - th) / 2.))
+            x1 = int(round((image_width - tw) / 2.0))
+            y1 = int(round((image_height - th) / 2.0))
             x2 = x1 + tw
             y2 = y1 + th
-        elif self.crop_position == 'tl':
+        elif self.crop_position == "tl":
             x1 = 0
             y1 = 0
             x2 = self.size
             y2 = self.size
-        elif self.crop_position == 'tr':
+        elif self.crop_position == "tr":
             x1 = image_width - self.size
             y1 = 0
             x2 = image_width
             y2 = self.size
-        elif self.crop_position == 'bl':
+        elif self.crop_position == "bl":
             x1 = 0
             y1 = image_height - self.size
             x2 = self.size
             y2 = image_height
-        elif self.crop_position == 'br':
+        elif self.crop_position == "br":
             x1 = image_width - self.size
             y1 = image_height - self.size
             x2 = image_width
@@ -254,9 +312,9 @@ class CornerCrop(object):
 
     def randomize_parameters(self):
         if self.randomize:
-            self.crop_position = self.crop_positions[random.randint(
-                0,
-                len(self.crop_positions) - 1)]
+            self.crop_position = self.crop_positions[
+                random.randint(0, len(self.crop_positions) - 1)
+            ]
 
 
 class RandomHorizontalFlip(object):
@@ -288,11 +346,13 @@ class MultiScaleCornerCrop(object):
         interpolation: Default: PIL.Image.BILINEAR
     """
 
-    def __init__(self,
-                 scales,
-                 size,
-                 interpolation=Image.BILINEAR,
-                 crop_positions=['c', 'tl', 'tr', 'bl', 'br']):
+    def __init__(
+        self,
+        scales,
+        size,
+        interpolation=Image.BILINEAR,
+        crop_positions=["c", "tl", "tr", "bl", "br"],
+    ):
         self.scales = scales
         self.size = size
         self.interpolation = interpolation
@@ -306,7 +366,7 @@ class MultiScaleCornerCrop(object):
         image_width = img.size[0]
         image_height = img.size[1]
 
-        if self.crop_position == 'c':
+        if self.crop_position == "c":
             center_x = image_width // 2
             center_y = image_height // 2
             box_half = crop_size // 2
@@ -314,22 +374,22 @@ class MultiScaleCornerCrop(object):
             y1 = center_y - box_half
             x2 = center_x + box_half
             y2 = center_y + box_half
-        elif self.crop_position == 'tl':
+        elif self.crop_position == "tl":
             x1 = 0
             y1 = 0
             x2 = crop_size
             y2 = crop_size
-        elif self.crop_position == 'tr':
+        elif self.crop_position == "tr":
             x1 = image_width - crop_size
             y1 = 0
             x2 = image_width
             y2 = crop_size
-        elif self.crop_position == 'bl':
+        elif self.crop_position == "bl":
             x1 = 0
             y1 = image_height - crop_size
             x2 = crop_size
             y2 = image_height
-        elif self.crop_position == 'br':
+        elif self.crop_position == "br":
             x1 = image_width - crop_size
             y1 = image_height - crop_size
             x2 = image_width
@@ -341,13 +401,12 @@ class MultiScaleCornerCrop(object):
 
     def randomize_parameters(self):
         self.scale = self.scales[random.randint(0, len(self.scales) - 1)]
-        self.crop_position = self.crop_positions[random.randint(
-            0,
-            len(self.crop_positions) - 1)]
+        self.crop_position = self.crop_positions[
+            random.randint(0, len(self.crop_positions) - 1)
+        ]
 
 
 class MultiScaleRandomCrop(object):
-
     def __init__(self, scales, size, interpolation=Image.BILINEAR):
         self.scales = scales
         self.size = size
@@ -376,7 +435,6 @@ class MultiScaleRandomCrop(object):
 
 
 class LoopPadding(object):
-
     def __init__(self, size):
         self.size = size
 
@@ -405,7 +463,7 @@ class LoopTemporalCrop(object):
 
         out = []
         for i in range(0, n_frames, self.step_between_clips):
-            clip_pts = list(range(i, min(n_frames, i+self.step_between_clips)))
+            clip_pts = list(range(i, min(n_frames, i + self.step_between_clips)))
             # loop-padding to guarantee same length
             clip_pts = self.pad_method(clip_pts)
             clip = [Image.fromarray(t.numpy()) for t in tensor_vid[clip_pts]]
@@ -429,7 +487,7 @@ class TemporalBeginCrop(object):
         self.size = size
 
     def __call__(self, frame_indices):
-        out = frame_indices[:self.size]
+        out = frame_indices[: self.size]
 
         for index in out:
             if len(out) >= self.size:
@@ -491,7 +549,69 @@ class TemporalUniformCrop(object):
         Returns:
             list: Cropped frame indices.
         """
-        return np.linspace(0, len(frame_indices), num=self.size, endpoint=False).astype(int).tolist()
+        return (
+            np.linspace(0, len(frame_indices), num=self.size, endpoint=False)
+            .astype(int)
+            .tolist()
+        )
+
+
+class TemporalUniformSampling(object):
+    """Temporally sample the given frame indices with uniformly splited chunks.
+
+    Args:
+        n_chunks (int): Desired number of chunks to split.
+        size (int): Desired number of frames per each chunk (same as sample_duration)
+    """
+
+    def __init__(self, n_chunks, size=16):
+        self.n_chunks = n_chunks
+        self.size = size
+
+    def __call__(self, frame_indices):
+        """
+        Args:
+            frame_indices (list): frame indices to be cropped.
+        Returns:
+            list: nested list of frame indices for each chunk.
+        """
+        chunk_counts = collections.defaultdict(int)
+
+        finish = False
+        while not finish:
+            for i in range(self.n_chunks):
+                chunk_counts[i] += 1
+                if sum(chunk_counts.values()) == len(frame_indices):
+                    finish = True
+                    break
+
+        res = []
+
+        chunk_counts = collections.OrderedDict(
+            {k: v for k, v in sorted(chunk_counts.items(), key=lambda x: x[0])}
+        )
+        for ix, (k, v) in enumerate(chunk_counts.items()):
+            current_chunk = frame_indices[:v]
+            if len(current_chunk) > self.size:
+                # # uniform sampling for current_chunk
+                # current_chunk = np.array(current_chunk)[
+                #     np.linspace(
+                #         0, len(current_chunk), num=self.size, endpoint=False, dtype=int
+                #     )
+                # ]
+                current_chunk = np.array(current_chunk)[
+                    TemporalCenterCrop(size=self.size)(list(range(len(current_chunk))))
+                ]
+            else:
+                # loop padding for frame_indices shorter than the `sample_duration`
+                current_chunk = np.array(current_chunk)[
+                    LoopPadding(self.size)(list(range(len(current_chunk))))
+                ]
+
+            # update frame_indices (pop operation by replacing original list...)
+            frame_indices = frame_indices[v:]
+            res.append(current_chunk)
+        return res
 
 
 class TemporalRandomCrop(object):
@@ -565,8 +685,7 @@ class Resize3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -594,8 +713,7 @@ class RandomCrop3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -605,8 +723,7 @@ class RandomCrop3D(object):
         return out
 
     def randomize_parameters(self, frame):
-        self.crop_position = self.transform2D.get_params(
-            frame, self.transform2D.size)
+        self.crop_position = self.transform2D.get_params(frame, self.transform2D.size)
 
 
 class RandomResizedCrop3D(object):
@@ -622,20 +739,21 @@ class RandomResizedCrop3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
             crop = tf_func.resized_crop(
-                pic, *self.crop_position, size=self.transform2D.size)
+                pic, *self.crop_position, size=self.transform2D.size
+            )
             out.append(crop)
 
         return out
 
     def randomize_parameters(self, frame):
         self.crop_position = self.transform2D.get_params(
-            frame, self.transform2D.scale, self.transform2D.ratio)
+            frame, self.transform2D.scale, self.transform2D.ratio
+        )
 
 
 class RandomRotation3D(object):
@@ -651,8 +769,7 @@ class RandomRotation3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
             rotated = tf_func.rotate(pic, self.angle)
@@ -661,9 +778,7 @@ class RandomRotation3D(object):
         return out
 
     def randomize_parameters(self):
-        self.angle = self.transform2D.get_params(
-            self.transform2D.degrees
-        )
+        self.angle = self.transform2D.get_params(self.transform2D.degrees)
 
 
 class RandomHorizontalFlip3D(object):
@@ -679,8 +794,7 @@ class RandomHorizontalFlip3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
@@ -707,8 +821,7 @@ class CenterCrop3D(object):
                     scale = 1
                 elif pic.dtype == torch.float32:
                     scale = 255
-                pic = tf_func.to_pil_image((
-                    pic.float().cpu()*scale).byte())
+                pic = tf_func.to_pil_image((pic.float().cpu() * scale).byte())
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 

@@ -24,6 +24,7 @@ class UCF101(Dataset):
         sample_rate=5,
         input_size=(16, 128, 171),
         train=True,
+        hard_augmentation=True,
         fold=1,
         temporal_transform=None,
         spatial_transform=None,
@@ -73,12 +74,13 @@ class UCF101(Dataset):
                 clip_length_in_frames=self.duration,
                 frames_between_clips=self.duration,
                 num_workers=num_workers,
-                frame_rate=sample_rate,
+                frame_rate=None if sample_rate == 1 else sample_rate,
             ).subset(self.indices)
 
         self.temporal_transform = temporal_transform
         self.spatial_transform = spatial_transform
         self.norm_method = norm_method
+        self.hard_augmentation = hard_augmentation
 
     def _select_fold(self, video_list, annotation_path, fold, train):
         name = "train" if train else "test"
@@ -108,7 +110,8 @@ class UCF101(Dataset):
 
         # temporal random crop
         if self.temporal_transform is not None:
-            clip_pts = self.temporal_transform(clip_pts.tolist())
+            if self.train:
+                clip_pts = self.temporal_transform(clip_pts.tolist())
 
         # convert List -> Tensor
         clip_pts = torch.as_tensor(clip_pts)
@@ -122,6 +125,8 @@ class UCF101(Dataset):
         )  # clip_pts-'frame index'
         video_path, label = self.samples[self.indices[video_idx]]
         clip_pts /= self.sample_rate
+        if self.sample_rate == 1:
+            clip_pts -= 1
 
         return clip, label, clip_pts, video_path
 
@@ -155,53 +160,43 @@ class UCF101(Dataset):
 
         del detection_res_filtered["object_class"]  # drop object_class column
         mask = []
-        instance_mask = []
         C, H, W = video[0].shape
         for q in query:
-            m, instance_m = generate_maskImg(detection_res_filtered, q, W, H)
+            m = generate_maskImg(detection_res_filtered, q, W, H)
             mask.append(m)
-            instance_mask.append(instance_m)
 
         # conver label to tensor
         label = torch.tensor(label).long()
 
-        return video, mask, instance_mask, label, clip_pts
+        return video, mask, label, clip_pts
 
-    def stack_multiple_clips(self, video, mask, instance_mask, clip_pts):
+    def stack_multiple_clips(self, video, mask, clip_pts):
         # convert to tensor for smart indexing
         video = torch.stack(video)
         mask = torch.stack(mask)
-        instance_mask = torch.stack(instance_mask)
 
         clip_pts = torch.as_tensor(LoopPadding(size=self.duration)(clip_pts.tolist()))
 
-        multi_clip_pts = unfold(clip_pts, self.duration, self.duration)
+        multi_clip_pts = self.temporal_transform(clip_pts)
         video_stack = []
         mask_stack = []
-        instance_mask_stack = []
         for sample_pts in multi_clip_pts:
-            sample_pts = LoopPadding(size=self.duration)(sample_pts.tolist())
+            sample_pts = sample_pts.tolist()
             # convert List -> Tensor
             sample_pts = torch.as_tensor(sample_pts)
             video_stack.append(video[sample_pts])  # (D,C,H,W)
             mask_stack.append(mask[sample_pts])  # (D,1,H,W)
-            instance_mask_stack.append(instance_mask[sample_pts])  # (D,1,H,W)
 
         # stack clips
-        video_stack = torch.stack(video_stack)  # (nclips,D,C,H,W)
-        mask_stack = torch.stack(mask_stack)  # (nclips,D,1,H,W)
-        instance_mask_stack = torch.stack(instance_mask_stack)  # (nclips,D,1,H,W)
+        try:
+            video_stack = torch.stack(video_stack)  # (nclips,D,C,H,W)
+            mask_stack = torch.stack(mask_stack)  # (nclips,D,1,H,W)
+        except:
+            import ipdb
 
-        return video_stack, mask_stack, instance_mask_stack
+            ipdb.set_trace()
 
-    def apply_spatial_transform(self, video, randomize=True, normalize=True):
-        if randomize:
-            self.spatial_transform.randomize_parameters(video)
-        video = self.spatial_transform(video)
-        if normalize:
-            video = self.norm_method(video)
-
-        return video
+        return video_stack, mask_stack
 
     def __len__(self):
         if self.sample_unit == "clip":
@@ -210,41 +205,31 @@ class UCF101(Dataset):
             return len(self.indices)
 
     def __getitem__(self, idx):
-        video, mask, instance_mask, label, clip_pts = self.fetch_data(idx)
+        video, mask_frames, label, clip_pts = self.fetch_data(idx)
 
         permute_axis = (3, 0, 1, 2)
         if not self.train:
             if self.sample_unit == "video":
                 # testing, but sample_unit = video => multiple logit for a each video, which will be averaged later
-                video, mask, instance_mask = self.stack_multiple_clips(
-                    video, mask, instance_mask, clip_pts
+                video, mask_frames = self.stack_multiple_clips(
+                    video, mask_frames, clip_pts
                 )
                 permute_axis = (0, 4, 1, 2, 3)
         if self.spatial_transform is not None:
-            video = self.apply_spatial_transform(
-                video, randomize=True, normalize=True
-            ).permute(*permute_axis)
-            mask = self.apply_spatial_transform(mask, randomize=False, normalize=False)[
-                ..., :1
-            ].permute(*permute_axis)
-            instance_mask = self.apply_spatial_transform(
-                instance_mask, randomize=False, normalize=False
-            )[..., :1].permute(*permute_axis)
+            if self.hard_augmentation:
+                aug_result = self.spatial_transform(
+                    frames=video, mask_frames=mask_frames
+                )
+                video, mask_frames = tuple(
+                    [aug_result.get(k) for k in ["image_frames", "mask_frames"]]
+                )
+            else:
+                # init random vars
+                self.spatial_transform.randomize_parameters(video)
+                video = self.spatial_transform(video)
+                mask_frames = self.spatial_transform(mask_frames)
 
-        coord = []
-        for t in range(instance_mask.size(1)):
-            m = instance_mask[:, t]
-            instances = m.unique()
+            video = self.norm_method(video).permute(*permute_axis)  # apply norm method
+            mask_frames = mask_frames[..., :1].permute(*permute_axis)
 
-            _coord = []
-            for i in instances:
-                _, ypos, xpos = torch.where(m == i)
-                xmin = xpos.min()
-                ymin = ypos.min()
-                xmax = xpos.max()
-                ymax = ypos.max()
-
-                _coord.append((xmin, ymin, xmax, ymax))
-            coord.append(_coord)
-
-        return video, mask, coord, label
+        return video, mask_frames, label

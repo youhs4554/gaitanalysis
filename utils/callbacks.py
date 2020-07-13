@@ -3,6 +3,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pytorch_lightning import Callback
+import torch
 
 
 class TensorBoard_Logger(Callback):
@@ -13,8 +14,12 @@ class TensorBoard_Logger(Callback):
     def _write_logs(self, prefix_tag, name, tag_scalar_dict, global_step):
         for k in tag_scalar_dict:
             val = tag_scalar_dict[k].item()
+            if len(name) > 0:
+                tagname = f"{prefix_tag}/{name}/{k}"
+            else:
+                tagname = f"{prefix_tag}"
             self.base_logger.experiment.add_scalar(
-                f"{prefix_tag}/{name}/{k}", tag_scalar_dict[k], global_step
+                tagname, tag_scalar_dict[k], global_step
             )
 
     def write_logs(self, trainer, pl_module, name):
@@ -33,6 +38,14 @@ class TensorBoard_Logger(Callback):
                 {"acc": logs["acc" if name == "train" else "val_acc"]},
                 trainer.global_step,
             )
+            if name == "train":
+                tagname = f"lr-{pl_module.optimizer.__class__.__name__}"
+                self._write_logs(
+                    tagname,
+                    "",
+                    {tagname: torch.tensor(pl_module.optimizer.param_groups[0]["lr"])},
+                    trainer.global_step,
+                )
 
     def on_batch_end(self, trainer, pl_module):
         self.write_logs(trainer, pl_module, name="train")

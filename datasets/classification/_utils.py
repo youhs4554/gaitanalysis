@@ -36,13 +36,7 @@ def generate_maskImg(detection_res, query, W, H):
     mask = Image.new("L", size=(W, H))
     for x in res:
         ImageDraw.Draw(mask).rectangle(x, fill="white")
-
-    instance_mask = Image.new("L", size=(W, H))
-    for i in range(len(res)):
-        ImageDraw.Draw(instance_mask).rectangle(res[i], fill=i + 1)
-
     # to tensor
     mask = tf_func.to_tensor(mask).repeat(3, 1, 1)
-    instance_mask = tf_func.to_tensor(instance_mask).repeat(3, 1, 1)
 
-    return mask, instance_mask
+    return mask

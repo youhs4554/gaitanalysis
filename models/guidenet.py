@@ -5,28 +5,177 @@ from .losses import MultiScaled_BCELoss, MultiScaled_DiceLoss, BinaryDiceLoss
 from .utils import init_mask_layer, freeze_layers
 from collections import OrderedDict, defaultdict
 from functools import reduce
-
+import math
+import random
+from .i3res import inflated_resnet
+from .deformable_conv3d import DeformConv3DWrapper
 
 __all__ = ["GuideNet"]
 
 
-class GuideNet(nn.Module):
-    def __init__(self, backbone, backbone_dims):
+class SoftHistogram(nn.Module):
+    def __init__(self, bins, min, max, sigma, norm=False):
+        super(SoftHistogram, self).__init__()
+        self.bins = bins
+        self.min = min
+        self.max = max
+        self.sigma = sigma
+        self.delta = float(max - min) / float(bins)
+        self.norm = norm
+        self.centers = float(self.min) + self.delta * (
+            torch.arange(self.bins).float() + 0.5
+        )
+
+    def forward(self, x):
+        bs, dim = x.size()[:2]
+        x = x.flatten(0)
+
+        centers = torch.tensor(self.centers, device=x.device)
+
+        x = torch.unsqueeze(x, 0) - torch.unsqueeze(centers, 1)
+        x = (
+            torch.exp(-0.5 * (x / self.sigma) ** 2)
+            / (self.sigma * math.sqrt(math.pi * 2))
+            * self.delta
+        )
+        x = x.view(bs, dim, -1)
+        x = x.sum(dim=1)
+
+        if self.norm:
+            summ = (x.sum(1) + 0.000001).unsqueeze(1)
+            return x / summ
+
+        return x
+
+
+class GuideBlock(nn.Module):
+    def __init__(self, backbone_layer, feats_dim):
+        super().__init__()
+        self.add_module("backbone_layer", backbone_layer)
+        self.add_module("guide_module", GuideModule(feats_dim))
+
+    def forward(self, x, mask):
+        loss_dict = defaultdict(float)
+        tb_dict = defaultdict(float)
+
+        x = self.backbone_layer(x)
+        x, mask_pred = self.guide_module(x)
+
+        mask_downsampled = F.adaptive_avg_pool3d(mask, x.shape[2:])
+        loss_dict["mask_loss"] = nn.BCELoss()(mask_pred, mask_downsampled)
+
+        mask_activation_sample = mask_pred[0].permute(1, 0, 2, 3).repeat(1, 3, 1, 1)
+        mask_true_sample = mask_downsampled[0].permute(1, 0, 2, 3).repeat(1, 3, 1, 1)
+
+        tb_dict["mask_predictions"] = torch.cat(
+            (mask_activation_sample, mask_true_sample), 0
+        )
+
+        return x, loss_dict, tb_dict
+
+
+class LayerConfig(object):
+    dims = {"r3d": [64, 64, 128, 256, 512], "inflated-r3d": [64, 256, 512, 1024, 2048]}
+    guide_ixs = [4]
+    fusion_ix = 4
+
+
+class GuideNet(nn.Module, LayerConfig):
+    def __init__(self, backbone, n_class=None):
         super().__init__()
 
+        appearance_stream = inflated_resnet(arch="resnet50")
+
+        appearance_stream_children = nn.Sequential(
+            OrderedDict(
+                {name: child for name, child in appearance_stream.named_children()}
+            )
+        )
+
+        appearance_feature_branch, appearance_main_branch = (
+            appearance_stream_children[: self.fusion_ix],
+            appearance_stream_children[self.fusion_ix :],
+        )
+
+        # override forward method
+        appearance_predictor = nn.Sequential(
+            nn.Dropout(0.5), nn.Linear(appearance_main_branch.fc.in_features, n_class)
+        )
+
+        # detach fc from main branch
+        del appearance_main_branch.fc
+
+        # inflate 2D resnet to 3D (use conv4)
+        self.appearance_feature_branch = appearance_feature_branch
+        # auxiliary classifier affected by appearance feature
+        self.appearance_main_branch = appearance_main_branch
+        self.appearance_predictor = appearance_predictor
+
+        # detach fc/avgpool
         del backbone.fc
         del backbone.avgpool
 
-        # only compatible with backbone types implemented in `torchvision.models.video.*`
-        self.backbone = nn.Sequential(OrderedDict(dict(backbone.named_children())))
-        self.guide_module = GuideModule(self.backbone, backbone_dims[-1])
+        for ix, ((name, backbone_layer), feats_dim) in enumerate(
+            zip(backbone.named_children(), self.dims["r3d"])
+        ):
+            if ix in self.guide_ixs:
+                self.add_module(
+                    f"Block_{name}_guided", GuideBlock(backbone_layer, feats_dim)
+                )
+            else:
+                self.add_module(f"Block_{name}", backbone_layer)
 
-    def forward(self, images, masks, coord):
-        x, loss_dict = self.guide_module(images, masks, coord)
-        return x, loss_dict
+        # fusion layer
+        self.fusion_space = self.dims["r3d"][self.fusion_ix]
+        self.branch_space = self.dims["inflated-r3d"][self.fusion_ix - 1]
+        self.fusion_layer = nn.Sequential(
+            conv1x1(self.fusion_space + self.branch_space, self.fusion_space),
+            nn.BatchNorm3d(self.fusion_space),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, images, masks):
+        loss_dict = defaultdict(float)
+        tb_dict = defaultdict(float)
+
+        appearance_f = self.appearance_feature_branch(images)
+
+        blocks = [
+            (name, getattr(self, name))
+            for name, _ in self.named_children()
+            if name.startswith("Block_")
+        ]
+        x = images
+        for ix, (name, block) in enumerate(blocks):
+            if ix in self.guide_ixs:
+                x, _loss_dict, _tb_dict = block(x, masks)
+
+                postfix = f"_at_{name}"
+
+                # update dictionaries
+                for k in _loss_dict:
+                    loss_dict[k] += _loss_dict[k] / len(self.guide_ixs)
+                for k in _tb_dict:
+                    tb_dict[k + postfix] = _tb_dict[k]
+            else:
+                x = block(x)
+
+            if ix == self.fusion_ix:
+                x_cat = torch.cat((x, appearance_f), dim=1)
+                x = self.fusion_layer(x_cat)
+
+        appearance_f = self.appearance_main_branch(appearance_f).flatten(1)
+
+        # predicts classes based on appearance
+        # this will be fused later...
+        appearance_pred = self.appearance_predictor(appearance_f)
+
+        return x, appearance_pred, loss_dict, tb_dict
 
 
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv3x3(
+    in_planes, out_planes, midplanes=None, stride=1, groups=1, dilation=1, use_bias=True
+):
     """3x3 convolution with padding"""
     return nn.Conv3d(
         in_planes,
@@ -35,12 +184,12 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
         stride=stride,
         padding=dilation,
         groups=groups,
-        bias=False,
+        bias=use_bias,
         dilation=dilation,
     )
 
 
-def conv1x1(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv1x1(in_planes, out_planes, stride=1, groups=1, dilation=1, use_bias=True):
     return nn.Conv3d(
         in_planes,
         out_planes,
@@ -48,65 +197,28 @@ def conv1x1(in_planes, out_planes, stride=1, groups=1, dilation=1):
         stride=stride,
         groups=groups,
         dilation=dilation,
-        bias=False,
+        bias=use_bias,
     )
-
-
-class ResidualBlock(nn.Module):
-    def __init__(self, inplanes, outplanes, stride=1):
-        super().__init__()
-
-        self.conv1 = conv3x3(inplanes, outplanes)
-        self.bn1 = nn.BatchNorm3d(outplanes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(outplanes, outplanes)
-        self.bn2 = nn.BatchNorm3d(outplanes)
-        self.bipass = (
-            nn.Sequential(
-                nn.Conv3d(inplanes, outplanes, kernel_size=1, bias=False),
-                nn.BatchNorm3d(outplanes),
-                nn.ReLU(inplace=True),
-            )
-            if inplanes > outplanes
-            else nn.Identity()
-        )
-
-    def forward(self, x):
-        identity = x
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-
-        # bi-pass
-        identity = self.bipass(identity)
-
-        x += identity
-
-        x = self.relu(x)
-
-        return x
 
 
 class GuideFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, alpha):
-        ctx.save_for_backward(x, alpha)
+    def forward(ctx, x, alpha, thresholds):
+        ctx.save_for_backward(x, alpha, thresholds)
         x_out = x.clone()
-        x_out[alpha < 0.5] = 0.0
+        x_out[alpha < thresholds] = 0.0
 
         return x_out
 
     @staticmethod
     def backward(ctx, grad_output):
-        x, alpha = ctx.saved_tensors
-        grad_x = grad_alpha = None
+        x, alpha, thresholds = ctx.saved_tensors
+        grad_x = grad_alpha = grad_thresholds = None
 
         grad_x = grad_output.clone()
-        grad_x[alpha < 0.5] = 0.0
+        grad_x[alpha < thresholds] = 0.0
 
-        return grad_x, grad_alpha
+        return grad_x, grad_alpha, grad_thresholds
 
 
 def init_weights(m, nonlinearity):
@@ -122,151 +234,96 @@ def init_weights(m, nonlinearity):
     return wrapper
 
 
+class PixelwisePredictor(nn.Sequential):
+    def __init__(self, inplanes, acitvation="ReLU"):
+        super().__init__()
+        self.add_module("conv", conv1x1(inplanes, 1, use_bias=True))
+        self.add_module("acitvation", getattr(torch.nn, acitvation)())
+
+    def forward(self, *input):
+        return super().forward(*input)
+
+
+# from torchvision.models.video.resnet import Bottleneck
+
+
+# class PixelwisePredictor(nn.Sequential):
+#     def __init__(self, inplanes, acitvation="ReLU"):
+#         super().__init__()
+#         expansion = Bottleneck.expansion
+#         self.add_module(
+#             "conv", Bottleneck(inplanes, inplanes // expansion, conv_builder=conv3x3)
+#         )
+#         self.add_module("prediction", conv1x1(inplanes, 1, use_bias=True))
+#         self.add_module("acitvation", getattr(torch.nn, acitvation)())
+
+#     def forward(self, *input):
+#         return super().forward(*input)
+
+
+class OtsuRegularization(nn.Module):
+    def __init__(self,):
+        super().__init__()
+        # differentiable histogram operation
+        self.soft_hist = SoftHistogram(bins=100, min=0, max=1, sigma=1.0)
+
+    def forward(self, x, th):
+        hist = self.soft_hist(x)
+
+        bin_centers = torch.tensor(
+            [0.0] + self.soft_hist.centers.tolist(), device=x.device
+        )
+
+        center_ixs = (bin_centers < th).sum(1)
+        ixs = torch.arange(hist.size(1), device=x.device)
+
+        cix0 = (ixs < center_ixs[..., None]).float()
+        cix1 = (ixs >= center_ixs[..., None]).float()
+
+        c0 = cix0 * hist
+        c1 = cix1 * hist
+
+        w0 = c0.sum(1) / hist.sum(1)
+        w1 = c1.sum(1) / hist.sum(1)
+
+        bins = (bin_centers[1:] - bin_centers[:-1]).cumsum(0)
+
+        mu0 = (c0 * bins).sum(1) / c0.sum(1)
+        mu1 = (c1 * bins).sum(1) / c1.sum(1)
+
+        var0 = ((c0 - mu0.unsqueeze(1)) * bins).pow(2).sum(1) / c0.sum(1)
+        var1 = ((c1 - mu1.unsqueeze(1)) * bins).pow(2).sum(1) / c1.sum(1)
+
+        return (w0 * var0 + w1 * var1).mean()
+
+
 class GuideModule(nn.Module):
-    def __init__(self, backbone_layer, feats_dim):
+    def __init__(self, feats_dim=256):
 
         super(GuideModule, self).__init__()
 
-        self.backbone_layer = backbone_layer
-        self.mask_layer = nn.Sequential(
-            OrderedDict(
-                {
-                    "conv": ResidualBlock(feats_dim, feats_dim // 4),
-                    "mask": conv1x1(feats_dim // 4, 1),
-                }
-            )
-        )
-        self.perturb_layer = nn.Sequential(
-            OrderedDict(
-                {
-                    "conv": ResidualBlock(feats_dim, feats_dim // 4),
-                    "mask": conv1x1(feats_dim // 4, 1),
-                }
-            )
-        )
-        self.embedding_layer = nn.Sequential(
-            OrderedDict(
-                {
-                    "conv": ResidualBlock(1, feats_dim // 4),
-                    "mask": conv1x1(feats_dim // 4, feats_dim),
-                }
-            )
-        )
+        # predicts human masks
+        self.mask_layer = PixelwisePredictor(feats_dim, acitvation="Sigmoid")
+        self.warp_conv = DeformConv3DWrapper(feats_dim, feats_dim, kernel_size=3)
+        self.warp_bn = nn.BatchNorm3d(feats_dim)
+        self.dropout = nn.Dropout(0.5)
+        self.relu = nn.ReLU(inplace=True)
 
-        for layer in [
-            self.mask_layer.conv,
-            self.perturb_layer.conv,
-            self.embedding_layer,
-        ]:
-            layer.apply(init_weights(layer, nonlinearity="relu"))
+    def forward(self, x):
+        # x : 3d features from backbone layer
+        identity = x
 
-        for layer in [self.mask_layer.mask, self.perturb_layer.mask]:
-            layer.apply(init_weights(layer, nonlinearity="sigmoid"))
+        # warp feature
+        warp = self.warp_conv(x)
+        warp = self.warp_bn(warp)
+        warp = self.dropout(warp)
 
-        self.guide_func = GuideFunction.apply
-        self.criterion = BinaryDiceLoss()
+        mask_pred = self.mask_layer(x)
 
-    def forward(self, x, masks, coord):
-        loss_dict = defaultdict(float)
+        # multiply learnable_mask with warped features
+        x = mask_pred * warp
 
-        x = self.backbone_layer(x)
+        x += identity
+        x = self.relu(x)
 
-        detector_supervised_masks_pred = self.mask_layer(x)
-        detector_supervised_masks_pred = torch.sigmoid(
-            detector_supervised_masks_pred
-        )  # (batch,1,2,7,7)
-
-        # generat noise, which follows normal dist.
-        noise = torch.randn_like(x)
-        eta = self.perturb_layer(noise)
-        eta = torch.sigmoid(eta)  # projection on the interval [0, 1]
-
-        # injects noise `eta` to `detector_supervised_masks`
-        modified_masks_pred = detector_supervised_masks_pred + eta
-
-        # embedding
-        modified_masks_embed = self.embedding_layer(modified_masks_pred)
-        modified_masks_embed = torch.relu(modified_masks_embed)
-
-        """
-
-        # # TODO.
-        # # https://www.notion.so/IDEA-Sketch-8c20823dfab1425d9bc4dc98f782b3a5#45aac00e1710431fbab321ae232604fa
-        output_size = (7, 7)
-
-        import torchvision
-
-        rois = []
-        temporal_ratio = len(coord) // x.size(2)
-        for t in range(len(coord)):
-            _roi = torchvision.ops.roi_align(
-                x[..., t // temporal_ratio], list(coord[t]), output_size
-            )
-
-            class MergeROIs:
-                def __init__(self, _roi):
-                    self._roi = _roi
-
-                def run(self, lens):
-                    return reduce(self.wrapper, lens, 0)
-
-                def wrapper(self, x, y):
-                    length = y
-                    update = self._roi[:length].sum(0, keepdim=True)
-                    self._roi = self._roi[length:]
-
-                    if isinstance(x, torch.Tensor):
-                        return torch.cat((x, update), 0)
-                    else:
-                        return x + update
-
-            _res = torchvision.transforms.Lambda(MergeROIs(_roi).run)(
-                [len(x) for x in coord[t]]
-            )
-            print(
-                "Shape of X : ",
-                x.shape,
-                "Shape of _res : ",
-                _res.shape,
-                "Length of coord[t]",
-                len(coord[t]),
-            )
-
-            rois.append(_res)
-
-        out = torch.stack(rois).mean(0).unsqueeze(2)
-        """
-
-        # # guide func which filters ROIS at both forward and backward path
-        # out = self.guide_func(
-        #     x, modified_masks_pred.repeat((1, x.size(1), *[1] * (x.dim() - 2)))
-        # )
-
-        # masking-out backbone-feature
-        masking = modified_masks_pred.ge(0.5)
-        out = torch.zeros_like(x)
-
-        out.masked_scatter_(masking, x)
-
-        # implemt. 1
-        # matching_loss = 1-(modified_masks_embed.tanh() * x.tanh()).mean()
-
-        # implemt. 2
-        # matching_loss = - \
-        #     torch.log(1e-6+modified_masks_embed.tanh()*x.tanh()).mean()
-
-        # implemt. 3 : distance between `modified_masks_embed` and `x` (backbone feature)
-        # matching_loss = (modified_masks_embed - x.mean(0)).norm(2)
-
-        # loss_dict['matching_loss'] = matching_loss
-
-        if masks is None:
-            return out, loss_dict
-
-        shapes = modified_masks_embed.size()[2:]
-        masks = F.interpolate(masks, size=shapes, mode="nearest")
-
-        mask_loss = self.criterion(detector_supervised_masks_pred, masks)
-        loss_dict["mask_loss"] = mask_loss
-
-        return out, loss_dict
+        return x, mask_pred

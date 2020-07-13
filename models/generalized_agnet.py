@@ -24,18 +24,24 @@ class GeneralizedAGNet(nn.Module):
     ):
 
         loss_dict = {}
-        x, guide_loss_dict = self.guider(*inputs)
+        tb_dict = {}
 
-        # model output
-        out, predictor_loss_dict = self.predictor(x, targets, averaged)
+        x, appearance_pred, guide_loss_dict, guide_tb_dict = self.guider(*inputs)
+
+        # (motion+appearance) classifier
+        out, predictor_loss_dict = self.predictor(
+            x, targets, averaged, appearance_pred=appearance_pred
+        )
 
         loss_dict.update(guide_loss_dict)
         loss_dict.update(predictor_loss_dict)
+
+        tb_dict.update(guide_tb_dict)
 
         if self.target_transform is not None:
             out = self.target_transform(out)
 
         if return_intermediate_feats:
-            return out, x, loss_dict
+            return out, x, loss_dict, tb_dict
 
-        return out, loss_dict
+        return out, loss_dict, tb_dict

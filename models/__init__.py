@@ -13,24 +13,44 @@ def generate_network(opt, n_outputs=2, target_transform=None):
     # define backbone
     backbone, backbone_dims = generate_backbone(opt.backbone)
 
-    if opt.model_arch == 'DefaultAGNet':
+    if opt.model_arch == "DefaultAGNet":
         # def default_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
-        net = default_agnet(
-            opt, backbone, backbone_dims, n_outputs, target_transform)
-    elif opt.model_arch == 'RegionalAGNet':
+        net = default_agnet(opt, backbone, backbone_dims, n_outputs, target_transform)
+    elif opt.model_arch == "RegionalAGNet":
         # def regional_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
-        net = regional_agnet(
-            opt, backbone, backbone_dims, n_outputs, target_transform)
-    elif opt.model_arch == 'ConcatenatedAGNet':
+        net = regional_agnet(opt, backbone, backbone_dims, n_outputs, target_transform)
+    elif opt.model_arch == "ConcatenatedAGNet":
         # only for gait data
         pretrained_agnet = default_agnet(
-            opt, backbone, backbone_dims, len(BASIC_GAIT_PARAMS), load_pretrained_agnet=True)
+            opt,
+            backbone,
+            backbone_dims,
+            len(BASIC_GAIT_PARAMS),
+            load_pretrained_agnet=True,
+        )
         net = concatenated_agnet(
-            opt, backbone, backbone_dims, n_outputs-len(BASIC_GAIT_PARAMS), pretrained_agnet, target_transform)
-    elif opt.model_arch == 'FineTunedConvNet':
+            opt,
+            backbone,
+            backbone_dims,
+            n_outputs - len(BASIC_GAIT_PARAMS),
+            pretrained_agnet,
+            target_transform,
+        )
+    elif opt.model_arch == "FineTunedConvNet":
         net = fine_tuned_convnet(
-            opt, backbone, backbone_dims, n_outputs, target_transform)
+            opt, backbone, backbone_dims, n_outputs, target_transform
+        )
     else:
-        raise ValueError('Arch {} is not supported'.format(opt.model_arch))
+        raise ValueError("Arch {} is not supported".format(opt.model_arch))
+
+    if getattr(net, "guider", None) is not None:
+        appearance_feature_branch = getattr(
+            net.guider, "appearance_feature_branch", None
+        )
+        if appearance_feature_branch is not None:
+            # # freeze apperance feature layers
+            # freeze_layers(appearance_feature_branch)
+            # appearance_feature_branch.eval()
+            pass
 
     return net

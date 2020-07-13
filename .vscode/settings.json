@@ -1,4 +1,6 @@
 {
     "python.formatting.provider": "black",
-    "docker.host":"tcp://localhost:23750",
+    "docker.host": "tcp://localhost:23750",
+    "python.languageServer": "Microsoft",
+    "python.pythonPath": "/opt/conda/envs/torch/bin/python",
 }

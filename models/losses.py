@@ -8,9 +8,7 @@ from sklearn.metrics import f1_score
 
 
 class FocalLoss(nn.Module):
-
-    def __init__(self, weight=None,
-                 gamma=2., reduction='mean'):
+    def __init__(self, weight=None, gamma=2.0, reduction="mean"):
         nn.Module.__init__(self)
         self.weight = weight
         self.gamma = gamma
@@ -23,7 +21,7 @@ class FocalLoss(nn.Module):
             ((1 - prob) ** self.gamma) * log_prob,
             target_tensor,
             weight=self.weight,
-            reduction=self.reduction
+            reduction=self.reduction,
         )
 
 
@@ -40,10 +38,10 @@ class F1_Loss(nn.Module):
         FN = torch.sum((preds == 0) & (targets == 1)).float()
 
         # binary case, i.e. only consider postive class
-        precision = TP / (TP+FP+self.eps)
-        recall = TP / (TP+FN+self.eps)
+        precision = TP / (TP + FP + self.eps)
+        recall = TP / (TP + FN + self.eps)
 
-        F1 = 2 * (precision*recall) / (precision+recall+self.eps)
+        F1 = 2 * (precision * recall) / (precision + recall + self.eps)
 
         return 1 - F1
 
@@ -64,31 +62,32 @@ class BinaryDiceLoss(nn.Module):
         Exception if unexpected reduction
     """
 
-    def __init__(self, smooth=1, p=2, reduction='mean'):
+    def __init__(self, smooth=1, p=2, reduction="mean"):
         super(BinaryDiceLoss, self).__init__()
         self.smooth = smooth
         self.p = p
         self.reduction = reduction
 
     def forward(self, predict, target):
-        assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
+        assert (
+            predict.shape[0] == target.shape[0]
+        ), "predict & target batch size don't match"
         predict = predict.contiguous().view(predict.shape[0], -1)
         target = target.contiguous().view(target.shape[0], -1)
 
         num = torch.sum(torch.mul(predict, target), dim=1) + self.smooth
-        den = torch.sum(predict.pow(self.p) +
-                        target.pow(self.p), dim=1) + self.smooth
+        den = torch.sum(predict.pow(self.p) + target.pow(self.p), dim=1) + self.smooth
 
         loss = 1 - num / den
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
-        elif self.reduction == 'none':
+        elif self.reduction == "none":
             return loss
         else:
-            raise Exception('Unexpected reduction {}'.format(self.reduction))
+            raise Exception("Unexpected reduction {}".format(self.reduction))
 
 
 class MultiScaled_BCELoss(nn.Module):
@@ -100,8 +99,7 @@ class MultiScaled_BCELoss(nn.Module):
         l = []
         for i in range(self.n_scales):
             shapes = predict[i].size()[2:]
-            target = F.interpolate(target,
-                                   size=shapes)
+            target = F.interpolate(target, size=shapes)
             l.append(F.binary_cross_entropy(predict[i], target))
 
         return torch.stack(l).mean()
@@ -117,9 +115,8 @@ class MultiScaled_DiceLoss(nn.Module):
         l = []
         for i in range(self.n_scales):
             shapes = predict[i].size()[2:]
-            target = F.interpolate(target, size=shapes, mode='area')
-            _dice = self.dice(predict[i].argmax(1).float(),
-                              target.argmax(1).float())
+            target = F.interpolate(target, size=shapes, mode="area")
+            _dice = self.dice(predict[i].argmax(1).float(), target.argmax(1).float())
             l.append(_dice)
 
         return torch.stack(l).mean()
