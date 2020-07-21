@@ -12,6 +12,9 @@ from torchvision.datasets.utils import list_dir
 from torchvision.datasets.folder import make_dataset
 from torchvision.datasets.video_utils import unfold
 
+import cv2
+import numpy as np
+
 
 class UCF101(Dataset):
     def __init__(
@@ -39,7 +42,8 @@ class UCF101(Dataset):
             raise ValueError(
                 "invalid sample_unit argument; sample unit should be in (`clip` | `video`)"
             )
-        self.root = root
+        self.root = root  # RGB frame root
+        self.flow_root = os.path.join(os.path.dirname(root), "flows")
 
         """
             detection data with Mask-RCNN
@@ -127,6 +131,7 @@ class UCF101(Dataset):
         clip_pts /= self.sample_rate
         if self.sample_rate == 1:
             clip_pts -= 1
+            clip_pts = torch.clamp(clip_pts, 0, len(clip_pts) - 1)
 
         return clip, label, clip_pts, video_path
 
@@ -160,43 +165,62 @@ class UCF101(Dataset):
 
         del detection_res_filtered["object_class"]  # drop object_class column
         mask = []
+        flow = []
         C, H, W = video[0].shape
         for q in query:
+            # mask
             m = generate_maskImg(detection_res_filtered, q, W, H)
             mask.append(m)
+
+            # flow
+            flo_path = os.path.join(self.flow_root, q)
+            flo_path = os.path.splitext(flo_path)[0] + ".jpg"
+            flo = Image.open(flo_path).resize(
+                self.img_size[::-1], resample=Image.BILINEAR
+            )
+            flo = torchvision.transforms.ToTensor()(flo)
+            flow.append(flo)
 
         # conver label to tensor
         label = torch.tensor(label).long()
 
-        return video, mask, label, clip_pts
+        return video, mask, flow, label, clip_pts
 
-    def stack_multiple_clips(self, video, mask, clip_pts):
+    def stack_multiple_clips(self, video, mask, flow, clip_pts):
         # convert to tensor for smart indexing
         video = torch.stack(video)
         mask = torch.stack(mask)
+        flow = torch.stack(flow)
 
         clip_pts = torch.as_tensor(LoopPadding(size=self.duration)(clip_pts.tolist()))
 
         multi_clip_pts = self.temporal_transform(clip_pts)
         video_stack = []
         mask_stack = []
+        flow_stack = []
         for sample_pts in multi_clip_pts:
             sample_pts = sample_pts.tolist()
             # convert List -> Tensor
             sample_pts = torch.as_tensor(sample_pts)
             video_stack.append(video[sample_pts])  # (D,C,H,W)
             mask_stack.append(mask[sample_pts])  # (D,1,H,W)
+            flow_stack.append(
+                decompose_flow_frames(
+                    flow[sample_pts].permute(1, 0, 2, 3), transpose=False
+                )
+            )  # (N,2,H,W)
 
         # stack clips
         try:
             video_stack = torch.stack(video_stack)  # (nclips,D,C,H,W)
             mask_stack = torch.stack(mask_stack)  # (nclips,D,1,H,W)
+            flow_stack = torch.stack(flow_stack)  # (nclips,D,2,H,W)
         except:
             import ipdb
 
             ipdb.set_trace()
 
-        return video_stack, mask_stack
+        return video_stack, mask_stack, flow_stack
 
     def __len__(self):
         if self.sample_unit == "clip":
@@ -205,31 +229,39 @@ class UCF101(Dataset):
             return len(self.indices)
 
     def __getitem__(self, idx):
-        video, mask_frames, label, clip_pts = self.fetch_data(idx)
+        video, mask_frames, flow_frames, label, clip_pts = self.fetch_data(idx)
 
         permute_axis = (3, 0, 1, 2)
         if not self.train:
             if self.sample_unit == "video":
                 # testing, but sample_unit = video => multiple logit for a each video, which will be averaged later
-                video, mask_frames = self.stack_multiple_clips(
-                    video, mask_frames, clip_pts
+                video, mask_frames, flow_frames = self.stack_multiple_clips(
+                    video, mask_frames, flow_frames, clip_pts
                 )
                 permute_axis = (0, 4, 1, 2, 3)
         if self.spatial_transform is not None:
             if self.hard_augmentation:
                 aug_result = self.spatial_transform(
-                    frames=video, mask_frames=mask_frames
+                    frames=video, mask_frames=mask_frames, flow_frames=flow_frames
                 )
-                video, mask_frames = tuple(
-                    [aug_result.get(k) for k in ["image_frames", "mask_frames"]]
+                video, mask_frames, flow_frames = tuple(
+                    [
+                        aug_result.get(k)
+                        for k in ["image_frames", "mask_frames", "flow_frames"]
+                    ]
                 )
             else:
                 # init random vars
                 self.spatial_transform.randomize_parameters(video)
                 video = self.spatial_transform(video)
                 mask_frames = self.spatial_transform(mask_frames)
+                flow_frames = self.spatial_transform(flow_frames)
 
             video = self.norm_method(video).permute(*permute_axis)  # apply norm method
             mask_frames = mask_frames[..., :1].permute(*permute_axis)
+            flow_frames = flow_frames.permute(*permute_axis)
 
-        return video, mask_frames, label
+            if len(permute_axis) == 4:
+                flow_frames = decompose_flow_frames(flow_frames)
+
+        return video, mask_frames, flow_frames, label

@@ -43,14 +43,4 @@ def generate_network(opt, n_outputs=2, target_transform=None):
     else:
         raise ValueError("Arch {} is not supported".format(opt.model_arch))
 
-    if getattr(net, "guider", None) is not None:
-        appearance_feature_branch = getattr(
-            net.guider, "appearance_feature_branch", None
-        )
-        if appearance_feature_branch is not None:
-            # # freeze apperance feature layers
-            # freeze_layers(appearance_feature_branch)
-            # appearance_feature_branch.eval()
-            pass
-
     return net

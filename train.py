@@ -61,7 +61,7 @@ def collate_fn_multipositon_prediction(dataset_iter):
 
     batch = []
     for sample in dataset_iter:
-        video_stack, mask_stack, label = sample
+        video_stack, mask_stack, flow_stack, label = sample
         nclips = video_stack.size(0)
 
         # video_stack : (nclips,C,D,H,W)
@@ -72,14 +72,15 @@ def collate_fn_multipositon_prediction(dataset_iter):
         # merge with repeated frames
         video_stack = torch.cat((video_stack, video_stack[repeated_pts]), axis=0)
         mask_stack = torch.cat((mask_stack, mask_stack[repeated_pts]), axis=0)
+        flow_stack = torch.cat((flow_stack, flow_stack[repeated_pts]), axis=0)
 
-        batch.append((video_stack, mask_stack, label))
+        batch.append((video_stack, mask_stack, flow_stack, label))
 
     batch_transposed = list(zip(*batch))
     for i in range(len(batch_transposed)):
         if isinstance(batch_transposed[i][0], torch.Tensor):
             batch_transposed[i] = torch.stack(batch_transposed[i], 0)
-    for i in range(2):
+    for i in range(3):
         bs, nclips, *cdhw = batch_transposed[i].shape
         batch_transposed[i] = batch_transposed[i].view(
             -1, *cdhw
@@ -126,10 +127,10 @@ class LightningVideoClassifier(pl.LightningModule):
         self.current_val_acc = 0.0
 
     def forward(self, *batch, averaged=None):
-        video, mask, label = batch
+        video, mask, flow, label = batch
 
         out, loss_dict, tb_dict = self.model(
-            video, mask, targets=label, averaged=averaged
+            video, mask, flow, targets=label, averaged=averaged
         )
         if (
             out.device == torch.device(0)
@@ -163,9 +164,9 @@ class LightningVideoClassifier(pl.LightningModule):
         return out, loss_dict
 
     def step(self, batch, batch_idx, averaged=None):
-        video, mask, label = batch
+        video, mask, flow, label = batch
 
-        out, loss_dict = self.forward(video, mask, label, averaged=averaged)
+        out, loss_dict = self.forward(video, mask, flow, label, averaged=averaged)
 
         loss = sum(loss for loss in loss_dict.values())
         acc = (out.argmax(1) == label).float().mean()
@@ -302,7 +303,8 @@ class LightningVideoClassifier(pl.LightningModule):
                             p=1,
                         ),
                         A.pytorch.transforms.ToTensor(),
-                    ]
+                    ],
+                    additional_targets={"flow": "image"},
                 )
             ),
             # val/test : use torchvision transforms
@@ -402,7 +404,7 @@ class LightningVideoClassifier(pl.LightningModule):
         # use lr proposed by lr_finder
         lr = self.hparams.learning_rate or self.lr
         until = 5 * len(self.train_dataloader())  # warm-up for 5 epochs
-
+        until = 0
         # warm up lr
         if self.trainer.global_step < until:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / until)
@@ -423,13 +425,13 @@ class LightningVideoClassifier(pl.LightningModule):
             #     pg["lr"] = max(1e-8, pg["lr"])
 
     def configure_optimizers(self):
-        self.optimizer = torch.optim.SGD(
-            self.parameters(),
-            lr=(self.hparams.learning_rate or self.lr),
-            momentum=0.9,
-            nesterov=True,
-            weight_decay=self.hparams.weight_decay,
-        )
+        # self.optimizer = torch.optim.SGD(
+        #     self.parameters(),
+        #     lr=(self.hparams.learning_rate or self.lr),
+        #     momentum=0.9,
+        #     nesterov=True,
+        #     weight_decay=self.hparams.weight_decay,
+        # )
 
         # self.optimizer = Ranger(
         #     self.parameters(),
@@ -442,13 +444,13 @@ class LightningVideoClassifier(pl.LightningModule):
         #     weight_decay=self.hparams.weight_decay,
         # )
 
-        # self.optimizer = torch_optimizer.RAdam(
-        #     self.parameters(),
-        #     lr=(self.hparams.learning_rate or self.lr),
-        #     betas=(0.9, 0.999),
-        #     eps=1e-8,
-        #     weight_decay=self.hparams.weight_decay,
-        # )
+        self.optimizer = torch_optimizer.RAdam(
+            self.parameters(),
+            lr=(self.hparams.learning_rate or self.lr),
+            betas=(0.9, 0.999),
+            eps=1e-8,
+            weight_decay=self.hparams.weight_decay,
+        )
 
         self.schedulers = [
             torch.optim.lr_scheduler.ReduceLROnPlateau(

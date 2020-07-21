@@ -1,8 +1,10 @@
 import numpy as np
+import cv2
+import torch
 import torchvision.transforms.functional as tf_func
 from PIL import Image, ImageDraw
 
-__all__ = ["convert_box_coord", "generate_maskImg"]
+__all__ = ["convert_box_coord", "generate_maskImg", "decompose_flow_frames"]
 
 
 def convert_box_coord(x_center, y_center, box_width, box_height, W, H):
@@ -40,3 +42,34 @@ def generate_maskImg(detection_res, query, W, H):
     mask = tf_func.to_tensor(mask).repeat(3, 1, 1)
 
     return mask
+
+
+# decompose a flow_frame -> (flow_x, flow_y)
+def decompose_flow_frames(flow_frames, transpose=True):
+    res = []
+    for t in range(flow_frames.size(1) - 1):
+        x = np.array(tf_func.to_pil_image(flow_frames[:, t]))
+        hsv = cv2.cvtColor(x, cv2.COLOR_RGB2HSV)
+        theta, r = cv2.split(hsv)[:-1]  # ignore v-channel
+
+        theta = theta.astype(float) * (2 * np.pi / 180)
+        r = theta.astype(float)
+
+        # polar -> cartesian coord
+        x_comp, y_comp = cv2.polarToCart(r, theta)
+
+        # scale to [-1,1]
+        x_comp = (
+            2.0 * (x_comp - x_comp.min()) / max(x_comp.max() - x_comp.min(), 1) - 1.0
+        )
+        y_comp = (
+            2.0 * (y_comp - y_comp.min()) / max(y_comp.max() - y_comp.min(), 1) - 1.0
+        )
+
+        flow_stack = np.stack((x_comp, y_comp))
+        res.append(torch.FloatTensor(flow_stack))
+
+    res = torch.stack(res, 0)
+    if transpose:
+        res = res.permute(1, 0, 2, 3)
+    return res

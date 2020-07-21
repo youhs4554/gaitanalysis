@@ -33,38 +33,44 @@ class VideoAugmentator:
         assert len(frames) > 0, "Empty frames is not allowed!"
 
         mask_frames = kwargs.get("mask_frames", [None] * len(frames))
+        flow_frames = kwargs.get("flow_frames", [None] * len(frames))
 
-        # ensure same length of mask_frames
-        assert isinstance(
-            mask_frames, list
-        ), "mask_frames should be List any (torch | numpy) arrays not {}".format(
-            type(mask_frames)
-        )
-        assert len(frames) == len(
-            mask_frames
-        ), "Length of frames and mask_frames should be identical"
+        # ensure same length of mask_frames & flow_frames
+        import collections
+
+        for k, v in collections.OrderedDict(
+            (("mask", mask_frames), ("flow", flow_frames))
+        ).items():
+            assert isinstance(
+                v, list
+            ), "{}_frames should be List any (torch | numpy) arrays not {}".format(
+                k, type(v)
+            )
+            assert len(frames) == len(
+                v
+            ), "Length of frames and {}_frames should be identical".format(k)
 
         res = collections.defaultdict(list)
         for t in range(len(frames)):
             random.seed(seed)
             img = frames[t]
             mask = mask_frames[t]
+            flow = flow_frames[t]
 
-            img, mask = [
+            img, mask, flow = [
                 x.permute(1, 2, 0).mul(255).byte()
                 if isinstance(x, torch.FloatTensor)
                 else x
-                for x in [img, mask]
+                for x in [img, mask, flow]
             ]
 
             mask = mask[..., 0]  # use single-channel mask
 
-            img_arr, mask_arr = [
+            img_arr, mask_arr, flow_arr = [
                 np.array(x) if isinstance(x, (torch.Tensor, np.ndarray)) else None
-                for x in [img, mask]
+                for x in [img, mask, flow]
             ]
-            aug = self.transform(image=img_arr, mask=mask_arr)
-
+            aug = self.transform(image=img_arr, mask=mask_arr, flow=flow_arr)
             for key in aug:
                 res[key + "_frames"].append(aug[key])
 

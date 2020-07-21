@@ -26,12 +26,10 @@ class GeneralizedAGNet(nn.Module):
         loss_dict = {}
         tb_dict = {}
 
-        x, appearance_pred, guide_loss_dict, guide_tb_dict = self.guider(*inputs)
+        x, guide_loss_dict, guide_tb_dict = self.guider(*inputs)
 
-        # (motion+appearance) classifier
-        out, predictor_loss_dict = self.predictor(
-            x, targets, averaged, appearance_pred=appearance_pred
-        )
+        # classifier
+        out, predictor_loss_dict = self.predictor(x, targets, averaged)
 
         loss_dict.update(guide_loss_dict)
         loss_dict.update(predictor_loss_dict)

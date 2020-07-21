@@ -25,6 +25,16 @@ class FocalLoss(nn.Module):
         )
 
 
+class EpeLoss(nn.Module):
+    def __init__(self, eps=1e-8):
+        super(EpeLoss, self).__init__()
+        self.eps = eps
+
+    def forward(self, pred, label):
+        loss = ((pred - label).pow(2).sum(1) + self.eps).sqrt()
+        return loss.view(loss.shape[0], -1).mean(1)
+
+
 class F1_Loss(nn.Module):
     def __init__(self, eps=1e-7):
         super(F1_Loss, self).__init__()
