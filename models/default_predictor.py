@@ -11,10 +11,8 @@ class DefaultPredictor(nn.Module):
     def __init__(self, n_inputs, n_outputs, task="regression"):
         super(DefaultPredictor, self).__init__()
         self.classifier = nn.Sequential(
-                                        nn.Linear(n_inputs, 512),
-                                        nn.ReLU(True),
                                         nn.Dropout(0.5), 
-                                        nn.Linear(512, n_outputs)
+                                        nn.Linear(n_inputs, n_outputs)
                                         )
 
         self.merge = nn.Linear(2, 1)
@@ -25,7 +23,7 @@ class DefaultPredictor(nn.Module):
         if task == "regression":
             self.criterion = nn.SmoothL1Loss()
         elif task == "classification":
-            self.criterion = FocalLoss()  # use focal loss for class balancing...
+            self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, *args, **kwargs):
         x, targets, averaged = args

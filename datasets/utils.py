@@ -9,9 +9,16 @@ from utils.transforms import (
     Compose,
     Normalize,
     Normalize3D,
-    RandomHorizontalFlip3D, RandomRotation3D,
-    RandomCrop3D, ToTensor, ToTensor3D, TemporalRandomCrop,
-    LoopPadding, LoopTemporalCrop, TemporalCenterCrop, RandomResizedCrop3D
+    RandomHorizontalFlip3D,
+    RandomRotation3D,
+    RandomCrop3D,
+    ToTensor,
+    ToTensor3D,
+    TemporalRandomCrop,
+    LoopPadding,
+    LoopTemporalCrop,
+    TemporalCenterCrop,
+    RandomResizedCrop3D,
 )
 from sklearn.preprocessing import StandardScaler
 import torch
@@ -30,7 +37,7 @@ __all__ = [
     "get_falldown_dataset",
     "get_data_loader",
     "get_balanced_sampler",
-    "collate_fn_multipositon_prediction"
+    "collate_fn_multipositon_prediction",
 ]
 
 
@@ -49,11 +56,12 @@ def get_balanced_sampler(ds, batch_size, num_workers=8):
         _DummyDataset(ds),
         batch_size=16,
         # collate_fn=collate_fn_zeropadding,
-        num_workers=num_workers)
+        num_workers=num_workers,
+    )
 
     cls_counts = collections.defaultdict(int)
     cls_samples = []
-    with tqdm.tqdm(total=len(dl), desc='class-balancing...') as pbar:
+    with tqdm.tqdm(total=len(dl), desc="class-balancing...") as pbar:
         for batch in dl:
             pbar.update(1)
             labs = batch[2].numpy().tolist()
@@ -67,9 +75,11 @@ def get_balanced_sampler(ds, batch_size, num_workers=8):
         # sentiniles to prevent highly unvalanced batch
         sentinile = random.choice(range(len(cls_samples)))
         pos_sentinile = random.choice(
-            np.where(cls_samples == cls_samples[sentinile])[0])
+            np.where(cls_samples == cls_samples[sentinile])[0]
+        )
         neg_sentinile = random.choice(
-            np.where(cls_samples != cls_samples[sentinile])[0])
+            np.where(cls_samples != cls_samples[sentinile])[0]
+        )
 
         return sentinile, pos_sentinile, neg_sentinile
 
@@ -79,15 +89,18 @@ def get_balanced_sampler(ds, batch_size, num_workers=8):
         sample_weights[i] = N / cls_counts[cls_samples[i]]
 
     sample_indices = []
-    for _ in range(math.ceil(N/batch_size)):
+    for _ in range(math.ceil(N / batch_size)):
         sentinile_indices = list(get_sentiniles(cls_samples))
-        random_indices = list(torch.utils.data.sampler.WeightedRandomSampler(
-            sample_weights, batch_size-3, replacement=True))
+        random_indices = list(
+            torch.utils.data.sampler.WeightedRandomSampler(
+                sample_weights, batch_size - 3, replacement=True
+            )
+        )
         for ri in random_indices:
             sample_weights[ri] = 0.0
 
         sample_indices += sentinile_indices + random_indices
-    sample_indices = sample_indices[:len(ds)]
+    sample_indices = sample_indices[: len(ds)]
 
     # sample_indices = list(
     #     itertools.chain(*[list(get_sentiniles(cls_samples)) + list(
@@ -119,28 +132,27 @@ def get_gait_dataset(opt, fold):
             [
                 TF.RandomRotation(degrees=(0, 0)),
                 TF.RandomResizedCrop(
-                    size=opt.sample_size,
-                    scale=(opt.sample_size / opt.img_size, 1.0),
+                    size=opt.sample_size, scale=(opt.sample_size / opt.img_size, 1.0)
                 ),
                 ToTensor(opt.norm_value),
                 Normalize(opt.mean, opt.std),
             ]
         ),
         "test": Compose(
-            [TF.CenterCrop(opt.sample_size), ToTensor(
-                opt.norm_value), Normalize(opt.mean, opt.std)]
+            [
+                TF.CenterCrop(opt.sample_size),
+                ToTensor(opt.norm_value),
+                Normalize(opt.mean, opt.std),
+            ]
         ),
     }
 
-    temporal_transform = {
-        "train": None,
-        "test": None,
-    }
+    temporal_transform = {"train": None, "test": None}
 
     target_transform = StandardScaler()
 
     target_columns = cfg.target_columns.BASIC_GAIT_PARAMS
-    if opt.target_columns == 'advanced':
+    if opt.target_columns == "advanced":
         target_columns = cfg.target_columns.ADVANCED_GAIT_PARAMS
 
     # prepare dataset  (train/test split)
@@ -161,46 +173,46 @@ def get_gait_dataset(opt, fold):
         X=data["train_X"],
         y=data["train_y"],
         opt=opt,
-        phase="train", fold=fold,
-        spatial_transform=spatial_transform['train'],
-        temporal_transform=temporal_transform['train']
+        phase="train",
+        fold=fold,
+        spatial_transform=spatial_transform["train"],
+        temporal_transform=temporal_transform["train"],
     )
 
     test_ds = ds_class(
         X=data["test_X"],
         y=data["test_y"],
         opt=opt,
-        phase="test", fold=fold,
-        spatial_transform=spatial_transform['test'],
-        temporal_transform=temporal_transform['test']
+        phase="test",
+        fold=fold,
+        spatial_transform=spatial_transform["test"],
+        temporal_transform=temporal_transform["test"],
     )
 
     return train_ds, test_ds, target_transform, len(target_columns)
 
 
 def get_falldown_dataset(opt, fold):
-    norm_method = Normalize3D(
-        mean=opt.mean,
-        std=opt.std
-    )
+    norm_method = Normalize3D(mean=opt.mean, std=opt.std)
     if opt.multiple_clip:
         test_transforms = [
             CenterCrop3D((opt.sample_size, opt.sample_size)),
             LoopTemporalCrop(step_between_clips=opt.sample_duration),
-            TF.Lambda(lambda clips:
-                      torch.stack([ToTensor3D()(clip) for clip in clips]))
+            TF.Lambda(
+                lambda clips: torch.stack([ToTensor3D()(clip) for clip in clips])
+            ),
         ]
     else:
         test_transforms = [
             CenterCrop3D((opt.sample_size, opt.sample_size)),
-            ToTensor3D()
+            ToTensor3D(),
         ]
 
     spatial_transform = {
         "train": Compose(
             [
-                RandomCrop3D(transform2D=TF.RandomCrop(
-                    size=(opt.sample_size, opt.sample_size))
+                RandomCrop3D(
+                    transform2D=TF.RandomCrop(size=(opt.sample_size, opt.sample_size))
                 ),
                 # RandomResizedCrop3D(transform2D=TF.RandomResizedCrop(
                 #     size=(opt.sample_size, opt.sample_size)
@@ -209,7 +221,7 @@ def get_falldown_dataset(opt, fold):
                 #     degrees=(-15, 15)
                 # )),
                 RandomHorizontalFlip3D(),
-                ToTensor3D()
+                ToTensor3D(),
             ]
         ),
         "test": Compose(test_transforms),
@@ -217,19 +229,19 @@ def get_falldown_dataset(opt, fold):
 
     temporal_transform = {
         "train": TemporalRandomCrop(size=opt.sample_duration),
-        "test": LoopPadding(opt.sample_duration) if not opt.multiple_clip else None
+        "test": LoopPadding(opt.sample_duration) if not opt.multiple_clip else None,
     }
 
     target_transform = None
 
     train_ds = FallDataset(
         root=opt.data_root,
-        train=True, multiple_clip=False, clip_gen=False,
-        spatial_transform=spatial_transform['train'],
-        temporal_transform=temporal_transform['train'],
-        annotation_path=os.path.join(
-            os.path.dirname(opt.data_root), "TrainTestlist"
-        ),
+        train=True,
+        multiple_clip=False,
+        clip_gen=False,
+        spatial_transform=spatial_transform["train"],
+        temporal_transform=temporal_transform["train"],
+        annotation_path=os.path.join(os.path.dirname(opt.data_root), "TrainTestlist"),
         detection_file_path=opt.detection_file,
         frames_per_clip=opt.sample_duration,
         fold=fold,
@@ -241,13 +253,12 @@ def get_falldown_dataset(opt, fold):
 
     test_ds = FallDataset(
         root=opt.data_root,
-        train=False, multiple_clip=opt.multiple_clip,
+        train=False,
+        multiple_clip=opt.multiple_clip,
         clip_gen=(not opt.multiple_clip),
-        spatial_transform=spatial_transform['test'],
-        temporal_transform=temporal_transform['test'],
-        annotation_path=os.path.join(
-            os.path.dirname(opt.data_root), "TrainTestlist"
-        ),
+        spatial_transform=spatial_transform["test"],
+        temporal_transform=temporal_transform["test"],
+        annotation_path=os.path.join(os.path.dirname(opt.data_root), "TrainTestlist"),
         detection_file_path=opt.detection_file,
         frames_per_clip=opt.sample_duration,
         step_between_clips=opt.sample_duration,
@@ -273,19 +284,23 @@ def collate_fn_multipositon_prediction(dataset_iter):
     for sample in dataset_iter:
         clip_seq, mask_seq, target, video_name, video_len = sample
         nclips = clip_seq.size(0)
-        pad = (0, 0,)*(clip_seq.dim()-1) + \
-            (0, nclips_max-nclips)
+        pad = (0, 0) * (clip_seq.dim() - 1) + (0, nclips_max - nclips)
 
         # zero-pad
         clip_seq = F.pad(clip_seq, pad)
         mask_seq = F.pad(mask_seq, pad)
-        clip_level_target = F.pad(target.repeat(
-            nclips), (0, nclips_max-nclips))
+        clip_level_target = F.pad(target.repeat(nclips), (0, nclips_max - nclips))
         video_level_target = target
 
         batch.append(
-            (clip_seq, mask_seq, clip_level_target,
-                video_level_target, video_name, video_len)
+            (
+                clip_seq,
+                mask_seq,
+                clip_level_target,
+                video_level_target,
+                video_name,
+                video_len,
+            )
         )
 
     batch_transposed = list(zip(*batch))
@@ -316,16 +331,13 @@ def collate_fn_zeropadding(dataset_iter):
     for sample in dataset_iter:
         video, masks, label, video_name, valid_len = sample
         nframes = video.size(1)
-        pad = (0, 0,)*(video.dim()-2) + \
-            (0, maxlen-nframes)
+        pad = (0, 0) * (video.dim() - 2) + (0, maxlen - nframes)
 
         # zero-pad
         video = F.pad(video, pad)
         masks = F.pad(masks, pad)
 
-        batch.append(
-            (video, masks, label, video_name, valid_len)
-        )
+        batch.append((video, masks, label, video_name, valid_len))
 
     batch_transposed = list(zip(*batch))
     for i in range(len(batch_transposed)):
@@ -340,15 +352,20 @@ def get_data_loader(opt, fold):
     collate_fn = None
     if opt.dataset == "Gaitparams_PD":
         train_ds, test_ds, target_transform, n_outputs = get_gait_dataset(
-            opt, fold=fold)
+            opt, fold=fold
+        )
     elif opt.dataset == "MulticamFD":
         train_ds, test_ds, target_transform, n_outputs = get_falldown_dataset(
-            opt, fold=fold)
+            opt, fold=fold
+        )
         if opt.multiple_clip:
             collate_fn = collate_fn_multipositon_prediction
         if opt.balanced_batch:
-            sampler = get_balanced_sampler(
-                train_ds, batch_size=opt.batch_size) if opt.balanced_batch else None
+            sampler = (
+                get_balanced_sampler(train_ds, batch_size=opt.batch_size)
+                if opt.balanced_batch
+                else None
+            )
     else:
         NotImplementedError("Does not support other datasets until now..")
 
@@ -356,18 +373,24 @@ def get_data_loader(opt, fold):
         sampler = torch.utils.data.sampler.RandomSampler(train_ds)
 
     # Construct train/test dataloader for selected fold
-    train_loader = torch.utils.data.DataLoader(train_ds, pin_memory=True,
-                                               batch_size=opt.batch_size,
-                                               sampler=sampler,
-                                               # collate_fn=collate_fn_zeropadding,
-                                               num_workers=opt.n_threads)
-    test_loader = torch.utils.data.DataLoader(test_ds, pin_memory=True,
-                                              batch_size=opt.batch_size, shuffle=False,
-                                              collate_fn=collate_fn,
-                                              num_workers=opt.n_threads)
+    train_loader = torch.utils.data.DataLoader(
+        train_ds,
+        pin_memory=True,
+        batch_size=opt.batch_size,
+        sampler=sampler,
+        # collate_fn=collate_fn_zeropadding,
+        num_workers=opt.n_threads,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_ds,
+        pin_memory=True,
+        batch_size=opt.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+        num_workers=opt.n_threads,
+    )
 
-    print(
-        f'train : {len(train_ds)}, test : {len(test_ds)}')
+    print(f"train : {len(train_ds)}, test : {len(test_ds)}")
     print()
 
     return train_loader, test_loader, target_transform, n_outputs

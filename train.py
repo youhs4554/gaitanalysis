@@ -124,7 +124,6 @@ class LightningVideoClassifier(pl.LightningModule):
 
         self.dataset_init_func = self.datasets_map.get(name)
         self.model = generate_network(hparams, n_outputs=n_outputs)
-        self.current_val_acc = 0.0
 
     def forward(self, *batch, averaged=None):
         video, mask, flow, label = batch
@@ -196,7 +195,6 @@ class LightningVideoClassifier(pl.LightningModule):
         """
         avg_loss = torch.stack([x["loss"].mean() for x in outputs]).mean()
         avg_acc = torch.stack([x["acc"].mean() for x in outputs]).mean()
-        self.current_val_acc = avg_acc
 
         return {"val_loss": avg_loss, "val_acc": avg_acc}
 
@@ -272,11 +270,17 @@ class LightningVideoClassifier(pl.LightningModule):
             "train": VideoAugmentator(
                 transform=A.Compose(
                     [
-                        A.RandomCrop(
+                        # A.RandomCrop(
+                        #     self.hparams.sample_size, self.hparams.sample_size
+                        # ),
+                        # A.RandomResizedCrop(
+                        #     self.hparams.sample_size, self.hparams.sample_size
+                        # ),
+                        A.CenterCrop(
                             self.hparams.sample_size, self.hparams.sample_size
                         ),
-                        A.HorizontalFlip(p=1),
-                        # A.ShiftScaleRotate(p=1),
+                        A.HorizontalFlip(),
+                        # A.ShiftScaleRotate(),
                         A.OneOf(
                             [
                                 A.RGBShift(),
@@ -286,8 +290,7 @@ class LightningVideoClassifier(pl.LightningModule):
                                 # A.ElasticTransform(),
                                 # A.MaskDropout(1),
                                 # A.Cutout(),
-                            ],
-                            p=1,
+                            ]
                         ),
                         A.OneOf(
                             [
@@ -299,8 +302,7 @@ class LightningVideoClassifier(pl.LightningModule):
                                     sat_shift_limit=50,
                                     val_shift_limit=50,
                                 ),
-                            ],
-                            p=1,
+                            ]
                         ),
                         A.pytorch.transforms.ToTensor(),
                     ],
@@ -404,34 +406,28 @@ class LightningVideoClassifier(pl.LightningModule):
         # use lr proposed by lr_finder
         lr = self.hparams.learning_rate or self.lr
         until = 5 * len(self.train_dataloader())  # warm-up for 5 epochs
-        until = 0
+        until = 2000
         # warm up lr
         if self.trainer.global_step < until:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / until)
             for pg in optimizer.param_groups:
                 pg["lr"] = lr_scale * lr
+        else:
+            self.schedulers[optimizer_idx].step(epoch=current_epoch)
+            # self.schedulers[optimizer_idx].step()
 
         # update params
         optimizer.step()
         optimizer.zero_grad()
 
-        if (
-            batch_idx == 0
-            and self.trainer.global_step % len(self.train_dataloader()) == 0
-        ):
-            self.schedulers[optimizer_idx].step(self.current_val_acc)
-            # self.schedulers[optimizer_idx].step()
-            # for pg in optimizer.param_groups:
-            #     pg["lr"] = max(1e-8, pg["lr"])
-
     def configure_optimizers(self):
-        # self.optimizer = torch.optim.SGD(
-        #     self.parameters(),
-        #     lr=(self.hparams.learning_rate or self.lr),
-        #     momentum=0.9,
-        #     nesterov=True,
-        #     weight_decay=self.hparams.weight_decay,
-        # )
+        self.optimizer = torch.optim.SGD(
+            self.parameters(),
+            lr=(self.hparams.learning_rate or self.lr),
+            momentum=0.9,
+            nesterov=True,
+            weight_decay=self.hparams.weight_decay,
+        )
 
         # self.optimizer = Ranger(
         #     self.parameters(),
@@ -444,23 +440,29 @@ class LightningVideoClassifier(pl.LightningModule):
         #     weight_decay=self.hparams.weight_decay,
         # )
 
-        self.optimizer = torch_optimizer.RAdam(
-            self.parameters(),
-            lr=(self.hparams.learning_rate or self.lr),
-            betas=(0.9, 0.999),
-            eps=1e-8,
-            weight_decay=self.hparams.weight_decay,
-        )
+        # self.optimizer = torch_optimizer.RAdam(
+        #     self.parameters(),
+        #     lr=(self.hparams.learning_rate or self.lr),
+        #     betas=(0.9, 0.999),
+        #     eps=1e-8,
+        #     weight_decay=self.hparams.weight_decay,
+        # )
 
         self.schedulers = [
-            torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer,
-                mode="max",
-                factor=0.1,
-                patience=2,
-                verbose=True,
-                min_lr=1e-8,
+            # torch.optim.lr_scheduler.ReduceLROnPlateau(
+            #     self.optimizer,
+            #     mode="max",
+            #     factor=0.1,
+            #     patience=2,
+            #     verbose=True,
+            #     min_lr=1e-8,
+            # ),
+            torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer, lambda epoch: (0.94) ** ((epoch + 1) // 2)
             ),
+            # torch.optim.lr_scheduler.CosineAnnealingLR(
+            #     self.optimizer, T_max=len(self.train_dataloader()) * 20
+            # )
             # torch.optim.lr_scheduler.StepLR(self.optimizer, 7, gamma=0.1)
             # torch.optim.lr_scheduler.CyclicLR(
             #     self.optimizer,
@@ -514,7 +516,7 @@ if __name__ == "__main__":
         # early_stop_callback=early_stop_callback,
         logger=base_logger,
         log_save_interval=10,
-        max_epochs=100,
+        max_epochs=50,
         num_sanity_val_steps=0
         # auto_lr_find=True,
         # auto_scale_batch_size="binsearch",  #  train : 82, test : x is optimal(for 2 Titan-RTX GPUs)

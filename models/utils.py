@@ -69,8 +69,9 @@ def generate_backbone(type, pretrained=True):
         net_init_func = getattr(torchvision.models.video, type)
         net = net_init_func(pretrained=pretrained)
         dims = [64, 64, 128, 256, 512]
-    elif type == "inflated":
-        resnet = torchvision.models.resnet152(pretrained)
+    elif type.startswith("inflated"):
+        resnet_arch = type.split("_")[1]
+        resnet = getattr(torchvision.models, resnet_arch)(pretrained)
         net = I3ResNet(resnet)
         dims = [64, 256, 512, 1024, 2048]
         # from pprint import pprint

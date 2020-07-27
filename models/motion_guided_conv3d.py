@@ -49,14 +49,13 @@ class TinyMotionNet(nn.Module):
         )  # 56, 56
 
         self.upsample = nn.Upsample(scale_factor=2, mode="bilinear")
-        self.leakyReLU = nn.LeakyReLU(0.1)
+        self.relu = nn.ReLU(True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d) or isinstance(m, nn.ConvTranspose3d):
                 nn.init.kaiming_normal(m.weight.data, mode="fan_in")
                 if m.bias is not None:
                     m.bias.data.zero_()
-
 
     def compute_loss(self, flow, label):
 
@@ -96,30 +95,30 @@ class TinyMotionNet(nn.Module):
         x = x.view(B, -1, H, W)
         label = label.view(B, -1, H, W)
 
-        c1 = self.leakyReLU(self.conv1(x))
-        c2 = self.leakyReLU(self.conv2(c1))
-        c3 = self.leakyReLU(self.conv3(c2))
-        c4 = self.leakyReLU(self.conv4(c3))
+        c1 = self.relu(self.conv1(x))
+        c2 = self.relu(self.conv2(c1))
+        c3 = self.relu(self.conv3(c2))
+        c4 = self.relu(self.conv4(c3))
 
-        flow4 = torch.tanh(self.flow4(c4))  # flow4 : stacks of (14,14) w/ L=16
+        flow4 = self.flow4(c4)  # flow4 : stacks of (14,14) w/ L=16
         flow_loss4, smooth_loss4, flow4_3d = self.compute_loss(flow4, label)
 
         # upsample flow4
         flow4_up = self.upsample(flow4)
 
-        dc3 = self.leakyReLU(self.deconv3(c4))
-        xc3 = self.leakyReLU(self.xconv3(torch.cat((dc3, flow4_up, c3), 1)))
+        dc3 = self.relu(self.deconv3(c4))
+        xc3 = self.relu(self.xconv3(torch.cat((dc3, flow4_up, c3), 1)))
 
-        flow3 = torch.tanh(self.flow3(xc3))  # flow3 : stacks of (28,28) w/ L=16
+        flow3 = self.flow3(xc3)  # flow3 : stacks of (28,28) w/ L=16
         flow_loss3, smooth_loss3, flow3_3d = self.compute_loss(flow3, label)
 
         # upsample flow3
         flow3_up = self.upsample(flow3)
 
-        dc2 = self.leakyReLU(self.deconv2(xc3))
-        xc2 = self.leakyReLU(self.xconv2(torch.cat((dc2, flow3_up, c2), 1)))
+        dc2 = self.relu(self.deconv2(xc3))
+        xc2 = self.relu(self.xconv2(torch.cat((dc2, flow3_up, c2), 1)))
 
-        flow2 = torch.tanh(self.flow2(xc2))  # flow2 : stacks of (56,56) w/ L=16
+        flow2 = self.flow2(xc2)  # flow2 : stacks of (56,56) w/ L=16
         flow_loss2, smooth_loss2, flow2_3d = self.compute_loss(flow2, label)
 
         flow_loss = torch.cat(
