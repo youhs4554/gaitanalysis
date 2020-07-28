@@ -323,7 +323,7 @@ class LightningVideoClassifier(pl.LightningModule):
         temporal_transform = {
             "train": TemporalRandomCrop(size=self.hparams.sample_duration),
             "val": None,
-            "test": TemporalUniformSampling(n_chunks=10, size=16),
+            "test": TemporalUniformSampling(n_chunks=10, size=self.hparams.sample_duration),
         }
 
         norm_method = Normalize3D(mean=self.hparams.mean, std=self.hparams.std)
@@ -333,7 +333,7 @@ class LightningVideoClassifier(pl.LightningModule):
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
-            input_size=(self.hparams.sample_duration, 128, 171),
+            input_size=(self.hparams.sample_duration, self.hparams.sample_size, self.hparams.sample_size),
             train=True,
             hard_augmentation=True,
             fold=1,
@@ -349,7 +349,7 @@ class LightningVideoClassifier(pl.LightningModule):
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
-            input_size=(self.hparams.sample_duration, 128, 171),
+            input_size=(self.hparams.sample_duration, self.hparams.sample_size, self.hparams.sample_size),
             train=False,
             hard_augmentation=False,
             fold=1,
@@ -406,7 +406,6 @@ class LightningVideoClassifier(pl.LightningModule):
         # use lr proposed by lr_finder
         lr = self.hparams.learning_rate or self.lr
         until = 5 * len(self.train_dataloader())  # warm-up for 5 epochs
-        until = 2000
         # warm up lr
         if self.trainer.global_step < until:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / until)
@@ -508,16 +507,20 @@ if __name__ == "__main__":
         "lightning_logs", name=f"{hparams.model_arch}_{hparams.backbone}"
     )
     tb_logger = TensorBoard_Logger(base_logger)
+    from pytorch_lightning.callbacks import ModelCheckpoint
+    checkpoint_callback = ModelCheckpoint(monitor='val_acc', mode='max')
 
     trainer = pl.Trainer(
-        gpus=1 if args.test_mode else 2,
+        gpus=1 if args.test_mode else 3,
         distributed_backend="dp",
         callbacks=[tb_logger],
         # early_stop_callback=early_stop_callback,
+        checkpoint_callback=checkpoint_callback,
         logger=base_logger,
         log_save_interval=10,
         max_epochs=50,
-        num_sanity_val_steps=0
+        num_sanity_val_steps=0,
+        gradient_clip_val=5.0
         # auto_lr_find=True,
         # auto_scale_batch_size="binsearch",  #  train : 82, test : x is optimal(for 2 Titan-RTX GPUs)
     )

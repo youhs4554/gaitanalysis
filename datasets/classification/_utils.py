@@ -58,13 +58,13 @@ def decompose_flow_frames(flow_frames, transpose=True):
         # polar -> cartesian coord
         x_comp, y_comp = cv2.polarToCart(r, theta)
 
-        # # scale to [-1,1]
-        # x_comp = (
-        #     2.0 * (x_comp - x_comp.min()) / max(x_comp.max() - x_comp.min(), 1) - 1.0
-        # )
-        # y_comp = (
-        #     2.0 * (y_comp - y_comp.min()) / max(y_comp.max() - y_comp.min(), 1) - 1.0
-        # )
+        # scale to [-1,1]
+        x_comp = (
+            2.0 * (x_comp - x_comp.min()) / max(x_comp.max() - x_comp.min(), 1) - 1.0
+        )
+        y_comp = (
+            2.0 * (y_comp - y_comp.min()) / max(y_comp.max() - y_comp.min(), 1) - 1.0
+        )
 
         flow_stack = np.stack((x_comp, y_comp))
         res.append(torch.FloatTensor(flow_stack))

@@ -19,7 +19,7 @@ __all__ = ["GuideNet"]
 class LayerConfig(object):
     # TODO. will be managed in cfg file (.json/.yaml)
     dims = {"r3d": [64, 64, 128, 256, 512], "i3d": [64, 256, 512, 1024, 2048]}
-    guide_loc = {"layer3": 2, "layer2": 1}
+    guide_loc = {"layer4":2, "layer3": 2, "layer2": 2}
 
 
 class GuideNet(nn.Module, LayerConfig):
@@ -46,6 +46,11 @@ class GuideNet(nn.Module, LayerConfig):
                 # at the beginnning of training
                 m.weight.data.fill_(0.0)
                 m.bias.data.fill_(0.0)
+
+        for m in backbone.modules():
+            if isinstance(m, nn.BatchNorm3d):
+                m.eps = 1e-5
+                m.momentum = 0.1
 
         # freeze_layers([backbone.stem, backbone.layer1])
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
@@ -111,7 +116,6 @@ class GuideBlock(nn.Module):
 
         # downsample flow_pred
         flow_pred_downsampled = F.adaptive_avg_pool3d(flow_pred, x.shape[2:])
-        print("Min : ", x.min(), "Max : ", x.max())
         # predicts human masks
         mask_pred = self.mask_layer(x)
         mask_pred = torch.sigmoid(mask_pred)  # (b,1,t,h,w)
