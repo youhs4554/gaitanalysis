@@ -10,6 +10,12 @@ import flow_vis
 import numpy as np
 import kornia
 
+class ConvBlock(nn.Sequential):
+    def __init__(self, conv_layer):
+        super().__init__()
+        self.add_module("conv", conv_layer)
+        self.add_module("bn", nn.BatchNorm2d(conv_layer.out_channels))
+        self.add_module("lReLU", nn.LeakyReLU(0.2, inplace=True))
 
 class TinyMotionNet(nn.Module):
     def __init__(self, n_frames=16):
@@ -19,40 +25,39 @@ class TinyMotionNet(nn.Module):
 
         self.n_frames = n_frames
 
-        self.conv1 = nn.Conv2d(
-            in_channel, 64, kernel_size=7, stride=1, padding=3
-        )  # 112,112
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2)  # 56, 56
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1)  # 28, 28
-        self.conv4 = nn.Conv2d(256, 128, kernel_size=3, stride=2, padding=1)  # 14, 14
+        self.conv1 = ConvBlock(nn.Conv2d(
+            in_channel, 64, kernel_size=7, stride=1, padding=3, bias=False
+        ))  # 112,112
+        self.conv2 = ConvBlock(nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2, bias=False))  # 56, 56
+        self.conv3 = ConvBlock(nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False))  # 28, 28
+        self.conv4 = ConvBlock(nn.Conv2d(256, 128, kernel_size=3, stride=2, padding=1, bias=False))  # 14, 14
 
         self.flow4 = nn.Conv2d(
             128, out_channel, kernel_size=3, stride=1, padding=1
         )  # 14, 14
-        self.deconv3 = nn.ConvTranspose2d(
-            128, 128, kernel_size=4, stride=2, padding=1
-        )  # 28,28
-        self.xconv3 = nn.Conv2d(
-            128 + out_channel + 256, 128, kernel_size=3, stride=1, padding=1
-        )  # 28,28
+        self.deconv3 = ConvBlock(nn.ConvTranspose2d(
+            128, 128, kernel_size=4, stride=2, padding=1, bias=False
+        ))  # 28,28
+        self.xconv3 = ConvBlock(nn.Conv2d(
+            128 + out_channel + 256, 128, kernel_size=3, stride=1, padding=1, bias=False
+        ))  # 28,28
         self.flow3 = nn.Conv2d(
             128, out_channel, kernel_size=3, stride=1, padding=1
         )  # 28, 28
-        self.deconv2 = nn.ConvTranspose2d(
-            128, 64, kernel_size=4, stride=2, padding=1
-        )  # 56, 56
-        self.xconv2 = nn.Conv2d(
-            64 + out_channel + 128, 64, kernel_size=3, stride=1, padding=1
-        )  # 56, 56
+        self.deconv2 = ConvBlock(nn.ConvTranspose2d(
+            128, 64, kernel_size=4, stride=2, padding=1, bias=False
+        ))  # 56, 56
+        self.xconv2 = ConvBlock(nn.Conv2d(
+            64 + out_channel + 128, 64, kernel_size=3, stride=1, padding=1, bias=False
+        ))  # 56, 56
         self.flow2 = nn.Conv2d(
             64, out_channel, kernel_size=3, stride=1, padding=1
         )  # 56, 56
 
         self.upsample = nn.Upsample(scale_factor=2, mode="bilinear")
-        self.relu = nn.ReLU(True)
 
         for m in self.modules():
-            if isinstance(m, nn.Conv3d) or isinstance(m, nn.ConvTranspose3d):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
                 nn.init.kaiming_normal(m.weight.data, mode="fan_in")
                 if m.bias is not None:
                     m.bias.data.zero_()
@@ -95,10 +100,10 @@ class TinyMotionNet(nn.Module):
         x = x.view(B, -1, H, W)
         label = label.view(B, -1, H, W)
 
-        c1 = self.relu(self.conv1(x))
-        c2 = self.relu(self.conv2(c1))
-        c3 = self.relu(self.conv3(c2))
-        c4 = self.relu(self.conv4(c3))
+        c1 = self.conv1(x)
+        c2 = self.conv2(c1)
+        c3 = self.conv3(c2)
+        c4 = self.conv4(c3)
 
         flow4 = torch.tanh(self.flow4(c4))  # flow4 : stacks of (14,14) w/ L=16
         flow_loss4, smooth_loss4, flow4_3d = self.compute_loss(flow4, label)
@@ -106,8 +111,8 @@ class TinyMotionNet(nn.Module):
         # upsample flow4
         flow4_up = self.upsample(flow4)
 
-        dc3 = self.relu(self.deconv3(c4))
-        xc3 = self.relu(self.xconv3(torch.cat((dc3, flow4_up, c3), 1)))
+        dc3 = self.deconv3(c4)
+        xc3 = self.xconv3(torch.cat((dc3, flow4_up, c3), 1))
 
         flow3 = torch.tanh(self.flow3(xc3))  # flow3 : stacks of (28,28) w/ L=16
         flow_loss3, smooth_loss3, flow3_3d = self.compute_loss(flow3, label)
@@ -115,8 +120,8 @@ class TinyMotionNet(nn.Module):
         # upsample flow3
         flow3_up = self.upsample(flow3)
 
-        dc2 = self.relu(self.deconv2(xc3))
-        xc2 = self.relu(self.xconv2(torch.cat((dc2, flow3_up, c2), 1)))
+        dc2 = self.deconv2(xc3)
+        xc2 = self.xconv2(torch.cat((dc2, flow3_up, c2), 1))
 
         flow2 = torch.tanh(self.flow2(xc2))  # flow2 : stacks of (56,56) w/ L=16
         flow_loss2, smooth_loss2, flow2_3d = self.compute_loss(flow2, label)
@@ -128,6 +133,6 @@ class TinyMotionNet(nn.Module):
             [x.unsqueeze(0) for x in [smooth_loss4, smooth_loss3, smooth_loss2]], 0
         ).mean()
 
-        flow_predictions = [flow2_3d, flow3_3d, flow4_3d]
+        flow_predictions = nn.Upsample(scale_factor=(1,2,2))(flow2_3d)
 
         return flow_loss, smooth_loss, flow_predictions

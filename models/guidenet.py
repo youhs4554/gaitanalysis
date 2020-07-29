@@ -19,7 +19,7 @@ __all__ = ["GuideNet"]
 class LayerConfig(object):
     # TODO. will be managed in cfg file (.json/.yaml)
     dims = {"r3d": [64, 64, 128, 256, 512], "i3d": [64, 256, 512, 1024, 2048]}
-    guide_loc = {"layer4":2, "layer3": 2, "layer2": 2}
+    guide_loc = {"layer4":0, "layer3": 0, "layer2": 0}
 
 
 class GuideNet(nn.Module, LayerConfig):
@@ -76,8 +76,30 @@ class GuideNet(nn.Module, LayerConfig):
         loss_dict["flow_loss"] = flow_loss
         loss_dict["smooth_loss"] = smooth_loss
 
-        # TODO. visualize flow_predictions?
-        # tb_dict["flows_pred"] = flow_predictions[-1]
+
+        # visualize flow_predictions (only magnitude)
+        flow_label_sample = flows[0] # (2,t,h,w)
+        flow_label_sample = (flow_label_sample[0].pow(2) + flow_label_sample[1].pow(2)).sqrt().unsqueeze(0) # (1,t,h,w)
+        flow_label_sample = flow_label_sample.permute(1,0,2,3).repeat(1, 3, 1, 1)
+        
+        flow_pred_sample = flow_predictions[0] # (2,t,h,w)
+        flow_pred_sample = (flow_pred_sample[0].pow(2) + flow_pred_sample[1].pow(2)).sqrt().unsqueeze(0) # (1,t,h,w)
+        flow_pred_sample = flow_pred_sample.permute(1,0,2,3).repeat(1, 3, 1, 1)
+
+        def normalize(a):
+            a = a.clone()
+            denom = a.max()-a.min()
+            if denom == 0:
+                denom = 1
+            return (a - a.min()) / denom
+
+
+        # scale to [0,1]
+        flow_label_sample = normalize(flow_label_sample)
+        flow_pred_sample = normalize(flow_pred_sample)
+
+        flow_predictions_status = torch.cat((flow_pred_sample, flow_label_sample), 0)
+        tb_dict["flow_pred"] = flow_predictions_status
 
         blocks = [
             (name, getattr(self, name))
@@ -91,7 +113,7 @@ class GuideNet(nn.Module, LayerConfig):
         for name, block in blocks:
             if name.endswith("_guided"):
                 x, mask_loss, mask_predictions_status = block(
-                    x, masks, flow_predictions[self.guide_loc[name.split("_")[1]]]
+                    x, masks, flow_predictions
                 )
                 loss_dict["mask_loss"] += mask_loss / len(self.guide_loc)
                 tb_dict[f"mask_prediction_status_at_{name}"] = mask_predictions_status
@@ -119,6 +141,10 @@ class GuideBlock(nn.Module):
         # predicts human masks
         mask_pred = self.mask_layer(x)
         mask_pred = torch.sigmoid(mask_pred)  # (b,1,t,h,w)
+
+        # for computation stability        
+        mask_pred = torch.where(torch.isnan(mask_pred), torch.zeros_like(mask_pred), mask_pred)
+        mask_pred = torch.where(torch.isinf(mask_pred), torch.zeros_like(mask_pred), mask_pred)
 
         x = self.guide_module(x, mask_pred, flow_pred_downsampled)
 

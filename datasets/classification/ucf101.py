@@ -14,6 +14,7 @@ from torchvision.datasets.video_utils import unfold
 
 import cv2
 import numpy as np
+import re
 
 
 class UCF101(Dataset):
@@ -43,7 +44,7 @@ class UCF101(Dataset):
                 "invalid sample_unit argument; sample unit should be in (`clip` | `video`)"
             )
         self.root = root  # RGB frame root
-        self.flow_root = os.path.join(os.path.dirname(root), "flows")
+        self.flow_root = os.path.join(os.path.dirname(root), "tvl1_flow")
 
         """
             detection data with Mask-RCNN
@@ -172,14 +173,28 @@ class UCF101(Dataset):
             m = generate_maskImg(detection_res_filtered, q, W, H)
             mask.append(m)
 
+            _, vid, fid = q.split("/")
+            vid = vid.replace("HandStandPushups", "HandstandPushups")
+            
+            fnbrRegex = re.compile(r"\d{4}")
+            fnbr = max(1, eval(fnbrRegex.findall(fid)[0].lstrip("0"))-1)
+            fid = f"frame{fnbr:06}.jpg"
+
             # flow
-            flo_path = os.path.join(self.flow_root, q)
-            flo_path = os.path.splitext(flo_path)[0] + ".jpg"
-            flo = Image.open(flo_path).resize(
-                self.img_size[::-1], resample=Image.BILINEAR
-            )
-            flo = torchvision.transforms.ToTensor()(flo)
-            flow.append(flo)
+            flo_stack = []
+            for comp in list("uvz"):
+                if comp != 'z':
+                    flo_path = os.path.join(self.flow_root, comp, vid, fid)
+                    flo = Image.open(flo_path).convert("L").resize(
+                        self.img_size[::-1], resample=Image.BILINEAR
+                    )
+                    e = torchvision.transforms.ToTensor()(flo)
+                else:
+                    e = torch.zeros_like(e)
+                flo_stack.append(e)
+            
+            flo_stack = torch.cat(flo_stack, dim=0)
+            flow.append(flo_stack)
 
         # conver label to tensor
         label = torch.tensor(label).long()

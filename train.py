@@ -280,30 +280,6 @@ class LightningVideoClassifier(pl.LightningModule):
                             self.hparams.sample_size, self.hparams.sample_size
                         ),
                         A.HorizontalFlip(),
-                        # A.ShiftScaleRotate(),
-                        A.OneOf(
-                            [
-                                A.RGBShift(),
-                                A.MotionBlur(),
-                                A.OpticalDistortion(),
-                                A.GaussNoise(),
-                                # A.ElasticTransform(),
-                                # A.MaskDropout(1),
-                                # A.Cutout(),
-                            ]
-                        ),
-                        A.OneOf(
-                            [
-                                A.RandomBrightness(),
-                                A.RandomGamma(),
-                                A.CLAHE(),
-                                A.HueSaturationValue(
-                                    hue_shift_limit=20,
-                                    sat_shift_limit=50,
-                                    val_shift_limit=50,
-                                ),
-                            ]
-                        ),
                         A.pytorch.transforms.ToTensor(),
                     ],
                     additional_targets={"flow": "image"},
