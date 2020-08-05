@@ -91,10 +91,10 @@ class _NonLocalBlockND(nn.Module):
             self.g = nn.Sequential(self.g, max_pool_layer)
             self.phi = nn.Sequential(self.phi, max_pool_layer)
 
-    def forward(self, x, guide):
+    def forward(self, x, mask_pred):
         """
         :param x: (b, c, t, h, w)
-        :param guide: (b, c, t, h, w)
+        :param mask_pred: (b, c, t, h, w)
         :return:
         """
 
@@ -104,13 +104,13 @@ class _NonLocalBlockND(nn.Module):
         g_x = self.g(x).view(batch_size, self.inter_channels, -1)
         g_x = g_x.permute(0, 2, 1)
 
-        # theta_guide : (b,inter,t,h,w) -> (b, inter, t*h*w) -> (b, t*h*w, inter)
-        theta_guide = self.theta(guide).view(batch_size, self.inter_channels, -1)
-        theta_guide = theta_guide.permute(0, 2, 1)
+        # theta : (b,inter,t,h,w) -> (b, inter, t*h*w) -> (b, t*h*w, inter)
+        theta = self.theta(mask_pred).view(batch_size, self.inter_channels, -1)
+        theta = theta.permute(0, 2, 1)
 
-        # phi_guide : (b,inter,t,h,w) -> (b, inter, t*h*w)
-        phi_guide = self.phi(guide).view(batch_size, self.inter_channels, -1)
-        f = torch.matmul(theta_guide, phi_guide)
+        # phi : (b,inter,t,h,w) -> (b, inter, t*h*w)
+        phi = self.phi(mask_pred).view(batch_size, self.inter_channels, -1)
+        f = torch.matmul(theta, phi)
         f_div_C = F.softmax(f, dim=-1)  # (b, t*h*w, t*h*w)
 
         y = torch.matmul(f_div_C, g_x)  # (b, t*h*w, inter)
@@ -124,14 +124,63 @@ class _NonLocalBlockND(nn.Module):
         return z
 
 
-class NONLocalBlock3D(_NonLocalBlockND):
+class MAME(_NonLocalBlockND):
     def __init__(
         self, in_channels, inter_channels=None, sub_sample=True, bn_layer=True
     ):
-        super(NONLocalBlock3D, self).__init__(
+        super(MAME, self).__init__(
             in_channels,
             inter_channels=inter_channels,
             dimension=3,
             sub_sample=sub_sample,
             bn_layer=bn_layer,
         )
+
+class MotionGuidedNLBlock(_NonLocalBlockND):
+    def __init__(
+        self, in_channels, inter_channels=None, sub_sample=True, bn_layer=True
+    ):
+        super(MotionGuidedNLBlock, self).__init__(
+            in_channels,
+            inter_channels=inter_channels,
+            dimension=3,
+            sub_sample=sub_sample,
+            bn_layer=bn_layer,
+        )
+
+    def forward(self, x):
+        """
+        :param x: (b, c, t, h, w)
+        :return:
+        """
+        batch_size, dim, length = x.size()[:3]
+
+        # g_x  : (b,inter,t,h,w) -> (b, inter*t, h*w) -> (b, h*w, inter*t)
+        g_x = self.g(x).view(batch_size, length*self.inter_channels, -1)
+        g_x = g_x.permute(0, 2, 1)
+
+        # theta : (b,inter,t,h,w) -> (b, inter*t, h*w) -> (b, h*w, inter*t)
+        theta = self.theta(x).view(batch_size, length*self.inter_channels, -1)
+        theta = theta.permute(0, 2, 1)
+
+        # phi : (b,inter,t,h,w) -> (b, inter*t, h*w)
+        phi = self.phi(x).view(batch_size, length*self.inter_channels, -1)
+        f = torch.matmul(theta, phi)
+
+        # temporal_affinity at each pixel
+        temp_affinity = F.softmax(f, dim=-1)  # (b, h*w, h*w)
+
+        # motion_ : inverted form of temp_affinity
+        # i.e. higher temporal affinity at pixel [i,j], smaller motion at pixel [i,j]
+        motion_ = 1-temp_affinity             
+
+        # motion and embed x is producted
+        y = torch.matmul(motion_, g_x)  # (b, h*w, inter*t)
+        y = y.permute(0, 2, 1).contiguous()  # (b, inter*t, h*w)
+        y = y.view(
+            batch_size, self.inter_channels, *x.size()[2:]
+        )  # (b, inter, t, h, w)
+        W_y = self.W(y)  # (b, c_in, t, h, w)
+        z = W_y + x
+
+        return z

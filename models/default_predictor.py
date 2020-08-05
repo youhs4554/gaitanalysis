@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import random
 import math
-from .losses import FocalLoss
+from .losses import FocalLoss, LabelSmoothLoss
 
 __all__ = ["DefaultPredictor"]
 
@@ -15,7 +15,6 @@ class DefaultPredictor(nn.Module):
                                         nn.Linear(n_inputs, n_outputs)
                                         )
 
-        self.merge = nn.Linear(2, 1)
         self.task = task
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
@@ -23,13 +22,10 @@ class DefaultPredictor(nn.Module):
         if task == "regression":
             self.criterion = nn.SmoothL1Loss()
         elif task == "classification":
-            self.criterion = nn.CrossEntropyLoss()
+            self.criterion = LabelSmoothLoss(smoothing=0.1)
 
     def forward(self, *args, **kwargs):
-        x, targets, averaged = args
-
-        bs = targets.size(0)
-        nclips = x.size(0) // bs
+        x, targets, averaged, lambda_ = args
 
         x = x.mean((2, 3, 4))  # spatio-temporal average pooling
 
@@ -38,12 +34,18 @@ class DefaultPredictor(nn.Module):
             return out, 0.0
 
         if averaged:
+            bs = targets.size(0)
+            nclips = x.size(0) // bs
+
             out = out.view(bs, nclips, -1).mean(1)  # avg over crops
 
-        if kwargs.get("motion_pred") is not None:
-            out = torch.stack((out, kwargs.get("motion_pred")), -1)
-            out = self.merge(out).squeeze(-1)
+        if isinstance(targets, list):
+            # mixup
+            target_a, target_b = targets
+            loss_val = lambda_ * self.criterion(out, target_a) + (1-lambda_) * self.criterion(out, target_b)
+        else:
+            loss_val = self.criterion(out, targets)
 
-        loss_dict = {self.task: self.criterion(out, targets)}
+        loss_dict = {self.task: loss_val}
 
         return out, loss_dict

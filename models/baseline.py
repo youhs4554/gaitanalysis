@@ -19,16 +19,16 @@ class FineTunedConvNet(nn.Module):
         self.predictor = predictor
         self.target_transform = target_transform
 
-    def forward(self, *inputs, averaged=None, targets=None):
+    def forward(self, *inputs, averaged=None, targets=None, lambda_=None):
         images, *_ = inputs  # ignore masks & coord
         feats = self.backbone(images)
         out, predictor_loss_dict = self.predictor(
-            feats, targets, averaged)
+            feats, targets, averaged, lambda_)
 
         if self.target_transform is not None:
             out = self.target_transform(out)
 
-        return out, predictor_loss_dict
+        return out, predictor_loss_dict, None
 
 
 def fine_tuned_convnet(opt, backbone, backbone_dims, n_outputs, target_transform=None):

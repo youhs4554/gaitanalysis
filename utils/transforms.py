@@ -33,14 +33,9 @@ class VideoAugmentator:
         assert len(frames) > 0, "Empty frames is not allowed!"
 
         mask_frames = kwargs.get("mask_frames", [None] * len(frames))
-        flow_frames = kwargs.get("flow_frames", [None] * len(frames))
 
-        # ensure same length of mask_frames & flow_frames
-        import collections
-
-        for k, v in collections.OrderedDict(
-            (("mask", mask_frames), ("flow", flow_frames))
-        ).items():
+        # ensure same length of mask_frames
+        for k, v in [("mask", mask_frames)]:
             assert isinstance(
                 v, list
             ), "{}_frames should be List any (torch | numpy) arrays not {}".format(
@@ -55,22 +50,21 @@ class VideoAugmentator:
             random.seed(seed)
             img = frames[t]
             mask = mask_frames[t]
-            flow = flow_frames[t]
 
-            img, mask, flow = [
+            img, mask = [
                 x.permute(1, 2, 0).mul(255).byte()
                 if isinstance(x, torch.FloatTensor)
                 else x
-                for x in [img, mask, flow]
+                for x in [img, mask]
             ]
 
             mask = mask[..., 0]  # use single-channel mask
 
-            img_arr, mask_arr, flow_arr = [
+            img_arr, mask_arr = [
                 np.array(x) if isinstance(x, (torch.Tensor, np.ndarray)) else None
-                for x in [img, mask, flow]
+                for x in [img, mask]
             ]
-            aug = self.transform(image=img_arr, mask=mask_arr, flow=flow_arr)
+            aug = self.transform(image=img_arr, mask=mask_arr)
             for key in aug:
                 res[key + "_frames"].append(aug[key])
 

@@ -4,7 +4,7 @@ import torch
 import torchvision.transforms.functional as tf_func
 from PIL import Image, ImageDraw
 
-__all__ = ["convert_box_coord", "generate_maskImg", "decompose_flow_frames"]
+__all__ = ["convert_box_coord", "generate_maskImg"]
 
 
 def convert_box_coord(x_center, y_center, box_width, box_height, W, H):
@@ -42,19 +42,3 @@ def generate_maskImg(detection_res, query, W, H):
     mask = tf_func.to_tensor(mask).repeat(3, 1, 1)
 
     return mask
-
-# decompose a flow_frame -> (flow_x, flow_y)
-def decompose_flow_frames(flow_frames, transpose=True):
-    res = []
-    for t in range(flow_frames.size(1) - 1):
-        x_comp, y_comp, _ = flow_frames[:,t].split(1, 0)
-        x_comp = (x_comp.squeeze(0) - 0.5)/0.5
-        y_comp = (y_comp.squeeze(0) - 0.5)/0.5
-
-        flow_stack = np.stack((x_comp, y_comp))
-        res.append(torch.FloatTensor(flow_stack))
-
-    res = torch.stack(res, 0)
-    if transpose:
-        res = res.permute(1, 0, 2, 3)
-    return res

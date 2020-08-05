@@ -54,27 +54,4 @@ class TensorBoard_Logger(Callback):
         self.write_logs(trainer, pl_module, name="valid")
 
     def on_test_end(self, trainer, pl_module):
-        # For test mode, we jues draw confusion matrix with accuracy is depicted
-        acc = trainer.callback_metrics.get("test_acc")
-        cm = trainer.callback_metrics.get("test_cm")
-
-        # Normalise
-        cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
-
-        nclasses = len(cm)
-        df_cm = pd.DataFrame(cm, range(nclasses), range(nclasses))
-
-        fig = plt.figure(figsize=(10, 7), dpi=300)
-        ax = fig.add_subplot(111)
-
-        sns.set(font_scale=0.5)  # for label size
-        sns.heatmap(
-            df_cm, ax=ax, xticklabels=range(nclasses), yticklabels=range(nclasses)
-        )  # font size
-        ax.set_title(f"Confusion Matrix (ACC={acc.item():.4f})")
-        ax.set_ylabel("Actual")
-        ax.set_xlabel("Predicted")
-
-        self.base_logger.experiment.add_figure(
-            "confusion_matrix (test)", fig, global_step=0  # dummy global-step
-        )
+        pass

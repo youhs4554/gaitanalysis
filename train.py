@@ -50,6 +50,17 @@ import torch_optimizer
 
 warnings.filterwarnings("ignore")
 
+def mixup_data(video, mask, label, alpha=0.5):
+    lambda_ = np.random.beta(alpha, alpha)
+    
+    batch_size = video.size(0)
+    indices = torch.randperm(batch_size)
+
+    mixed_video = lambda_ * video + (1-lambda_) * video[indices]
+    mixed_mask = lambda_ * mask + (1-lambda_) * mask[indices]
+
+    label_a, label_b = label, label[indices]
+    return mixed_video, mixed_mask, label_a, label_b, lambda_
 
 def collate_fn_multipositon_prediction(dataset_iter):
     """
@@ -61,7 +72,7 @@ def collate_fn_multipositon_prediction(dataset_iter):
 
     batch = []
     for sample in dataset_iter:
-        video_stack, mask_stack, flow_stack, label = sample
+        video_stack, mask_stack, label = sample
         nclips = video_stack.size(0)
 
         # video_stack : (nclips,C,D,H,W)
@@ -72,15 +83,14 @@ def collate_fn_multipositon_prediction(dataset_iter):
         # merge with repeated frames
         video_stack = torch.cat((video_stack, video_stack[repeated_pts]), axis=0)
         mask_stack = torch.cat((mask_stack, mask_stack[repeated_pts]), axis=0)
-        flow_stack = torch.cat((flow_stack, flow_stack[repeated_pts]), axis=0)
 
-        batch.append((video_stack, mask_stack, flow_stack, label))
+        batch.append((video_stack, mask_stack, label))
 
     batch_transposed = list(zip(*batch))
     for i in range(len(batch_transposed)):
         if isinstance(batch_transposed[i][0], torch.Tensor):
             batch_transposed[i] = torch.stack(batch_transposed[i], 0)
-    for i in range(3):
+    for i in range(2):
         bs, nclips, *cdhw = batch_transposed[i].shape
         batch_transposed[i] = batch_transposed[i].view(
             -1, *cdhw
@@ -126,10 +136,9 @@ class LightningVideoClassifier(pl.LightningModule):
         self.model = generate_network(hparams, n_outputs=n_outputs)
 
     def forward(self, *batch, averaged=None):
-        video, mask, flow, label = batch
-
+        video, mask, label, lambda_ = batch
         out, loss_dict, tb_dict = self.model(
-            video, mask, flow, targets=label, averaged=averaged
+            video, mask, targets=label, averaged=averaged, lambda_=lambda_
         )
         if (
             out.device == torch.device(0)
@@ -162,24 +171,33 @@ class LightningVideoClassifier(pl.LightningModule):
 
         return out, loss_dict
 
-    def step(self, batch, batch_idx, averaged=None):
-        video, mask, flow, label = batch
+    def step(self, batch, batch_idx, mixup=False, averaged=None):
+        video, mask, label = batch
+        lambda_ = None
+        if mixup:
+            video, mask, *label, lambda_ = mixup_data(*batch, alpha=0.5)
 
-        out, loss_dict = self.forward(video, mask, flow, label, averaged=averaged)
+        out, loss_dict = self.forward(video, mask, label, lambda_, averaged=averaged)
+        predicted = out.argmax(1)
 
         loss = sum(loss for loss in loss_dict.values())
-        acc = (out.argmax(1) == label).float().mean()
+        if mixup:
+            label_a, label_b = label
+            total = out.size(0)
+            correct = lambda_ * predicted.eq(label_a).float().sum() \
+                         + (1-lambda_) * predicted.eq(label_b).float().sum()
+        else:
+            total = out.size(0)
+            correct = (predicted == label).float().sum()
 
         return {
             "loss": loss,
-            "acc": acc,
-            "loss_dict": loss_dict,
-            "pred": out.argmax(1).float(),
-            "label": label.float(),
+            "acc": correct / total,
+            "loss_dict": loss_dict
         }
 
     def training_step(self, train_batch, batch_idx):
-        return self.step(train_batch, batch_idx)
+        return self.step(train_batch, batch_idx, mixup=self.hparams.mixup)
 
     def validation_step(self, val_batch, batch_idx):
         return self.step(val_batch, batch_idx)
@@ -207,18 +225,7 @@ class LightningVideoClassifier(pl.LightningModule):
         avg_loss = torch.stack([x["loss"].mean() for x in outputs]).mean()
         avg_acc = torch.stack([x["acc"].mean() for x in outputs]).mean()
 
-        y_pred = (
-            torch.cat([x["pred"].flatten(0) for x in outputs], dim=0)
-            .detach()
-            .cpu()
-            .numpy()
-        )
-        y_true = (
-            torch.cat([x["label"].flatten(0) for x in outputs], dim=0).cpu().numpy()
-        )
-
-        cm = confusion_matrix(y_true, y_pred)
-        return {"test_loss": avg_loss, "test_acc": avg_acc, "test_cm": cm}
+        return {"test_loss": avg_loss, "test_acc": avg_acc}
 
     def prepare_data(self):
         center_crop = Compose(
@@ -281,8 +288,7 @@ class LightningVideoClassifier(pl.LightningModule):
                         ),
                         A.HorizontalFlip(),
                         A.pytorch.transforms.ToTensor(),
-                    ],
-                    additional_targets={"flow": "image"},
+                    ]
                 )
             ),
             # val/test : use torchvision transforms
@@ -388,7 +394,7 @@ class LightningVideoClassifier(pl.LightningModule):
             for pg in optimizer.param_groups:
                 pg["lr"] = lr_scale * lr
         else:
-            self.schedulers[optimizer_idx].step(epoch=current_epoch)
+            self.schedulers[optimizer_idx].step(epoch=current_epoch-5)
             # self.schedulers[optimizer_idx].step()
 
         # update params
@@ -473,24 +479,24 @@ if __name__ == "__main__":
     model = LightningVideoClassifier(hparams, test_mode=args.test_mode)
 
     early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor="val_acc", min_delta=0.00, patience=20, verbose=False, mode="max"
+        monitor="val_loss", min_delta=0.00, patience=10, verbose=True, mode="min"
     )
 
     lr_logger = LearningRateLogger()
 
     # init logger
     base_logger = pl.loggers.TensorBoardLogger(
-        "lightning_logs", name=f"{hparams.model_arch}_{hparams.backbone}"
+        "lightning_logs", name=f"{hparams.model_arch}_{hparams.backbone}_mixup={hparams.mixup}"
     )
     tb_logger = TensorBoard_Logger(base_logger)
     from pytorch_lightning.callbacks import ModelCheckpoint
     checkpoint_callback = ModelCheckpoint(monitor='val_acc', mode='max')
 
     trainer = pl.Trainer(
-        gpus=1 if args.test_mode else 3,
+        gpus=1 if args.test_mode else torch.cuda.device_count(),
         distributed_backend="dp",
         callbacks=[tb_logger],
-        # early_stop_callback=early_stop_callback,
+        early_stop_callback=early_stop_callback,
         checkpoint_callback=checkpoint_callback,
         logger=base_logger,
         log_save_interval=10,
