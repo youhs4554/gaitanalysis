@@ -16,8 +16,11 @@ __all__ = ["MameNet"]
 
 class LayerConfig(object):
     # TODO. will be managed in cfg file (.json/.yaml)
-    dims = {"r3d": [64, 64, 128, 256, 512], "i3d": [64, 256, 512, 1024, 2048]}
-    mame_loc = {"layer4":3, "layer3": 3, "layer2": 2}
+    dims = {
+        "VideoResNet": [64, 64, 128, 256, 512],
+        "I3ResNet": [64, 256, 512, 1024, 2048],
+    }
+    mame_loc = {"layer4": 3, "layer3": 3, "layer2": 2}
 
 
 class MameNet(nn.Module, LayerConfig):
@@ -47,16 +50,19 @@ class MameNet(nn.Module, LayerConfig):
                 m.bias.data.fill_(0.0)
 
         self.layers = nn.ModuleDict()
-
         # n of MAME block
-        pos = ord('a')
+        pos = ord("a")
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
-            zip(backbone.named_children(), self.dims["r3d"])
+            zip(backbone.named_children(), self.dims[backbone.__class__.__name__])
         ):
             if name in self.mame_loc:
-                layer_seq = [(f"backbone_{name}", backbone_layer), 
-                             (f"block_{chr(pos)}", MAME_Block(feats_dim, layers=self.mame_loc[name]))
-                             ]
+                layer_seq = [
+                    (f"backbone_{name}", backbone_layer),
+                    (
+                        f"block_{chr(pos)}",
+                        MAME_Block(feats_dim, layers=self.mame_loc[name]),
+                    ),
+                ]
                 self.layers[f"MAME_{chr(pos)}"] = nn.Sequential(OrderedDict(layer_seq))
                 pos += 1
             else:
@@ -74,7 +80,7 @@ class MameNet(nn.Module, LayerConfig):
             else:
                 # last MAME block always returns both x and mask_pred
                 x, mask_pred = layer(x)
-                
+
                 # downsample mask_label
                 mask_label = F.adaptive_avg_pool3d(mask, mask_pred.shape[2:])
 
@@ -83,13 +89,17 @@ class MameNet(nn.Module, LayerConfig):
                 sample_mask_pred = mask_pred[0].permute(1, 0, 2, 3).repeat(1, 3, 1, 1)
                 sample_mask_label = mask_label[0].permute(1, 0, 2, 3).repeat(1, 3, 1, 1)
 
-                mask_predictions_status = torch.cat((sample_mask_pred, sample_mask_label), 0)
+                mask_predictions_status = torch.cat(
+                    (sample_mask_pred, sample_mask_label), 0
+                )
 
-                probe_name = [ n for n,_ in layer.named_children() ][-1]
+                probe_name = [n for n, _ in layer.named_children()][-1]
 
                 loss_dict["mask_loss"] += mask_loss / len(self.mame_loc)
-                tb_dict[f"mask_prediction_status_at_{probe_name}"] = mask_predictions_status
-        
+                tb_dict[
+                    f"mask_prediction_status_at_{probe_name}"
+                ] = mask_predictions_status
+
         return x, loss_dict, tb_dict
 
 
@@ -97,7 +107,9 @@ class MAME_Block(nn.Module):
     def __init__(self, feats_dim, layers=1):
         super().__init__()
         self.mask_layer = nn.Conv3d(feats_dim, 1, kernel_size=1)
-        self.mame_modules = nn.ModuleList([ MAMEModule(feats_dim) for _ in range(layers) ])
+        self.mame_modules = nn.ModuleList(
+            [MAMEModule(feats_dim) for _ in range(layers)]
+        )
 
     #     self._initialize_weights()
 
@@ -111,7 +123,7 @@ class MAME_Block(nn.Module):
     #                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        
+
         mask_pred = self.mask_layer(x)
         mask_pred = torch.sigmoid(mask_pred)  # (b,1,t,h,w)
 
@@ -134,16 +146,16 @@ class MAMEModule(nn.Module):
 
         self.enc = nn.Conv3d(feats_dim, inter, kernel_size=1)
         self.dec = nn.Conv3d(inter, feats_dim, kernel_size=1)
-        
+
         # MAME : Mask Augmented Motion Encoding module
-        self.Mame= MAME(in_channels=inter)
+        self.Mame = MAME(in_channels=inter)
 
     def forward(self, x, mask_pred):
         # x : 3d features from a prev layer(or block)
         # mask_pred : downsampled human mask predicted from mask_layer
         identity = x
 
-        mask_pred = mask_pred.repeat(1,self.inter,1,1,1)
+        mask_pred = mask_pred.repeat(1, self.inter, 1, 1, 1)
 
         x = self.enc(x)
         x = self.Mame(x, mask_pred)

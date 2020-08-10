@@ -19,6 +19,9 @@ class HMDB51(UCF101):
                 data = [x[0] for x in data if int(x[1]) == target_tag]
                 selected_files.extend(data)
         selected_files = set(selected_files)
-        indices = [i for i in range(len(video_list)) if os.path.basename(
-            video_list[i]) in selected_files]
+        indices = [
+            i
+            for i in range(len(video_list))
+            if os.path.basename(video_list[i]) in selected_files
+        ]
         return indices

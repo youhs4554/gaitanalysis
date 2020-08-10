@@ -54,4 +54,18 @@ class TensorBoard_Logger(Callback):
         self.write_logs(trainer, pl_module, name="valid")
 
     def on_test_end(self, trainer, pl_module):
-        pass
+        # For test mode, we write accuracy as text
+        acc = trainer.callback_metrics.get("test_acc")
+        top5_acc = trainer.callback_metrics.get("test_top5_acc")
+        hparams = {
+            k: v if v is not None else "" for k, v in vars(pl_module.hparams).items()
+        }
+        from torch.utils.tensorboard import SummaryWriter
+
+        # test logdir
+        logdir = self.base_logger.log_dir.replace("TRAIN", "TEST")
+
+        with SummaryWriter(logdir) as w:
+            w.add_hparams(
+                hparams, {"top1_acc": acc.item(), "top5_acc": top5_acc.item()}
+            )

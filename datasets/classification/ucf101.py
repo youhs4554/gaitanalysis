@@ -227,10 +227,7 @@ class UCF101(Dataset):
                     frames=video, mask_frames=mask_frames
                 )
                 video, mask_frames = tuple(
-                    [
-                        aug_result.get(k)
-                        for k in ["image_frames", "mask_frames"]
-                    ]
+                    [aug_result.get(k) for k in ["image_frames", "mask_frames"]]
                 )
             else:
                 # init random vars

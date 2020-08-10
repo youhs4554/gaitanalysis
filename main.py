@@ -8,6 +8,8 @@ from torchvision import transforms
 import argparse
 from pytorch_lightning.callbacks import LearningRateLogger
 from pytorch_lightning.callbacks.base import Callback
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
 from datasets.classification.ucf101 import UCF101
 from datasets.classification.hmdb51 import HMDB51
 from sklearn.metrics.classification import confusion_matrix
@@ -16,16 +18,10 @@ from models import generate_network
 
 from utils.transforms import (
     Compose,
-    RandomCrop3D,
     CenterCrop3D,
-    RandomHorizontalFlip3D,
     ToTensor3D,
     Normalize3D,
-    RandomResizedCrop3D,
-    RandomRotation3D,
-    Resize3D,
     TemporalRandomCrop,
-    TemporalCenterCrop,
     TemporalUniformSampling,
     LoopPadding,
     denormalize,
@@ -34,7 +30,7 @@ from utils.transforms import (
 from utils.callbacks import *
 
 import sklearn.metrics
-import os
+import os, glob
 import json
 import argparse
 import numpy as np
@@ -47,20 +43,26 @@ from ranger import Ranger  # this is from ranger.py
 from functools import reduce
 import math
 import torch_optimizer
+import cv2
+import albumentations as A
+import albumentations.pytorch.transforms
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 warnings.filterwarnings("ignore")
 
+
 def mixup_data(video, mask, label, alpha=0.5):
     lambda_ = np.random.beta(alpha, alpha)
-    
+
     batch_size = video.size(0)
     indices = torch.randperm(batch_size)
 
-    mixed_video = lambda_ * video + (1-lambda_) * video[indices]
-    mixed_mask = lambda_ * mask + (1-lambda_) * mask[indices]
+    mixed_video = lambda_ * video + (1 - lambda_) * video[indices]
+    mixed_mask = lambda_ * mask + (1 - lambda_) * mask[indices]
 
     label_a, label_b = label, label[indices]
     return mixed_video, mixed_mask, label_a, label_b, lambda_
+
 
 def collate_fn_multipositon_prediction(dataset_iter):
     """
@@ -117,12 +119,10 @@ def set_seed(seed):
 class LightningVideoClassifier(pl.LightningModule):
     datasets_map = {"UCF101": UCF101, "HMDB51": HMDB51}
 
-    def __init__(self, hparams, test_mode=False):
+    def __init__(self, hparams):
         super(LightningVideoClassifier, self).__init__()
 
         self.hparams = hparams
-        self.test_mode = test_mode
-
         name = hparams.dataset  # name of dataset
 
         if name not in ["UCF101", "HMDB51"]:
@@ -146,7 +146,7 @@ class LightningVideoClassifier(pl.LightningModule):
             and self.trainer.global_step % 50 == 0
         ):
             v = video[0].permute(1, 2, 3, 0)
-            v = denormalize(v, self.hparams.mean, self.hparams.std)
+            v = denormalize(v, MEAN, STD)
 
             m = mask[0].permute(1, 2, 3, 0).repeat(1, 1, 1, 3)
             ov = v * m.gt(0.0).float()
@@ -171,7 +171,7 @@ class LightningVideoClassifier(pl.LightningModule):
 
         return out, loss_dict
 
-    def step(self, batch, batch_idx, mixup=False, averaged=None):
+    def step(self, batch, batch_idx, mixup=False, averaged=None, test=False):
         video, mask, label = batch
         lambda_ = None
         if mixup:
@@ -184,17 +184,26 @@ class LightningVideoClassifier(pl.LightningModule):
         if mixup:
             label_a, label_b = label
             total = out.size(0)
-            correct = lambda_ * predicted.eq(label_a).float().sum() \
-                         + (1-lambda_) * predicted.eq(label_b).float().sum()
+            correct = (
+                lambda_ * predicted.eq(label_a).float().sum()
+                + (1 - lambda_) * predicted.eq(label_b).float().sum()
+            )
         else:
             total = out.size(0)
             correct = (predicted == label).float().sum()
 
-        return {
-            "loss": loss,
-            "acc": correct / total,
-            "loss_dict": loss_dict
-        }
+        if test:
+            # compute top-5 accuracy in test mode
+            _, pred = torch.topk(out, k=5)
+            correct_top5 = pred.eq(label.view(-1, 1)).any(1).float().sum()
+            return {
+                "loss": loss,
+                "acc": correct / total,
+                "top5_acc": correct_top5 / total,
+                "loss_dict": loss_dict,
+            }
+        else:
+            return {"loss": loss, "acc": correct / total, "loss_dict": loss_dict}
 
     def training_step(self, train_batch, batch_idx):
         return self.step(train_batch, batch_idx, mixup=self.hparams.mixup)
@@ -203,7 +212,9 @@ class LightningVideoClassifier(pl.LightningModule):
         return self.step(val_batch, batch_idx)
 
     def test_step(self, test_batch, batch_idx):
-        return self.step(test_batch, batch_idx, averaged=True)  # for averaged logits
+        return self.step(
+            test_batch, batch_idx, averaged=True, test=True
+        )  # for averaged logits
 
     def validation_epoch_end(self, outputs):
         """
@@ -224,8 +235,13 @@ class LightningVideoClassifier(pl.LightningModule):
         """
         avg_loss = torch.stack([x["loss"].mean() for x in outputs]).mean()
         avg_acc = torch.stack([x["acc"].mean() for x in outputs]).mean()
+        avg_top5_acc = torch.stack([x["top5_acc"].mean() for x in outputs]).mean()
 
-        return {"test_loss": avg_loss, "test_acc": avg_acc}
+        return {
+            "test_loss": avg_loss,
+            "test_acc": avg_acc,
+            "test_top5_acc": avg_top5_acc,
+        }
 
     def prepare_data(self):
         center_crop = Compose(
@@ -234,55 +250,11 @@ class LightningVideoClassifier(pl.LightningModule):
                 ToTensor3D(),
             ]
         )
-        # spatial_transform = {
-        #     "train": Compose(
-        #         [
-        #             RandomHorizontalFlip3D(),
-        #             # RandomRotation3D(
-        #             #     transform2D=transforms.RandomRotation(45)),
-        #             RandomCrop3D(
-        #                 transform2D=transforms.RandomCrop(
-        #                     size=(self.hparams.sample_size, self.hparams.sample_size)
-        #                 )
-        #             ),
-        #             ToTensor3D(),
-        #         ]
-        #     ),
-        #     "val": Compose(
-        #         [
-        #             CenterCrop3D(
-        #                 size=(self.hparams.sample_size, self.hparams.sample_size)
-        #             ),
-        #             ToTensor3D(),
-        #         ]
-        #     ),
-        #     "test": Compose(
-        #         [
-        #             transforms.Lambda(
-        #                 lambda clips: torch.stack([center_crop(clip) for clip in clips])
-        #             )
-        #         ]
-        #     ),
-        # }
-
-        import cv2
-        import random
-        from collections import defaultdict
-        import torch
-        import albumentations as A
-        import albumentations.pytorch.transforms
-
         spatial_transform = {
             # train : use albumentations
             "train": VideoAugmentator(
                 transform=A.Compose(
                     [
-                        # A.RandomCrop(
-                        #     self.hparams.sample_size, self.hparams.sample_size
-                        # ),
-                        # A.RandomResizedCrop(
-                        #     self.hparams.sample_size, self.hparams.sample_size
-                        # ),
                         A.CenterCrop(
                             self.hparams.sample_size, self.hparams.sample_size
                         ),
@@ -305,25 +277,51 @@ class LightningVideoClassifier(pl.LightningModule):
         temporal_transform = {
             "train": TemporalRandomCrop(size=self.hparams.sample_duration),
             "val": None,
-            "test": TemporalUniformSampling(n_chunks=10, size=self.hparams.sample_duration),
+            "test": TemporalUniformSampling(
+                n_chunks=10, size=self.hparams.sample_duration
+            ),
         }
 
-        norm_method = Normalize3D(mean=self.hparams.mean, std=self.hparams.std)
+        norm_method = Normalize3D(mean=MEAN, std=STD)
 
         self.train_ds = self.dataset_init_func(
             root=self.hparams.data_root,
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
-            input_size=(self.hparams.sample_duration, self.hparams.sample_size, self.hparams.sample_size),
+            input_size=(
+                self.hparams.sample_duration,
+                self.hparams.img_height,
+                self.hparams.img_width,
+            ),
             train=True,
             hard_augmentation=True,
-            fold=1,
+            fold=self.hparams.fold,
             temporal_transform=temporal_transform["train"],
             spatial_transform=spatial_transform["train"],
-            num_workers=self.hparams.n_threads,
+            num_workers=self.hparams.num_workers,
             norm_method=norm_method,
             sample_unit="video",
+        )
+
+        self.val_ds = self.dataset_init_func(
+            root=self.hparams.data_root,
+            annotation_path=self.hparams.annotation_file,
+            detection_file_path=self.hparams.detection_file,
+            sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
+            input_size=(
+                self.hparams.sample_duration,
+                self.hparams.img_height,
+                self.hparams.img_width,
+            ),
+            train=False,
+            hard_augmentation=False,
+            fold=self.hparams.fold,
+            temporal_transform=temporal_transform["val"],
+            spatial_transform=spatial_transform["val"],
+            num_workers=self.hparams.num_workers,
+            norm_method=norm_method,
+            sample_unit="clip",
         )
 
         self.test_ds = self.dataset_init_func(
@@ -331,22 +329,29 @@ class LightningVideoClassifier(pl.LightningModule):
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
-            input_size=(self.hparams.sample_duration, self.hparams.sample_size, self.hparams.sample_size),
+            input_size=(
+                self.hparams.sample_duration,
+                self.hparams.img_height,
+                self.hparams.img_width,
+            ),
             train=False,
             hard_augmentation=False,
-            fold=1,
-            temporal_transform=temporal_transform["test" if self.test_mode else "val"],
-            spatial_transform=spatial_transform["test" if self.test_mode else "val"],
-            num_workers=self.hparams.n_threads,
+            fold=self.hparams.fold,
+            temporal_transform=temporal_transform["test"],
+            spatial_transform=spatial_transform["test"],
+            num_workers=self.hparams.num_workers,
             norm_method=norm_method,
-            sample_unit="video" if self.test_mode else "clip",
+            sample_unit="video",
         )
 
-        # initial shuffle for test_ds
-        indices = torch.randperm(len(self.test_ds))
-        self.test_ds = torch.utils.data.Subset(self.test_ds, indices)
+        def shuffle_ds(ds):
+            indices = torch.randperm(len(ds))
+            ds = torch.utils.data.Subset(ds, indices)
+            return ds
 
-        print("train : {}, test : {}".format(len(self.train_ds), len(self.test_ds)))
+        # initial shuffle for validation & testset
+        self.val_ds = shuffle_ds(self.val_ds)
+        self.test_ds = shuffle_ds(self.test_ds)
 
     def train_dataloader(self):
         return DataLoader(
@@ -354,25 +359,27 @@ class LightningVideoClassifier(pl.LightningModule):
             batch_size=self.hparams.batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=self.hparams.n_threads,
+            num_workers=self.hparams.num_workers,
         )
 
     def val_dataloader(self):
         return DataLoader(
-            self.test_ds,
+            self.val_ds,
             batch_size=self.hparams.batch_size,
             shuffle=False,
             pin_memory=True,
-            num_workers=self.hparams.n_threads,
+            num_workers=self.hparams.num_workers,
         )
 
     def test_dataloader(self):
         return DataLoader(
             self.test_ds,
-            batch_size=8,
+            batch_size=4
+            * (32 // self.hparams.sample_duration)
+            * torch.cuda.device_count(),
             shuffle=False,
             pin_memory=True,
-            num_workers=self.hparams.n_threads,
+            num_workers=self.hparams.num_workers,
             collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
         )
 
@@ -394,8 +401,7 @@ class LightningVideoClassifier(pl.LightningModule):
             for pg in optimizer.param_groups:
                 pg["lr"] = lr_scale * lr
         else:
-            self.schedulers[optimizer_idx].step(epoch=current_epoch-5)
-            # self.schedulers[optimizer_idx].step()
+            self.schedulers[optimizer_idx].step(epoch=current_epoch - 5)
 
         # update params
         optimizer.step()
@@ -410,105 +416,99 @@ class LightningVideoClassifier(pl.LightningModule):
             weight_decay=self.hparams.weight_decay,
         )
 
-        # self.optimizer = Ranger(
-        #     self.parameters(),
-        #     lr=(self.hparams.learning_rate or self.lr),
-        #     weight_decay=self.hparams.weight_decay,
-        # )
-        # self.optimizer = torch.optim.Adam(
-        #     self.parameters(),
-        #     lr=(self.hparams.learning_rate or self.lr),
-        #     weight_decay=self.hparams.weight_decay,
-        # )
-
-        # self.optimizer = torch_optimizer.RAdam(
-        #     self.parameters(),
-        #     lr=(self.hparams.learning_rate or self.lr),
-        #     betas=(0.9, 0.999),
-        #     eps=1e-8,
-        #     weight_decay=self.hparams.weight_decay,
-        # )
-
         self.schedulers = [
-            # torch.optim.lr_scheduler.ReduceLROnPlateau(
-            #     self.optimizer,
-            #     mode="max",
-            #     factor=0.1,
-            #     patience=2,
-            #     verbose=True,
-            #     min_lr=1e-8,
-            # ),
             torch.optim.lr_scheduler.LambdaLR(
                 self.optimizer, lambda epoch: (0.94) ** ((epoch + 1) // 2)
-            ),
-            # torch.optim.lr_scheduler.CosineAnnealingLR(
-            #     self.optimizer, T_max=len(self.train_dataloader()) * 20
-            # )
-            # torch.optim.lr_scheduler.StepLR(self.optimizer, 7, gamma=0.1)
-            # torch.optim.lr_scheduler.CyclicLR(
-            #     self.optimizer,
-            #     base_lr=(self.hparams.learning_rate or self.lr) / 6,
-            #     max_lr=self.hparams.learning_rate or self.lr,
-            #     step_size_up=5 * len(self.train_dataloader()),
-            # )
+            )
         ]
 
         return self.optimizer
 
 
 if __name__ == "__main__":
+    DATASET_CONFIG = {
+        "UCF101": {
+            "detection_file": "/data/torch_data/UCF-101/detection_rcnn_full.txt",
+            "annotation_file": "/data/torch_data/UCF-101/ucfTrainTestlist",
+            "data_root": "/data/torch_data/UCF-101/video",
+            "img_height": 112,
+            "img_width": 112,
+        },
+        "HMDB51": {
+            "detection_file": "/data/torch_data/HMDB51/detection_rcnn_full.txt",
+            "annotation_file": "/data/torch_data/HMDB51/testTrainMulti_7030_splits",
+            "data_root": "/data/torch_data/HMDB51/video",
+            "img_height": 112,
+            "img_width": 112,
+        },
+    }
+
+    # MEAN & STD for kinetics datasets
+    MEAN = [0.43216, 0.394666, 0.37645]
+    STD = [0.22803, 0.22145, 0.216989]
 
     torch.backends.cudnn.benchmark = True
     # for reproductivity
     set_seed(0)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cfg_file")
-    parser.add_argument("--test_mode", action="store_true")
-    parser.add_argument("--ckpt", type=str, help="path to trained(or pre-trained) ckpt")
-    args = parser.parse_args()
-
-    if not os.path.exists(args.cfg_file):
-        raise ValueError("Configuration file {} is not exist...".format(args.cfg_file))
-
-    with open(args.cfg_file) as file:
-        # load hparams
-        hparams = json.load(file)
-        hparams = argparse.Namespace(**hparams)
-
-    model = LightningVideoClassifier(hparams, test_mode=args.test_mode)
-
-    early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor="val_loss", min_delta=0.00, patience=10, verbose=True, mode="min"
+    parser.add_argument("--model_arch", type=str, default="DefaultMAMENet")
+    parser.add_argument(
+        "--task", type=str, default="classification", help="classification | regression"
     )
+    parser.add_argument("--backbone", type=str, default="r2plus1d_34_32_kinetics")
+    parser.add_argument("--dataset", type=str, help="name of dataset (UCF101|HMDB51)")
+    parser.add_argument("--fold", type=int, default=1)
+    parser.add_argument("--test_mode", action="store_true")
+    parser.add_argument("--batch_size", type=int, default=60)
+    parser.add_argument("--sample_size", type=int, default=112)
+    parser.add_argument("--sample_duration", type=int, default=16)
+    parser.add_argument("--num_workers", type=int, default=16)
+    parser.add_argument("--learning_rate", type=float, default=1e-3)
+    parser.add_argument("--weight_decay", type=float, default=4e-3)
+    parser.add_argument("--mixup", action="store_true")
+    hparams = parser.parse_args()
+
+    # update dataset config (detection_file, annotation_file, data_root)
+    vars(hparams).update(DATASET_CONFIG.get(hparams.dataset))
+    model = LightningVideoClassifier(hparams)
 
     lr_logger = LearningRateLogger()
 
     # init logger
     base_logger = pl.loggers.TensorBoardLogger(
-        "lightning_logs", name=f"{hparams.model_arch}_{hparams.backbone}_mixup={hparams.mixup}"
+        "lightning_logs/TRAIN",
+        name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}",
+        version=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}@fold-{hparams.fold}",
     )
     tb_logger = TensorBoard_Logger(base_logger)
-    from pytorch_lightning.callbacks import ModelCheckpoint
-    checkpoint_callback = ModelCheckpoint(monitor='val_acc', mode='max')
-
+    checkpoint_callback = ModelCheckpoint(monitor="val_acc", mode="max")
+    es_callback = EarlyStopping(
+        monitor="val_acc", patience=10, verbose=True, mode="max"
+    )
     trainer = pl.Trainer(
-        gpus=1 if args.test_mode else torch.cuda.device_count(),
+        gpus=torch.cuda.device_count(),
         distributed_backend="dp",
         callbacks=[tb_logger],
-        early_stop_callback=early_stop_callback,
+        early_stop_callback=es_callback,
         checkpoint_callback=checkpoint_callback,
         logger=base_logger,
         log_save_interval=10,
-        max_epochs=50,
         num_sanity_val_steps=0,
-        gradient_clip_val=5.0
-        # auto_lr_find=True,
-        # auto_scale_batch_size="binsearch",  #  train : 82, test : x is optimal(for 2 Titan-RTX GPUs)
+        gradient_clip_val=5.0,
+        weights_summary="top",
+        accumulate_grad_batches=5,
     )
 
-    if args.test_mode:
-        model = model.load_from_checkpoint(args.ckpt, test_mode=args.test_mode)
+    @torch.no_grad()
+    def run_test(model):
+        # load best weights
+        ckpt = glob.glob(base_logger.log_dir + "/checkpoints/*.ckpt")[0]
+        model = model.load_from_checkpoint(ckpt)
         trainer.test(model)
+
+    if hparams.test_mode:
+        run_test(model)
     else:
         trainer.fit(model)
+        run_test(model)
