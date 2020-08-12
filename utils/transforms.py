@@ -532,8 +532,8 @@ class TemporalCenterCrop(object):
         return out
 
 
-class TemporalUniformCrop(object):
-    """Temporally crop the given frame indices at a uniform manner.
+class TemporalSlidingWindow(object):
+    """Temporally sliding windows for a given frame_indices
 
     Args:
         size (int): Desired output size of the crop.
@@ -549,11 +549,14 @@ class TemporalUniformCrop(object):
         Returns:
             list: Cropped frame indices.
         """
-        return (
-            np.linspace(0, len(frame_indices), num=self.size, endpoint=False)
-            .astype(int)
-            .tolist()
-        )
+        from torchvision.datasets.video_utils import unfold
+        windows = unfold(torch.as_tensor(frame_indices), self.size, self.size)
+        res = []
+        for win in windows:
+            # pad = win + [win[-1]] * (self.size-len(win))
+            pad = LoopPadding(self.size)(win)
+            res.append(pad)
+        return res
 
 
 class TemporalUniformSampling(object):

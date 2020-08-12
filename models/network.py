@@ -31,7 +31,7 @@ class MameNet(nn.Module, LayerConfig):
         del backbone.fc
         del backbone.avgpool
 
-        # freeze_layers([backbone.stem, backbone.layer1])
+        freeze_layers([backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3])
         count = 0
         for name, m in backbone.named_modules():
             # if m.__class__.__name__.find("BatchNorm") != -1:

@@ -128,10 +128,11 @@ class UCF101(Dataset):
             clip_idx
         )  # clip_pts-'frame index'
         video_path, label = self.samples[self.indices[video_idx]]
+        n_frames = cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FRAME_COUNT)
         clip_pts /= self.sample_rate
         if self.sample_rate == 1:
             clip_pts -= 1
-            clip_pts = torch.clamp(clip_pts, 0, len(clip_pts) - 1)
+            clip_pts = torch.clamp(clip_pts, 0, n_frames - 1)
 
         return clip, label, clip_pts, video_path
 
@@ -187,7 +188,6 @@ class UCF101(Dataset):
         video_stack = []
         mask_stack = []
         for sample_pts in multi_clip_pts:
-            sample_pts = sample_pts.tolist()
             # convert List -> Tensor
             sample_pts = torch.as_tensor(sample_pts)
             video_stack.append(video[sample_pts])  # (D,C,H,W)
@@ -214,6 +214,7 @@ class UCF101(Dataset):
         video, mask_frames, label, clip_pts = self.fetch_data(idx)
 
         permute_axis = (3, 0, 1, 2)
+        clip_length = 1
         if not self.train:
             if self.sample_unit == "video":
                 # testing, but sample_unit = video => multiple logit for a each video, which will be averaged later
@@ -221,6 +222,7 @@ class UCF101(Dataset):
                     video, mask_frames, clip_pts
                 )
                 permute_axis = (0, 4, 1, 2, 3)
+                clip_length = video.size(0)
         if self.spatial_transform is not None:
             if self.hard_augmentation:
                 aug_result = self.spatial_transform(
@@ -234,8 +236,9 @@ class UCF101(Dataset):
                 self.spatial_transform.randomize_parameters(video)
                 video = self.spatial_transform(video)
                 mask_frames = self.spatial_transform(mask_frames)
-
             video = self.norm_method(video).permute(*permute_axis)  # apply norm method
             mask_frames = mask_frames[..., :1].permute(*permute_axis)
+        
+        clip_length = torch.tensor(clip_length)
 
-        return video, mask_frames, label
+        return video, mask_frames, label, clip_length

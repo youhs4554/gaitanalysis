@@ -5,11 +5,11 @@ PYTHON=/opt/conda/envs/torch/bin/python
 # sample duration variation experiments
 #**************************************#
 
-# sample duration = 32 (w/ mixup)
+# sample duration = 64 (w/ mixup)
 for fold in {1..3}; do
     (
         echo "[UCF101] fold-$fold..." &&
-        CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_32_kinetics --dataset UCF101 --fold $fold --batch_size 24 --sample_duration 32 --mixup
+        CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_32_kinetics --dataset UCF101 --fold $fold --batch_size 12 --sample_duration 64 --mixup
     )
 done
 
@@ -18,14 +18,6 @@ for fold in {1..3}; do
     (
         echo "[UCF101] fold-$fold..." &&
         CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_32_kinetics --dataset UCF101 --fold $fold --sample_duration 16 --mixup
-    )
-done
-
-# sample duration = 8 (w/ mixup)
-for fold in {1..3}; do
-    (
-        echo "[UCF101] fold-$fold..." &&
-        CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_32_kinetics --dataset UCF101 --fold $fold --sample_duration 8 --mixup
     )
 done
 
@@ -38,14 +30,6 @@ for fold in {1..3}; do
     (
         echo "[UCF101] fold-$fold..." &&
         CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_18 --dataset UCF101 --fold $fold --sample_duration 16 --mixup
-    )
-done
-
-# backbone = r2plus1d_34_8_kinetics (w/ mixup, sample duration = 8)
-for fold in {1..3}; do
-    (
-        echo "[UCF101] fold-$fold..." &&
-        CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_8_kinetics --dataset UCF101 --fold $fold --sample_duration 8 --mixup
     )
 done
 
@@ -62,7 +46,15 @@ done
 # mixup abiliation experiments
 #*****************************#
 
-# w/o mixup
+# w/o mixup (sample duration = 64)
+for fold in {1..3}; do
+    (
+        echo "[UCF101] fold-$fold..." &&
+        CUDA_VISIBLE_DEVICES=3,4,5 $PYTHON main.py --model_arch FineTunedConvNet --task classification --backbone r2plus1d_34_32_kinetics --dataset UCF101 --fold $fold --batch_size 12 --sample_duration 64
+    )
+done
+
+# w/o mixup (sample duration = 16)
 for fold in {1..3}; do
     (
         echo "[UCF101] fold-$fold..." &&

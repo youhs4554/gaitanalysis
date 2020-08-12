@@ -23,6 +23,7 @@ from utils.transforms import (
     Normalize3D,
     TemporalRandomCrop,
     TemporalUniformSampling,
+    TemporalSlidingWindow,
     LoopPadding,
     denormalize,
     VideoAugmentator,
@@ -51,7 +52,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 warnings.filterwarnings("ignore")
 
 
-def mixup_data(video, mask, label, alpha=0.5):
+def mixup_data(video, mask, label, clip_length, alpha=0.5):
     lambda_ = np.random.beta(alpha, alpha)
 
     batch_size = video.size(0)
@@ -74,7 +75,7 @@ def collate_fn_multipositon_prediction(dataset_iter):
 
     batch = []
     for sample in dataset_iter:
-        video_stack, mask_stack, label = sample
+        video_stack, mask_stack, label, clip_length = sample
         nclips = video_stack.size(0)
 
         # video_stack : (nclips,C,D,H,W)
@@ -86,17 +87,12 @@ def collate_fn_multipositon_prediction(dataset_iter):
         video_stack = torch.cat((video_stack, video_stack[repeated_pts]), axis=0)
         mask_stack = torch.cat((mask_stack, mask_stack[repeated_pts]), axis=0)
 
-        batch.append((video_stack, mask_stack, label))
+        batch.append((video_stack, mask_stack, label, clip_length))
 
     batch_transposed = list(zip(*batch))
     for i in range(len(batch_transposed)):
         if isinstance(batch_transposed[i][0], torch.Tensor):
             batch_transposed[i] = torch.stack(batch_transposed[i], 0)
-    for i in range(2):
-        bs, nclips, *cdhw = batch_transposed[i].shape
-        batch_transposed[i] = batch_transposed[i].view(
-            -1, *cdhw
-        )  # (batch*nclips, c,d,h,w)
 
     return tuple(batch_transposed)
 
@@ -135,10 +131,10 @@ class LightningVideoClassifier(pl.LightningModule):
         self.dataset_init_func = self.datasets_map.get(name)
         self.model = generate_network(hparams, n_outputs=n_outputs)
 
-    def forward(self, *batch, averaged=None):
+    def forward(self, *batch):
         video, mask, label, lambda_ = batch
         out, loss_dict, tb_dict = self.model(
-            video, mask, targets=label, averaged=averaged, lambda_=lambda_
+            video, mask, targets=label, lambda_=lambda_
         )
         if (
             out.device == torch.device(0)
@@ -171,13 +167,32 @@ class LightningVideoClassifier(pl.LightningModule):
 
         return out, loss_dict
 
-    def step(self, batch, batch_idx, mixup=False, averaged=None, test=False):
-        video, mask, label = batch
+    def step(self, batch, batch_idx, mixup=False):
+        video, mask, label, clip_length = batch
         lambda_ = None
         if mixup:
             video, mask, *label, lambda_ = mixup_data(*batch, alpha=0.5)
+        if not self.trainer.testing:
+            n_clips = video.size(1)
+            clip_indices = (torch.tensor(clip_length)-1).tolist()
+            clip_indices = [ list(range(x+1))+[0,]*(n_clips-x) for x in clip_indices ]
+            indice_mask = torch.zeros(video.size(0),n_clips).scatter_(1, torch.tensor(clip_indices), 1.0)
 
-        out, loss_dict = self.forward(video, mask, label, lambda_, averaged=averaged)
+            out = []
+            loss_dict = defaultdict(float)
+            for n in range(n_clips):
+                cout, closs_dict = self.forward(video[:, n], mask[:, n], label, lambda_)
+                out.append(cout)
+                for key in closs_dict:
+                    loss_dict[key] += closs_dict[key] / n_clips
+            # default_dict -> dict
+            loss_dict = dict(loss_dict)
+            out = torch.stack(out)
+            out = out * (indice_mask.t().unsqueeze(2)).to(video.device)
+            out = out.sum(0) / indice_mask.sum(1,keepdim=True).to(video.device)
+        else:
+            out, loss_dict = self.forward(video, mask, label, lambda_)
+
         predicted = out.argmax(1)
 
         loss = sum(loss for loss in loss_dict.values())
@@ -192,10 +207,11 @@ class LightningVideoClassifier(pl.LightningModule):
             total = out.size(0)
             correct = (predicted == label).float().sum()
 
-        if test:
+        if self.trainer.testing:
             # compute top-5 accuracy in test mode
             _, pred = torch.topk(out, k=5)
             correct_top5 = pred.eq(label.view(-1, 1)).any(1).float().sum()
+
             return {
                 "loss": loss,
                 "acc": correct / total,
@@ -212,9 +228,7 @@ class LightningVideoClassifier(pl.LightningModule):
         return self.step(val_batch, batch_idx)
 
     def test_step(self, test_batch, batch_idx):
-        return self.step(
-            test_batch, batch_idx, averaged=True, test=True
-        )  # for averaged logits
+        return self.step(test_batch, batch_idx)  # for averaged logits
 
     def validation_epoch_end(self, outputs):
         """
@@ -277,9 +291,8 @@ class LightningVideoClassifier(pl.LightningModule):
         temporal_transform = {
             "train": TemporalRandomCrop(size=self.hparams.sample_duration),
             "val": None,
-            "test": TemporalUniformSampling(
-                n_chunks=10, size=self.hparams.sample_duration
-            ),
+            "test": TemporalSlidingWindow(size=self.hparams.sample_duration),
+            # "test": TemporalUniformSampling(n_chunks=10, size=self.hparams.sample_duration)
         }
 
         norm_method = Normalize3D(mean=MEAN, std=STD)
@@ -353,6 +366,19 @@ class LightningVideoClassifier(pl.LightningModule):
         self.val_ds = shuffle_ds(self.val_ds)
         self.test_ds = shuffle_ds(self.test_ds)
 
+        dl = DataLoader(
+            self.test_ds,
+            batch_size=self.hparams.batch_size,
+            shuffle=False,
+            pin_memory=True,
+            # num_workers=self.hparams.num_workers,
+            num_workers=0,
+            collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
+        )
+        dl_iter = iter(dl)
+        batch = next(dl_iter)        
+        print(f"Train : {len(self.train_ds)}, Valid(sub-clips): {len(self.val_ds)}, Test(video) : {len(self.test_ds)}")
+
     def train_dataloader(self):
         return DataLoader(
             self.train_ds,
@@ -372,15 +398,20 @@ class LightningVideoClassifier(pl.LightningModule):
         )
 
     def test_dataloader(self):
+        # return DataLoader(
+        #     self.test_ds,
+        #     batch_size=self.hparams.batch_size,
+        #     shuffle=False,
+        #     pin_memory=True,
+        #     num_workers=self.hparams.num_workers,
+        #     collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
+        # )
         return DataLoader(
-            self.test_ds,
-            batch_size=4
-            * (32 // self.hparams.sample_duration)
-            * torch.cuda.device_count(),
+            self.val_ds,
+            batch_size=self.hparams.batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=self.hparams.num_workers,
-            collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
         )
 
     # learning rate warm-up
@@ -460,7 +491,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, help="name of dataset (UCF101|HMDB51)")
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--test_mode", action="store_true")
-    parser.add_argument("--batch_size", type=int, default=60)
+    parser.add_argument("--batch_size", type=int, default=96)
     parser.add_argument("--sample_size", type=int, default=112)
     parser.add_argument("--sample_duration", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=16)
@@ -497,13 +528,13 @@ if __name__ == "__main__":
         num_sanity_val_steps=0,
         gradient_clip_val=5.0,
         weights_summary="top",
-        accumulate_grad_batches=5,
     )
 
     @torch.no_grad()
     def run_test(model):
         # load best weights
         ckpt = glob.glob(base_logger.log_dir + "/checkpoints/*.ckpt")[0]
+        print(f"Load weights from {ckpt}...")
         model = model.load_from_checkpoint(ckpt)
         trainer.test(model)
 

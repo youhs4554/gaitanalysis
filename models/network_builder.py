@@ -19,8 +19,7 @@ class Net(nn.Module):
         self.target_transform = target_transform
 
     def forward(
-        self, *inputs, targets=None, averaged=None, lambda_=None,
-        return_intermediate_feats=False
+        self, *inputs, targets=None, lambda_=None, return_intermediate_feats=False
     ):
 
         loss_dict = {}
@@ -29,7 +28,7 @@ class Net(nn.Module):
         x, mame_loss_dict, mame_tb_dict = self.mame_network(*inputs)
 
         # classifier
-        out, predictor_loss_dict = self.predictor(x, targets, averaged, lambda_)
+        out, predictor_loss_dict = self.predictor(x, targets, lambda_)
 
         loss_dict.update(mame_loss_dict)
         loss_dict.update(predictor_loss_dict)
