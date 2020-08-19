@@ -4,7 +4,7 @@ from torchvision.datasets.video_utils import VideoClips
 from torch.utils.data import Dataset
 import pandas as pd
 import os
-from utils.transforms import Resize3D, LoopPadding
+from utils.transforms import Resize3D, LoopPadding, DuplicatedSampling
 from ._utils import *
 from PIL import Image
 
@@ -80,11 +80,33 @@ class UCF101(Dataset):
                 num_workers=num_workers,
                 frame_rate=None if sample_rate == 1 else sample_rate,
             ).subset(self.indices)
+            self.pad_short_clips()
 
         self.temporal_transform = temporal_transform
         self.spatial_transform = spatial_transform
         self.norm_method = norm_method
         self.hard_augmentation = hard_augmentation
+
+    def pad_short_clips(self):
+        # loop-padding for clips whose length is shorter than sample_duration
+        for i in range(len(self.video_clips.video_pts)):
+            pts = self.video_clips.video_pts[i]
+            if len(pts) < self.duration:
+                pts = DuplicatedSampling(self.duration)(pts.tolist())
+            self.video_clips.video_pts[i] = torch.as_tensor(pts)
+        metadata = {
+            "video_paths": self.video_clips.video_paths,
+            "video_pts": self.video_clips.video_pts,
+            "video_fps": self.video_clips.video_fps,
+        }
+
+        self.video_clips = VideoClips(
+            self.video_clips.video_paths,
+            clip_length_in_frames=self.duration,
+            frames_between_clips=self.duration,
+            frame_rate=None if self.sample_rate == 1 else self.sample_rate,
+            _precomputed_metadata=metadata,
+        )
 
     def _select_fold(self, video_list, annotation_path, fold, train):
         name = "train" if train else "test"
@@ -124,15 +146,24 @@ class UCF101(Dataset):
         return video, label, clip_pts, video_path
 
     def fetch_clip(self, clip_idx):
-        clip, audio, info, video_idx, clip_pts = self.video_clips.get_clip(
-            clip_idx
-        )  # clip_pts-'frame index'
+        video_idx, clip_idx = self.video_clips.get_clip_location(clip_idx)
+        video_path = self.video_clips.video_paths[video_idx]
+        clip_pts = self.video_clips.clips[video_idx][clip_idx]
+
+        start_pts = clip_pts.min().item()
+        end_pts = clip_pts.max().item()
+        clip, audio, info = torchvision.io.read_video(video_path, start_pts, end_pts)
+
         video_path, label = self.samples[self.indices[video_idx]]
         n_frames = cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FRAME_COUNT)
         clip_pts /= self.sample_rate
         if self.sample_rate == 1:
-            clip_pts -= 1
-            clip_pts = torch.clamp(clip_pts, 0, n_frames - 1)
+            clip_pts -= 2
+            clip_pts = torch.clamp(clip_pts, min=0)
+            clip_pts -= clip_pts.min()
+
+        # for short clips (loop-pad)
+        clip = clip[clip_pts]
 
         return clip, label, clip_pts, video_path
 
@@ -182,9 +213,8 @@ class UCF101(Dataset):
         video = torch.stack(video)
         mask = torch.stack(mask)
 
-        clip_pts = torch.as_tensor(LoopPadding(size=self.duration)(clip_pts.tolist()))
-
-        multi_clip_pts = self.temporal_transform(clip_pts)
+        # clip_pts = torch.as_tensor(LoopPadding(size=self.duration)(clip_pts.tolist()))
+        multi_clip_pts = self.temporal_transform(clip_pts.tolist())
         video_stack = []
         mask_stack = []
         for sample_pts in multi_clip_pts:
@@ -238,7 +268,7 @@ class UCF101(Dataset):
                 mask_frames = self.spatial_transform(mask_frames)
             video = self.norm_method(video).permute(*permute_axis)  # apply norm method
             mask_frames = mask_frames[..., :1].permute(*permute_axis)
-        
+
         clip_length = torch.tensor(clip_length)
 
         return video, mask_frames, label, clip_length

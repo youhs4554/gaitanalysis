@@ -4,6 +4,7 @@ import random
 import math
 import numbers
 import collections
+import copy
 import numpy as np
 import torch
 from PIL import Image, ImageOps
@@ -532,6 +533,56 @@ class TemporalCenterCrop(object):
         return out
 
 
+class TemporalSegmentsSampling(object):
+    """TSN sampling method
+    ; Samples random indices from segments, which the duration of each segment is equal.
+
+    Args:
+        size (int): Desired output size of the crop.
+    """
+
+    def __init__(self, n_seg=16):
+        self.n_seg = n_seg
+
+    def __call__(self, frame_indices):
+        """
+        Args:
+            frame_indices (list): frame indices to be cropped.
+        Returns:
+            list: Cropped frame indices.
+        """
+        if len(frame_indices) < self.n_seg:
+            # duplicated(allow duplicated elemnts) sampling (random)
+            frame_indices = RandomDuplicatedSampling(self.n_seg)(frame_indices)
+
+        seg_counts = collections.defaultdict(int)
+        finish = False
+        while not finish:
+            for i in range(self.n_seg):
+                seg_counts[i] += 1
+                if sum(seg_counts.values()) == len(frame_indices):
+                    finish = True
+                    break
+
+        seg_counts = collections.OrderedDict(
+            {k: v for k, v in sorted(seg_counts.items(), key=lambda x: x[0])}
+        )
+
+        res = []
+
+        for k, v in seg_counts.items():
+            current_seg = frame_indices[:v]
+
+            # random sample from current segment
+            rand_sample = random.choice(current_seg)
+            res.append(rand_sample)
+
+            # update frame_indices (pop operation by replacing original list...)
+            frame_indices = frame_indices[v:]
+
+        return res
+
+
 class TemporalSlidingWindow(object):
     """Temporally sliding windows for a given frame_indices
 
@@ -541,7 +592,7 @@ class TemporalSlidingWindow(object):
 
     def __init__(self, size):
         self.size = size
-
+    
     def __call__(self, frame_indices):
         """
         Args:
@@ -550,12 +601,16 @@ class TemporalSlidingWindow(object):
             list: Cropped frame indices.
         """
         from torchvision.datasets.video_utils import unfold
+        if len(frame_indices) < self.size:
+            # duplicated sampling (non-random)
+            # if frame_indices is given as list(range(13)), and size as 64
+            # results : [[0] * 5, [1] * 5, ... [12]*4] ; last element is residual
+            frame_indices = DuplicatedSampling(self.size)(frame_indices)
+
         windows = unfold(torch.as_tensor(frame_indices), self.size, self.size)
         res = []
         for win in windows:
-            # pad = win + [win[-1]] * (self.size-len(win))
-            pad = LoopPadding(self.size)(win)
-            res.append(pad)
+            res.append(win)
         return res
 
 
@@ -616,12 +671,53 @@ class TemporalUniformSampling(object):
             res.append(current_chunk)
         return res
 
+class DuplicatedSampling(object):
+    def __init__(self, size):
+        self.size = size
+
+    def compute_duplications(self, VectorSize, Sum): 
+        c = int(Sum/VectorSize)
+        smallest_c = copy.copy(c)
+        while True:
+            residual = Sum-c*(VectorSize-1)
+            if residual-(VectorSize-1) < smallest_c:
+                break
+            c += 1
+        x = [ c for _ in range(1, VectorSize)] 
+        x.append(Sum-sum(x)) 
+        return x
+
+    def __call__(self, frame_indices):
+        # duplicated indices (not random)
+        dups = self.compute_duplications(len(frame_indices), self.size)
+        res = []
+        for ix, e in enumerate(frame_indices):
+            n = dups[ix]
+            res.extend([e] * n)
+        return res
+
+
+class RandomDuplicatedSampling(object):
+    def __init__(self, size):
+        self.size = size
+    
+    def random_compute_duplications(self, VectorSize, Sum):
+        x = [random.randint(0, Sum) for _ in range(1, VectorSize)]
+        x.extend([0, Sum])
+        x.sort()
+        return [x[i+1] - x[i] for i in range(VectorSize)]
+
+    
+    def __call__(self, frame_indices):
+        dups = self.random_compute_duplications(len(frame_indices), self.size)
+        res = []
+        for ix, e in enumerate(frame_indices):
+            n = dups[ix]
+            res.extend([e] * n)
+        return res
 
 class TemporalRandomCrop(object):
     """Temporally crop the given frame indices at a random location.
-
-    If the number of frames is less than the size,
-    loop the indices as many times as necessary to satisfy the size.
 
     Args:
         size (int): Desired output size of the crop.
@@ -637,18 +733,15 @@ class TemporalRandomCrop(object):
         Returns:
             list: Cropped frame indices.
         """
+        if len(frame_indices) < self.size:
+            # duplicated(allow duplicated elemnts) sampling (random)
+            frame_indices = RandomDuplicatedSampling(self.size)(frame_indices)
 
         rand_end = max(0, len(frame_indices) - self.size - 1)
         begin_index = random.randint(0, rand_end)
         end_index = min(begin_index + self.size, len(frame_indices))
 
         out = frame_indices[begin_index:end_index]
-
-        for index in out:
-            if len(out) >= self.size:
-                break
-            out.append(index)
-
         return out
 
 

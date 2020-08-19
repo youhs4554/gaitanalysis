@@ -22,6 +22,7 @@ from utils.transforms import (
     ToTensor3D,
     Normalize3D,
     TemporalRandomCrop,
+    TemporalSegmentsSampling,
     TemporalUniformSampling,
     TemporalSlidingWindow,
     LoopPadding,
@@ -172,11 +173,15 @@ class LightningVideoClassifier(pl.LightningModule):
         lambda_ = None
         if mixup:
             video, mask, *label, lambda_ = mixup_data(*batch, alpha=0.5)
-        if not self.trainer.testing:
+        if self.trainer.testing:
             n_clips = video.size(1)
-            clip_indices = (torch.tensor(clip_length)-1).tolist()
-            clip_indices = [ list(range(x+1))+[0,]*(n_clips-x) for x in clip_indices ]
-            indice_mask = torch.zeros(video.size(0),n_clips).scatter_(1, torch.tensor(clip_indices), 1.0)
+            clip_indices = (torch.tensor(clip_length) - 1).tolist()
+            clip_indices = [
+                list(range(x + 1)) + [0] * (n_clips - x) for x in clip_indices
+            ]
+            indice_mask = torch.zeros(video.size(0), n_clips).scatter_(
+                1, torch.tensor(clip_indices), 1.0
+            )
 
             out = []
             loss_dict = defaultdict(float)
@@ -189,7 +194,13 @@ class LightningVideoClassifier(pl.LightningModule):
             loss_dict = dict(loss_dict)
             out = torch.stack(out)
             out = out * (indice_mask.t().unsqueeze(2)).to(video.device)
-            out = out.sum(0) / indice_mask.sum(1,keepdim=True).to(video.device)
+
+            # temporal avg pool
+            out = out.sum(0) / indice_mask.sum(1, keepdim=True).to(video.device)
+
+            # temporal max pool
+            # out, _ = out.max(0)
+
         else:
             out, loss_dict = self.forward(video, mask, label, lambda_)
 
@@ -217,7 +228,9 @@ class LightningVideoClassifier(pl.LightningModule):
                 "acc": correct / total,
                 "top5_acc": correct_top5 / total,
                 "loss_dict": loss_dict,
-            }
+                "pred": out.argmax(1).float(),
+                "label": label.float()
+                }
         else:
             return {"loss": loss, "acc": correct / total, "loss_dict": loss_dict}
 
@@ -249,6 +262,24 @@ class LightningVideoClassifier(pl.LightningModule):
         """
         avg_loss = torch.stack([x["loss"].mean() for x in outputs]).mean()
         avg_acc = torch.stack([x["acc"].mean() for x in outputs]).mean()
+        
+        y_pred = (
+            torch.cat([x["pred"].flatten(0) for x in outputs], dim=0)
+            .detach()
+            .cpu()
+            .numpy()
+        )
+        y_true = (
+            torch.cat([x["label"].flatten(0) for x in outputs], dim=0).cpu().numpy()
+        )
+        cm = confusion_matrix(y_true, y_pred)
+
+        # Normalise
+        cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
+        classes = self.train_ds.classes
+        df_cm = pd.DataFrame(cm, classes, classes)
+        df_cm.to_csv(f"{self.hparams.dataset}_results.csv", index=False)
+
         avg_top5_acc = torch.stack([x["top5_acc"].mean() for x in outputs]).mean()
 
         return {
@@ -264,12 +295,13 @@ class LightningVideoClassifier(pl.LightningModule):
                 ToTensor3D(),
             ]
         )
+        crop_method = A.CenterCrop if self.hparams.dataset == "UCF101" else A.RandomResizedCrop
         spatial_transform = {
             # train : use albumentations
             "train": VideoAugmentator(
                 transform=A.Compose(
                     [
-                        A.CenterCrop(
+                        crop_method(
                             self.hparams.sample_size, self.hparams.sample_size
                         ),
                         A.HorizontalFlip(),
@@ -290,6 +322,9 @@ class LightningVideoClassifier(pl.LightningModule):
 
         temporal_transform = {
             "train": TemporalRandomCrop(size=self.hparams.sample_duration),
+            # "train": TemporalSegmentsSampling(
+            #     n_seg=self.hparams.sample_duration
+            # ),  # TSN sampling for long-range temporal context
             "val": None,
             "test": TemporalSlidingWindow(size=self.hparams.sample_duration),
             # "test": TemporalUniformSampling(n_chunks=10, size=self.hparams.sample_duration)
@@ -365,19 +400,17 @@ class LightningVideoClassifier(pl.LightningModule):
         # initial shuffle for validation & testset
         self.val_ds = shuffle_ds(self.val_ds)
         self.test_ds = shuffle_ds(self.test_ds)
+        # from tqdm import tqdm
 
-        dl = DataLoader(
-            self.test_ds,
-            batch_size=self.hparams.batch_size,
-            shuffle=False,
-            pin_memory=True,
-            # num_workers=self.hparams.num_workers,
-            num_workers=0,
-            collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
+        # for i in tqdm(range(len(self.val_ds))):
+        #     self.val_ds[i]
+        # import ipdb
+
+        # ipdb.set_trace()
+ 
+        print(
+            f"Train : {len(self.train_ds)}, Valid(sub-clips): {len(self.val_ds)}, Test(video) : {len(self.test_ds)}"
         )
-        dl_iter = iter(dl)
-        batch = next(dl_iter)        
-        print(f"Train : {len(self.train_ds)}, Valid(sub-clips): {len(self.val_ds)}, Test(video) : {len(self.test_ds)}")
 
     def train_dataloader(self):
         return DataLoader(
@@ -398,21 +431,21 @@ class LightningVideoClassifier(pl.LightningModule):
         )
 
     def test_dataloader(self):
-        # return DataLoader(
-        #     self.test_ds,
-        #     batch_size=self.hparams.batch_size,
-        #     shuffle=False,
-        #     pin_memory=True,
-        #     num_workers=self.hparams.num_workers,
-        #     collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
-        # )
         return DataLoader(
-            self.val_ds,
+            self.test_ds,
             batch_size=self.hparams.batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=self.hparams.num_workers,
+            collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
         )
+        # return DataLoader(
+        #     self.val_ds,
+        #     batch_size=self.hparams.batch_size,
+        #     shuffle=False,
+        #     pin_memory=True,
+        #     num_workers=self.hparams.num_workers,
+        # )
 
     # learning rate warm-up
     def optimizer_step(
@@ -469,8 +502,8 @@ if __name__ == "__main__":
             "detection_file": "/data/torch_data/HMDB51/detection_rcnn_full.txt",
             "annotation_file": "/data/torch_data/HMDB51/testTrainMulti_7030_splits",
             "data_root": "/data/torch_data/HMDB51/video",
-            "img_height": 112,
-            "img_width": 112,
+            "img_height": 128,
+            "img_width": 171,
         },
     }
 
@@ -522,6 +555,7 @@ if __name__ == "__main__":
         distributed_backend="dp",
         callbacks=[tb_logger],
         early_stop_callback=es_callback,
+        max_epochs=50,
         checkpoint_callback=checkpoint_callback,
         logger=base_logger,
         log_save_interval=10,
