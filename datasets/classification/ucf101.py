@@ -161,6 +161,7 @@ class UCF101(Dataset):
             clip_pts -= 2
             clip_pts = torch.clamp(clip_pts, min=0)
             clip_pts -= clip_pts.min()
+            clip_pts = torch.clamp(clip_pts, min=0, max=self.duration - 1)
 
         # for short clips (loop-pad)
         clip = clip[clip_pts]

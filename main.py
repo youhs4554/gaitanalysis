@@ -332,8 +332,9 @@ class LightningVideoClassifier(pl.LightningModule):
 
         norm_method = Normalize3D(mean=MEAN, std=STD)
 
+        root = self.hparams.data_root + ("_flow" if self.hparams.stream == 'flow' else "")
         self.train_ds = self.dataset_init_func(
-            root=self.hparams.data_root,
+            root=root,
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
@@ -353,7 +354,7 @@ class LightningVideoClassifier(pl.LightningModule):
         )
 
         self.val_ds = self.dataset_init_func(
-            root=self.hparams.data_root,
+            root=root,
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
@@ -373,7 +374,7 @@ class LightningVideoClassifier(pl.LightningModule):
         )
 
         self.test_ds = self.dataset_init_func(
-            root=self.hparams.data_root,
+            root=root,
             annotation_path=self.hparams.annotation_file,
             detection_file_path=self.hparams.detection_file,
             sample_rate=1 if self.hparams.detection_file.endswith("_full.txt") else 5,
@@ -522,6 +523,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--backbone", type=str, default="r2plus1d_34_32_kinetics")
     parser.add_argument("--dataset", type=str, help="name of dataset (UCF101|HMDB51)")
+    parser.add_argument("--stream", type=str, help="name of dataset (rgb|flow)", default='rgb')
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--test_mode", action="store_true")
     parser.add_argument("--batch_size", type=int, default=96)
@@ -542,13 +544,13 @@ if __name__ == "__main__":
     # init logger
     base_logger = pl.loggers.TensorBoardLogger(
         "lightning_logs/TRAIN",
-        name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}",
-        version=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}@fold-{hparams.fold}",
+        name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}@fold-{hparams.fold}",
+        # version=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}@fold-{hparams.fold}",
     )
     tb_logger = TensorBoard_Logger(base_logger)
     checkpoint_callback = ModelCheckpoint(monitor="val_acc", mode="max")
     es_callback = EarlyStopping(
-        monitor="val_acc", patience=10, verbose=True, mode="max"
+        monitor="val_loss", patience=10, verbose=True, mode="min"
     )
     trainer = pl.Trainer(
         gpus=torch.cuda.device_count(),

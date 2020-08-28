@@ -109,7 +109,12 @@ class _NonLocalBlockND(nn.Module):
         theta = theta.permute(0, 2, 1)
 
         # phi : (b,inter,t,h,w) -> (b, inter, t*h*w)
-        phi = self.phi(mask_pred).view(batch_size, self.inter_channels, -1)
+        # version 1 #
+        # phi = self.phi(mask_pred).view(batch_size, self.inter_channels, -1)
+
+        # version 2 #
+        phi = self.phi(x).view(batch_size, self.inter_channels, -1)
+
         f = torch.matmul(theta, phi)
         f_div_C = F.softmax(f, dim=-1)  # (b, t*h*w, t*h*w)
 
