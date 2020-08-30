@@ -46,7 +46,6 @@ dependencies:
   - mkl_random=1.0.2=py36hd81dba3_0
   - ncurses=6.1=he6710b0_1
   - ninja=1.9.0=py36hfd86e86_0
-  - numpy=1.16.1=py36h7e9f1db_1
   - numpy-base=1.16.1=py36hde5b4d6_1
   - olefile=0.46=py36_0
   - orderedmultidict=1.0.1=py36_0
@@ -75,6 +74,7 @@ dependencies:
   - zlib=1.2.11=h7b6447c_3
   - zstd=1.3.7=h0b5b093_0
   - _libgcc_mutex=0.1=main
+  - absl-py=0.9.0=py36_0
   - anyjson=0.3.3=py36_1
   - arrow=0.13.1=py36_0
   - asn1crypto=0.24.0=py36_0
@@ -83,6 +83,7 @@ dependencies:
   - av=7.0.1=py36h66a6ed3_1
   - babel=2.7.0=py_0
   - bzip2=1.0.8=h516909a_2
+  - c-ares=1.15.0=h516909a_1001
   - click=7.1.1=pyh8c360ce_0
   - cycler=0.10.0=py36_0
   - cytoolz=0.10.1=py36h516909a_0
@@ -92,31 +93,46 @@ dependencies:
   - flake8=3.7.9=py36_0
   - flask=1.1.1=py_0
   - fsspec=0.6.1=py_0
+  - future=0.18.2=py36h9f0ad1d_1
   - gmp=6.2.0=he1b5a44_2
   - gnutls=3.6.5=hd3a4fd2_1002
+  - grpcio=1.23.0=py36h769ab6c_1
   - idna=2.9=py_1
+  - importlib-metadata=1.6.1=py36h9f0ad1d_0
   - isort=4.3.21=py36_0
   - lame=3.100=h14c3975_1001
+  - libblas=3.8.0=14_mkl
+  - libcblas=3.8.0=14_mkl
   - libiconv=1.15=h516909a_1006
+  - liblapack=3.8.0=14_mkl
+  - libprotobuf=3.12.3=h8b12597_0
   - locket=0.2.0=py_2
+  - markdown=3.2.2=py_0
   - msgpack-python=0.6.2=py36hc9558a2_0
   - nettle=3.4.1=h1bed415_1002
+  - numpy=1.18.5=py36h7314795_0
   - openh264=1.8.0=hdbcaa40_1000
   - packaging=19.2=py_0
   - partd=1.0.0=py_0
   - pip=19.1.1=py36_0
+  - protobuf=3.12.3=py36h831f99a_0
   - pylint=2.3.1=py36_0
   - pyparsing=2.4.0=py_0
   - python_abi=3.6=1_cp36m
+  - pytorch-lightning=0.7.6=py_0
   - pytz=2019.1=py_0
+  - pyyaml=5.3.1=py36h8c4c3a4_0
   - setuptools=46.1.3=py36h9f0ad1d_0
   - sortedcontainers=2.1.0=py_0
   - tblib=1.4.0=py_0
+  - tensorboard=1.15.0=py36_0
   - toolz=0.10.0=py_0
+  - tqdm=4.46.1=pyh9f0ad1d_0
   - werkzeug=0.15.4=py_0
   - wheel=0.33.4=py36_0
   - x264=1!152.20180806=h14c3975_0
   - yaml=0.2.2=h516909a_1
+  - zipp=3.1.0=py_0
   - _r-mutex=1.0.0=anacondar_1
   - binutils_impl_linux-64=2.33.1=he6710b0_7
   - binutils_linux-64=2.33.1=h9595d00_15
@@ -180,11 +196,11 @@ dependencies:
   - scipy=1.2.1=py36h7c811a0_0
   - tktable=2.10=h14c3975_0
   - cuda90=1.0=h6433d27_0
-  - pytorch=1.4.0=py3.6_cuda9.2.148_cudnn7.6.3_0
-  - torchvision=0.5.0=py36_cu92
+  - pytorch=1.5.1=py3.6_cuda9.2.148_cudnn7.6.3_0
+  - torchvision=0.6.1=py36_cu92
   - pip:
-    - absl-py==0.7.1
     - aiohttp==3.6.2
+    - albumentations==0.4.5
     - appdirs==1.4.3
     - astor==0.8.0
     - astunparse==1.6.3
@@ -210,19 +226,21 @@ dependencies:
     - distributed==1.28.1
     - enum34==1.1.6
     - et-xmlfile==1.0.1
-    - future==0.18.2
+    - flow-vis==0.1
     - gast==0.2.2
     - geojson==2.5.0
+    - gluoncv==0.7.0
     - google-auth==1.6.3
     - google-auth-oauthlib==0.4.1
     - googledrivedownloader==0.4
     - googledrivefiledownloader==0.0.3
-    - grpcio==1.29.0
+    - graphviz==0.8.4
     - heapdict==1.0.0
     - html5lib==0.9999999
     - idna-ssl==1.1.0
     - imageio==2.5.0
     - imbalanced-learn==0.5.0
+    - imgaug==0.2.6
     - imutils==0.5.3
     - ipdb==0.12
     - ipykernel==5.1.0
@@ -239,16 +257,18 @@ dependencies:
     - jupyter-console==6.0.0
     - jupyter-core==4.4.0
     - jupyter-server-proxy==1.2.0
+    - kornia==0.3.1
     - kubernetes==9.0.0
     - littleutils==0.2.2
     - lxml==4.5.0
-    - markdown==3.1.1
     - matplotlib-venn==0.11.5
     - mistune==0.8.4
+    - mmdnn==0.3.0
     - mpld3==0.3
     - msgpack==0.6.1
     - multidict==4.6.1
     - multiprocess==0.70.9
+    - mxnet==1.6.0
     - natsort==6.0.0
     - nbconvert==5.4.1
     - nbformat==4.4.0
@@ -271,11 +291,11 @@ dependencies:
     - pickleshare==0.7.5
     - pingouin==0.3.3
     - pixiedust==1.1.18
+    - portalocker==1.7.1
     - pox==0.2.7
     - ppft==1.6.6.1
     - prometheus-client==0.6.0
     - prompt-toolkit==2.0.9
-    - protobuf==3.8.0
     - psutil==5.6.3
     - ptyprocess==0.6.0
     - pyasn1==0.4.5
@@ -284,10 +304,9 @@ dependencies:
     - pygments==2.3.1
     - pynrrd==0.4.0
     - pyrsistent==0.14.11
-    - pytorch-lightning==0.7.6
+    - pytorch-ranger==0.1.1
     - pytorch-warmup==0.0.4
     - pywavelets==1.0.3
-    - pyyaml==5.1.1
     - pyzmq==18.0.1
     - qtconsole==4.4.3
     - ranger==0.1.dev0
@@ -304,17 +323,16 @@ dependencies:
     - statsmodels==0.10.0
     - tables==3.6.1
     - tabulate==0.8.3
-    - tensorboard==2.2.1
     - tensorboard-plugin-wit==1.6.0.post3
     - termcolor==1.1.0
     - terminado==0.8.2
     - testpath==0.4.2
     - toml==0.10.0
-    - torch==1.4.0
+    - torch==1.5.1
     - torch-encoding==1.0.1
+    - torch-optimizer==0.0.1a13
     - torchfile==0.1.0
     - torchsummary==1.5.1
-    - tqdm==4.46.0
     - traitlets==4.3.2
     - typing-extensions==3.7.4.1
     - urllib3==1.25.3
