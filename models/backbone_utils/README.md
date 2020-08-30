@@ -12,7 +12,7 @@ MainModel = imp.load_source('MainModel', "kit_i3d_resnet50_v1.py")
 x = torch.randn(5,3,16,112,112) # (B,C,T,H,W)
 
 the_model = torch.load("i3d_resnet50_v1.pth")
-prediction = the_model(x)  # (B, n_class)
+prediction = the_model(x)  # (B, n_outputs)
 ```
 
 ## Steps

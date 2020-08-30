@@ -17,10 +17,7 @@ import torchvision.transforms.functional as tf_func
 import torch.nn.functional as F
 import collections
 
-__all__ = [
-    "GAITDataset",
-    "GAITSegRegDataset",
-]
+__all__ = ["GAITDataset", "GAITSegRegDataset"]
 
 
 def get_direction(patient_positions):
@@ -29,19 +26,19 @@ def get_direction(patient_positions):
     e_xmin, e_ymin, e_xmax, e_ymax = eval(end_pos)
     s_c = (s_xmin + s_xmax) / 2, (s_ymin + s_ymax) / 2
     e_c = (e_xmin + e_xmax) / 2, (e_ymin + e_ymax) / 2
-    res = 'approaching' if e_c[1] > s_c[1] else 'leaving'
+    res = "approaching" if e_c[1] > s_c[1] else "leaving"
 
     return res
 
 
 def pid2vid(pid):
-    num, test_id, trial_id = pid.split('_')
-    return '_'.join([num, 'test', test_id, 'trial', trial_id])
+    num, test_id, trial_id = pid.split("_")
+    return "_".join([num, "test", test_id, "trial", trial_id])
 
 
 def vid2pid(vid):
-    split = vid.split('_')
-    return '_'.join([split[0], split[2], split[4]])
+    split = vid.split("_")
+    return "_".join([split[0], split[2], split[4]])
 
 
 def arrange_vids(vids, seed=0):
@@ -51,7 +48,7 @@ def arrange_vids(vids, seed=0):
 
 
 def filter_input_df_with_vids(df, vids):
-    return df[df['vids'].isin(vids)]
+    return df[df["vids"].isin(vids)]
 
 
 def filter_target_df_with_vids(df, vids):
@@ -59,24 +56,27 @@ def filter_target_df_with_vids(df, vids):
     return df.loc[target_ids]
 
 
-def split_dataset_with_vids(input_df, target_df, vids,
-                            test_size=0.2, random_state=42):
+def split_dataset_with_vids(input_df, target_df, vids, test_size=0.2, random_state=42):
     train_vids, test_vids = train_test_split(
-        vids, test_size=test_size, random_state=random_state)
+        vids, test_size=test_size, random_state=random_state
+    )
 
-    train_X, train_y = filter_input_df_with_vids(
-        input_df, train_vids), filter_target_df_with_vids(target_df,
-                                                          train_vids)
+    train_X, train_y = (
+        filter_input_df_with_vids(input_df, train_vids),
+        filter_target_df_with_vids(target_df, train_vids),
+    )
 
-    test_X, test_y = filter_input_df_with_vids(
-        input_df, test_vids), filter_target_df_with_vids(target_df,
-                                                         test_vids)
+    test_X, test_y = (
+        filter_input_df_with_vids(input_df, test_vids),
+        filter_target_df_with_vids(target_df, test_vids),
+    )
 
     return train_X, train_y, train_vids, test_X, test_y, test_vids
 
 
-def prepare_dataset(input_file, target_file,
-                    target_columns, chunk_parts, target_transform=None):
+def prepare_dataset(
+    input_file, target_file, target_columns, chunk_parts, target_transform=None
+):
 
     input_df = pd.read_pickle(input_file)  # input_file : already merged!
     target_df = pd.read_pickle(target_file)
@@ -100,53 +100,70 @@ def prepare_dataset(input_file, target_file,
         target_df.loc[:, :] = scaled_values
 
     # split dataset (train/test)
-    train_X, train_y, train_vids, test_X, test_y, test_vids =\
-        split_dataset_with_vids(
-            input_df, target_df, possible_vids,
-            test_size=0.2, random_state=42)
+    train_X, train_y, train_vids, test_X, test_y, test_vids = split_dataset_with_vids(
+        input_df, target_df, possible_vids, test_size=0.2, random_state=42
+    )
 
-    return dict(train_X=train_X, train_y=train_y, train_vids=train_vids,
-                test_X=test_X, test_y=test_y, test_vids=test_vids,
-                input_df=input_df, target_df=target_df)
+    return dict(
+        train_X=train_X,
+        train_y=train_y,
+        train_vids=train_vids,
+        test_X=test_X,
+        test_y=test_y,
+        test_vids=test_vids,
+        input_df=input_df,
+        target_df=target_df,
+    )
 
 
-def generate_dataloader_for_crossvalidation(opt, ds, vids,
-                                            ds_class,
-                                            phase=None,
-                                            spatial_transform=None,
-                                            temporal_transform=None,
-                                            shuffle=True):
+def generate_dataloader_for_crossvalidation(
+    opt,
+    ds,
+    vids,
+    ds_class,
+    phase=None,
+    spatial_transform=None,
+    temporal_transform=None,
+    shuffle=True,
+):
 
     from torch.utils.data import DataLoader
-    X, y = filter_input_df_with_vids(
-        ds.X, vids), filter_target_df_with_vids(ds.y, vids)
 
-    ds = ds_class(X, y,
-                  opt=opt, phase=phase,
-                  spatial_transform=spatial_transform,
-                  temporal_transform=temporal_transform)
+    X, y = filter_input_df_with_vids(ds.X, vids), filter_target_df_with_vids(ds.y, vids)
+
+    ds = ds_class(
+        X,
+        y,
+        opt=opt,
+        phase=phase,
+        spatial_transform=spatial_transform,
+        temporal_transform=temporal_transform,
+    )
 
     # for i in range(16):
     #     ds[i]
 
     # define dataloader
-    loader = DataLoader(ds,
-                        batch_size=opt.batch_size,
-                        shuffle=shuffle,
-                        num_workers=opt.n_threads, drop_last=True)
+    loader = DataLoader(
+        ds,
+        batch_size=opt.batch_size,
+        shuffle=shuffle,
+        num_workers=opt.n_threads,
+        drop_last=True,
+    )
 
     return loader
 
 
-def video_loader(data_root, vid, frame_indices, size, mode='PIL'):
-    assert type(size) in [tuple, int], 'size should be tuple or int'
+def video_loader(data_root, vid, frame_indices, size, mode="PIL"):
+    assert type(size) in [tuple, int], "size should be tuple or int"
 
     if type(size) == int:
         size = (size, size)
 
-    if mode == 'numpy':
-        res = np.load(os.path.join(data_root, vid) + '.npy')
-    elif mode == 'PIL':
+    if mode == "numpy":
+        res = np.load(os.path.join(data_root, vid) + ".npy")
+    elif mode == "PIL":
         res = []
         subdir = os.path.join(data_root, vid)
         for i in frame_indices:
@@ -158,17 +175,16 @@ def video_loader(data_root, vid, frame_indices, size, mode='PIL'):
 
 
 def process_as_tensor_image(imgs, padding, pad_mode):
-    imgs = torch.stack([img
-                        for img in imgs])
+    imgs = torch.stack([img for img in imgs])
 
-    imgs = imgs.permute(
-        1, 0, 2, 3)     # (C,D,H,W)
+    imgs = imgs.permute(1, 0, 2, 3)  # (C,D,H,W)
 
-    if pad_mode == 'replicate':
+    if pad_mode == "replicate":
         # replicated-padding
-        imgs = F.pad(imgs.permute(0, 2, 3, 1), padding,
-                     mode=pad_mode).permute(0, 3, 1, 2)
-    elif pad_mode == 'zeropad':
+        imgs = F.pad(imgs.permute(0, 2, 3, 1), padding, mode=pad_mode).permute(
+            0, 3, 1, 2
+        )
+    elif pad_mode == "zeropad":
         # zero padding
         imgs = F.pad(imgs, padding)
 
@@ -181,7 +197,7 @@ def get_input(video_data, spatial_transform, padding, pad_mode, seed):
     for idx in range(len(video_data)):
         random.seed(seed)
         img = video_data[idx]
-        t_img = spatial_transform(img)   # Tensor image (C,H,W)
+        t_img = spatial_transform(img)  # Tensor image (C,H,W)
         input_.append(t_img)
 
     input_ = process_as_tensor_image(input_, padding, pad_mode)
@@ -189,17 +205,16 @@ def get_input(video_data, spatial_transform, padding, pad_mode, seed):
     return input_
 
 
-def get_flows(input_imgs,
-              mean=[0.43216, 0.394666, 0.37645],
-              std=[0.22803, 0.22145, 0.216989]):
+def get_flows(
+    input_imgs, mean=[0.43216, 0.394666, 0.37645], std=[0.22803, 0.22145, 0.216989]
+):
 
     np_imgs = input_imgs.permute(1, 2, 3, 0).numpy()
 
     def denormalize_img(img):
         img = std * img + mean
         img = np.clip(img, 0, 1)
-        img = cv2.normalize(img, None, 0, 255,
-                            cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
 
         return img
 
@@ -212,8 +227,7 @@ def get_flows(input_imgs,
         nxt = cv2.cvtColor(nxt, cv2.COLOR_BGR2GRAY)
         flows.append(
             torch.from_numpy(
-                cv2.calcOpticalFlowFarneback(
-                    prev, nxt, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+                cv2.calcOpticalFlowFarneback(prev, nxt, None, 0.5, 3, 15, 3, 5, 1.2, 0)
             )
         )
         prev = nxt
@@ -222,10 +236,7 @@ def get_flows(input_imgs,
 
 
 def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
-    ratio = {
-        'height': opt.img_size/opt.raw_h,
-        'width': opt.img_size/opt.raw_w
-    }
+    ratio = {"height": opt.img_size / opt.raw_h, "width": opt.img_size / opt.raw_w}
 
     mask_ = []
 
@@ -233,8 +244,8 @@ def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
         pos = patient_positions[idx]
         xmin, ymin, xmax, ymax = eval(pos)
 
-        xmin, xmax = [round(ratio['width']*v) for v in [xmin, xmax]]
-        ymin, ymax = [round(ratio['height']*v) for v in [ymin, ymax]]
+        xmin, xmax = [round(ratio["width"] * v) for v in [xmin, xmax]]
+        ymin, ymax = [round(ratio["height"] * v) for v in [ymin, ymax]]
 
         mask = np.zeros((opt.img_size, opt.img_size))
         mask[ymin:ymax, xmin:xmax] = 1.0
@@ -242,9 +253,9 @@ def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
         mask_.append(
             tf_func.to_tensor(
                 tf_func.resized_crop(
-                    tf_func.rotate(
-                        Image.fromarray(mask), angle),
-                    *crop_position, size=(opt.sample_size, opt.sample_size)
+                    tf_func.rotate(Image.fromarray(mask), angle),
+                    *crop_position,
+                    size=(opt.sample_size, opt.sample_size),
                 )
             )
         )
@@ -255,12 +266,9 @@ def get_mask(patient_positions, crop_position, angle, padding, pad_mode, opt):
 
 
 class GAITDataset(Dataset):
-    def __init__(self,
-                 X,
-                 y,
-                 opt,
-                 fold=1,
-                 spatial_transform=None, temporal_transform=None):
+    def __init__(
+        self, X, y, opt, fold=1, spatial_transform=None, temporal_transform=None
+    ):
 
         self.X = X
         self.y = y
@@ -275,7 +283,8 @@ class GAITDataset(Dataset):
         self.opt = opt
 
         self.feats_dir = os.path.join(
-            os.path.dirname(opt.data_root), 'FeatsArrays', opt.arch)
+            os.path.dirname(opt.data_root), "FeatsArrays", opt.arch
+        )
 
         self.fold = fold
 
@@ -286,45 +295,42 @@ class GAITDataset(Dataset):
         vid = self.vids[idx]
 
         if self.load_pretrained:
-            inputs = np.load(os.path.join(
-                self.feats_dir, vid)+'.npy')
-            inputs = inputs[::self.opt.delta]
+            inputs = np.load(os.path.join(self.feats_dir, vid) + ".npy")
+            inputs = inputs[:: self.opt.delta]
         else:
             inputs = []
-            stacked_arr = np.load(os.path.join(
-                self.opt.data_root, vid) + '.npy')
+            stacked_arr = np.load(os.path.join(self.opt.data_root, vid) + ".npy")
 
-            for cropped in stacked_arr[::self.opt.delta]:
+            for cropped in stacked_arr[:: self.opt.delta]:
                 img = cv2.resize(cropped, self.opt.sample_size[::-1])
                 inputs.append(img)
 
             # zero padding
-            inputs = np.pad(inputs, ((0, self.sample_duration - len(inputs)),
-                                     (0, 0), (0, 0), (0, 0)),
-                            'constant', constant_values=0)
+            inputs = np.pad(
+                inputs,
+                ((0, self.sample_duration - len(inputs)), (0, 0), (0, 0), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
 
             if self.spatial_transform:
                 self.spatial_transform.randomize_parameters()
-                inputs = [self.spatial_transform(
-                    Image.fromarray(img)) for img in inputs]
+                inputs = [
+                    self.spatial_transform(Image.fromarray(img)) for img in inputs
+                ]
 
             inputs = torch.stack(inputs, 0).permute(1, 0, 2, 3)
 
         # target is always same!
-        targets = torch.tensor(
-            self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
+        targets = torch.tensor(self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
 
         return inputs, targets, vid
 
 
 class GAITSegRegDataset(Dataset):
-    def __init__(self,
-                 X,
-                 y,
-                 opt,
-                 phase,
-                 fold=1,
-                 spatial_transform=None, temporal_transform=None):
+    def __init__(
+        self, X, y, opt, phase, fold=1, spatial_transform=None, temporal_transform=None
+    ):
         # TODO. refactoring GaitDataset!, filter vids using fold index at here!
         self.X = X
         self.y = y
@@ -344,7 +350,8 @@ class GAITSegRegDataset(Dataset):
 
     def process_sampled_data(self, cur_X, vid):
         indices_sampled = np.linspace(
-            0, len(cur_X), self.opt.sample_duration, endpoint=False).astype(np.int)
+            0, len(cur_X), self.opt.sample_duration, endpoint=False
+        ).astype(np.int)
 
         if self.temporal_transform:
             indices_sampled = self.temporal_transform(indices_sampled)
@@ -353,42 +360,39 @@ class GAITSegRegDataset(Dataset):
 
         frame_indices, patient_positions = cur_X.idx.values, cur_X.pos.values
         video_data = video_loader(
-            self.opt.data_root, vid, frame_indices,
-            size=self.opt.img_size, mode='PIL')
+            self.opt.data_root, vid, frame_indices, size=self.opt.img_size, mode="PIL"
+        )
 
         seed = random.randint(-sys.maxsize, sys.maxsize)
 
-        if self.phase == 'train':
+        if self.phase == "train":
             # @ train; fixed rotation angle for entire video frames
             rotation_method, crop_method = self.spatial_transform.transforms[:2]
 
             random.seed(seed)
 
-            angle = rotation_method.get_params(
-                rotation_method.degrees
-            )
+            angle = rotation_method.get_params(rotation_method.degrees)
 
             random.seed(seed)
 
             # for fixed cropping for entire video frames
             crop_position = crop_method.get_params(
-                video_data[0], crop_method.scale, crop_method.ratio)
+                video_data[0], crop_method.scale, crop_method.ratio
+            )
 
         else:
             # @ test; without tilt and croping
-            _start = (self.opt.img_size-self.opt.sample_size)//2
+            _start = (self.opt.img_size - self.opt.sample_size) // 2
             angle = 0.0
-            crop_position = (
-                _start, _start, self.opt.sample_size, self.opt.sample_size)
+            crop_position = (_start, _start, self.opt.sample_size, self.opt.sample_size)
 
-        input_imgs = get_input(video_data,
-                               self.spatial_transform,
-                               padding=(
-                                   0, 0,
-                                   0, 0,
-                                   0, self.sample_duration - len(frame_indices)),
-                               pad_mode='zeropad',
-                               seed=seed)
+        input_imgs = get_input(
+            video_data,
+            self.spatial_transform,
+            padding=(0, 0, 0, 0, 0, self.sample_duration - len(frame_indices)),
+            pad_mode="zeropad",
+            seed=seed,
+        )
 
         # # optical flow imgs
         # flows = get_flows(input_imgs)
@@ -396,14 +400,14 @@ class GAITSegRegDataset(Dataset):
         # # merge rgb img & optical flow through channel dims
         # input_imgs = torch.cat([input_imgs[:, :-1], flows])
 
-        mask_imgs = get_mask(patient_positions,
-                             crop_position, angle,
-                             padding=(
-                                 0, 0,
-                                 0, 0,
-                                 0, self.sample_duration - len(frame_indices)),
-                             pad_mode='zeropad',
-                             opt=self.opt)
+        mask_imgs = get_mask(
+            patient_positions,
+            crop_position,
+            angle,
+            padding=(0, 0, 0, 0, 0, self.sample_duration - len(frame_indices)),
+            pad_mode="zeropad",
+            opt=self.opt,
+        )
 
         return input_imgs, mask_imgs, len(frame_indices)
 
@@ -412,11 +416,9 @@ class GAITSegRegDataset(Dataset):
 
         cur_X = self.X[self.X.vids == vid]
 
-        input_imgs, mask_imgs, valid_lengths = self.process_sampled_data(
-            cur_X, vid)
+        input_imgs, mask_imgs, valid_lengths = self.process_sampled_data(cur_X, vid)
 
         # target is always same!
-        targets = torch.tensor(
-            self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
+        targets = torch.tensor(self.y.loc[vid2pid(vid)].values, dtype=torch.float32)
 
-        return input_imgs, mask_imgs, targets, vid, valid_lengths
+        return input_imgs, mask_imgs, targets, valid_lengths

@@ -9,9 +9,9 @@ import math
 import random
 from .i3res import inflated_resnet
 from .deformable_conv3d import DeformConv3DWrapper
-from .MAME import MAME, MotionGuidedNLBlock
+from .STC import STC
 
-__all__ = ["MameNet"]
+__all__ = ["STCNet"]
 
 
 class LayerConfig(object):
@@ -20,18 +20,25 @@ class LayerConfig(object):
         "VideoResNet": [64, 64, 128, 256, 512],
         "I3ResNet": [64, 256, 512, 1024, 2048],
     }
-    mame_loc = {"layer4": 3, "layer3": 3, "layer2": 2}
+    STC_squad = {"layer2": 2, "layer3": 3, "layer4": 3}
 
 
-class MameNet(nn.Module, LayerConfig):
-    def __init__(self, backbone, n_class=None):
+class STCNet(nn.Module):
+    dims = {
+        "VideoResNet": [64, 64, 128, 256, 512],
+        "I3ResNet": [64, 256, 512, 1024, 2048],
+    }
+
+    def __init__(self, backbone, n_outputs=None, STC_squad="2,3,3"):
         super().__init__()
 
         # detach fc/avgpool
         del backbone.fc
         del backbone.avgpool
 
-        freeze_layers([backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3])
+        freeze_layers(
+            [backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3]
+        )
         count = 0
         for name, m in backbone.named_modules():
             # if m.__class__.__name__.find("BatchNorm") != -1:
@@ -49,21 +56,20 @@ class MameNet(nn.Module, LayerConfig):
                 m.weight.data.fill_(1.0)
                 m.bias.data.fill_(0.0)
 
+        # str -> tuple
+        STC_squad = dict(zip(["layer2", "layer3", "layer4"], eval(STC_squad)))
         self.layers = nn.ModuleDict()
-        # n of MAME block
+        # n of STC block
         pos = ord("a")
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
             zip(backbone.named_children(), self.dims[backbone.__class__.__name__])
         ):
-            if name in self.mame_loc:
+            if name in STC_squad and STC_squad[name] > 0:
                 layer_seq = [
                     (f"backbone_{name}", backbone_layer),
-                    (
-                        f"block_{chr(pos)}",
-                        MAME_Block(feats_dim, layers=self.mame_loc[name]),
-                    ),
+                    (f"block_{chr(pos)}", STC_Block(feats_dim, layers=STC_squad[name])),
                 ]
-                self.layers[f"MAME_{chr(pos)}"] = nn.Sequential(OrderedDict(layer_seq))
+                self.layers[f"STC_{chr(pos)}"] = nn.Sequential(OrderedDict(layer_seq))
                 pos += 1
             else:
                 self.layers[f"backbone_{name}"] = backbone_layer
@@ -74,11 +80,11 @@ class MameNet(nn.Module, LayerConfig):
 
         x = video
         for name, layer in self.layers.items():
-            if not name.startswith("MAME"):
+            if not name.startswith("STC"):
                 # simple bakcbone forward
                 x = layer(x)
             else:
-                # last MAME block always returns both x and mask_pred
+                # last STC block always returns both x and mask_pred
                 x, mask_pred = layer(x)
 
                 # downsample mask_label
@@ -95,7 +101,7 @@ class MameNet(nn.Module, LayerConfig):
 
                 probe_name = [n for n, _ in layer.named_children()][-1]
 
-                loss_dict["mask_loss"] += mask_loss / len(self.mame_loc)
+                loss_dict["mask_loss"] += mask_loss / len(self.layers)
                 tb_dict[
                     f"mask_prediction_status_at_{probe_name}"
                 ] = mask_predictions_status
@@ -103,18 +109,16 @@ class MameNet(nn.Module, LayerConfig):
         return x, loss_dict, tb_dict
 
 
-class MAME_Block(nn.Module):
+class STC_Block(nn.Module):
     def __init__(self, feats_dim, layers=1):
         super().__init__()
         self.mask_layer = nn.Conv3d(feats_dim, 1, kernel_size=1)
-        self.mame_modules = nn.ModuleList(
-            [MAMEModule(feats_dim) for _ in range(layers)]
-        )
+        self.STC_modules = nn.ModuleList([STCModule(feats_dim) for _ in range(layers)])
 
     #     self._initialize_weights()
 
     # def _initialize_weights(self):
-    #     module_list = [ self.mask_layer ] + list(self.mame_modules.modules())
+    #     module_list = [ self.mask_layer ] + list(self.STC_modules.modules())
     #     for m in module_list:
     #         if isinstance(m, nn.Conv3d):
     #             nn.init.kaiming_normal_(m.weight, mode='fan_out',
@@ -129,7 +133,7 @@ class MAME_Block(nn.Module):
 
         identity = x
 
-        for module in self.mame_modules:
+        for module in self.STC_modules:
             x = module(x, mask_pred)
 
         x += identity
@@ -138,17 +142,17 @@ class MAME_Block(nn.Module):
         return x, mask_pred
 
 
-class MAMEModule(nn.Module):
+class STCModule(nn.Module):
     def __init__(self, feats_dim=256):
 
-        super(MAMEModule, self).__init__()
+        super(STCModule, self).__init__()
         self.inter = inter = feats_dim // 4
 
         self.enc = nn.Conv3d(feats_dim, inter, kernel_size=1)
         self.dec = nn.Conv3d(inter, feats_dim, kernel_size=1)
 
-        # MAME : Mask Augmented Motion Encoding module
-        self.Mame = MAME(in_channels=inter)
+        # STC : Mask Augmented Motion Encoding module
+        self.STC = STC(in_channels=inter)
 
     def forward(self, x, mask_pred):
         # x : 3d features from a prev layer(or block)
@@ -158,7 +162,7 @@ class MAMEModule(nn.Module):
         mask_pred = mask_pred.repeat(1, self.inter, 1, 1, 1)
 
         x = self.enc(x)
-        x = self.Mame(x, mask_pred)
+        x = self.STC(x, mask_pred)
         x = self.dec(x)
 
         x += identity

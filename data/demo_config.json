@@ -48,7 +48,7 @@
   "test_epoch": "40",
   "pretrain_epoch": "160",
   "score_avg": false,
-  "model_arch": "DefaultMAMENet",
+  "model_arch": "STCNet",
   "merge_type": "",
   "warm_start": false,
   "num_units": 256,

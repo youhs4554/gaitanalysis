@@ -1,4 +1,4 @@
-# MAMENet(Mask Augmented Motion Encoding for Action Recognition)
+# STCNet(SpatioTemporal Consensus Network for Action Recognition)
 
 ## Intro
 

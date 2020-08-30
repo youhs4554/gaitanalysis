@@ -14,7 +14,17 @@ def load_pretrained_ckpt(net, pretrained_path=""):
 
     # laod pre-trained model
     pretrain = torch.load(pretrained_path, map_location=torch.device("cpu"))
-    net.load_state_dict(pretrain["state_dict"])
+
+    prefix_str = "model."
+    state_dict = pretrain["state_dict"]
+
+    names = list(state_dict.keys())
+
+    for name in names:
+        if name.startswith(prefix_str):
+            v = state_dict.pop(name)
+            state_dict[name[len(prefix_str) :]] = v
+    net.load_state_dict(state_dict)
 
     return net
 

@@ -126,8 +126,15 @@ class LightningVideoClassifier(pl.LightningModule):
             raise ValueError(
                 "Unsupported Dataset. This class only supports ( UCF101 | HMDB51 )"
             )
+        if hparams.task == "classification":
+            n_outputs = int("".join([c for c in name if c.isdigit()]))
+        elif hparams.task == "regression":
+            # if hparams.dataset == "GAIT":
+            from cfg.target_columns import BASIC_GAIT_PARAMS, ADVANCED_GAIT_PARAMS
 
-        n_outputs = int("".join([c for c in name if c.isdigit()]))
+            n_outputs = len(BASIC_GAIT_PARAMS)
+            if hparams.model_arch == "ConcatenatedSTCNet":
+                n_outputs = len(ADVANCED_GAIT_PARAMS)
 
         self.dataset_init_func = self.datasets_map.get(name)
         self.model = generate_network(hparams, n_outputs=n_outputs)
@@ -229,8 +236,8 @@ class LightningVideoClassifier(pl.LightningModule):
                 "top5_acc": correct_top5 / total,
                 "loss_dict": loss_dict,
                 "pred": out.argmax(1).float(),
-                "label": label.float()
-                }
+                "label": label.float(),
+            }
         else:
             return {"loss": loss, "acc": correct / total, "loss_dict": loss_dict}
 
@@ -262,7 +269,7 @@ class LightningVideoClassifier(pl.LightningModule):
         """
         avg_loss = torch.stack([x["loss"].mean() for x in outputs]).mean()
         avg_acc = torch.stack([x["acc"].mean() for x in outputs]).mean()
-        
+
         y_pred = (
             torch.cat([x["pred"].flatten(0) for x in outputs], dim=0)
             .detach()
@@ -295,15 +302,15 @@ class LightningVideoClassifier(pl.LightningModule):
                 ToTensor3D(),
             ]
         )
-        crop_method = A.CenterCrop if self.hparams.dataset == "UCF101" else A.RandomResizedCrop
+        crop_method = (
+            A.CenterCrop if self.hparams.dataset == "UCF101" else A.RandomResizedCrop
+        )
         spatial_transform = {
             # train : use albumentations
             "train": VideoAugmentator(
                 transform=A.Compose(
                     [
-                        crop_method(
-                            self.hparams.sample_size, self.hparams.sample_size
-                        ),
+                        crop_method(self.hparams.sample_size, self.hparams.sample_size),
                         A.HorizontalFlip(),
                         A.pytorch.transforms.ToTensor(),
                     ]
@@ -332,7 +339,9 @@ class LightningVideoClassifier(pl.LightningModule):
 
         norm_method = Normalize3D(mean=MEAN, std=STD)
 
-        root = self.hparams.data_root + ("_flow" if self.hparams.stream == 'flow' else "")
+        root = self.hparams.data_root + (
+            "_flow" if self.hparams.stream == "flow" else ""
+        )
         self.train_ds = self.dataset_init_func(
             root=root,
             annotation_path=self.hparams.annotation_file,
@@ -408,7 +417,7 @@ class LightningVideoClassifier(pl.LightningModule):
         # import ipdb
 
         # ipdb.set_trace()
- 
+
         print(
             f"Train : {len(self.train_ds)}, Valid(sub-clips): {len(self.val_ds)}, Test(video) : {len(self.test_ds)}"
         )
@@ -456,6 +465,7 @@ class LightningVideoClassifier(pl.LightningModule):
         optimizer,
         optimizer_idx,
         second_order_closure=None,
+        using_native_amp=None,
     ):
         # use lr proposed by lr_finder
         lr = self.hparams.learning_rate or self.lr
@@ -517,13 +527,23 @@ if __name__ == "__main__":
     set_seed(0)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_arch", type=str, default="DefaultMAMENet")
+    parser.add_argument(
+        "--model_arch",
+        type=str,
+        default="STCNet",
+        help="STCNet | FineTunedConvNet | ConcatenatedSTCNet",
+    )
+    parser.add_argument("--pretrained_path", type=str, default="")
     parser.add_argument(
         "--task", type=str, default="classification", help="classification | regression"
     )
     parser.add_argument("--backbone", type=str, default="r2plus1d_34_32_kinetics")
-    parser.add_argument("--dataset", type=str, help="name of dataset (UCF101|HMDB51)")
-    parser.add_argument("--stream", type=str, help="name of dataset (rgb|flow)", default='rgb')
+    parser.add_argument(
+        "--dataset", type=str, help="name of dataset (UCF101|HMDB51|GAIT|...)"
+    )
+    parser.add_argument(
+        "--stream", type=str, help="name of dataset (rgb|flow)", default="rgb"
+    )
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--test_mode", action="store_true")
     parser.add_argument("--batch_size", type=int, default=96)
@@ -533,6 +553,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=4e-3)
     parser.add_argument("--mixup", action="store_true")
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--squad", type=str, default="2,3,3")
     hparams = parser.parse_args()
 
     # update dataset config (detection_file, annotation_file, data_root)
@@ -544,16 +566,16 @@ if __name__ == "__main__":
     # init logger
     base_logger = pl.loggers.TensorBoardLogger(
         "lightning_logs/TRAIN",
-        name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}@fold-{hparams.fold}",
+        name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}_squad={hparams.squad}@fold-{hparams.fold}",
         # version=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}@fold-{hparams.fold}",
     )
     tb_logger = TensorBoard_Logger(base_logger)
     checkpoint_callback = ModelCheckpoint(monitor="val_acc", mode="max")
     es_callback = EarlyStopping(
-        monitor="val_loss", patience=10, verbose=True, mode="min"
+        monitor="val_acc", patience=10, verbose=True, mode="max"
     )
     trainer = pl.Trainer(
-        gpus=torch.cuda.device_count(),
+        gpus=1 if hparams.debug else torch.cuda.device_count(),
         distributed_backend="dp",
         callbacks=[tb_logger],
         early_stop_callback=es_callback,

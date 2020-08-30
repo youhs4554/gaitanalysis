@@ -10,11 +10,11 @@ __all__ = ["Net"]
 
 
 class Net(nn.Module):
-    def __init__(self, mame_network, predictor, target_transform=None):
+    def __init__(self, stc_network, predictor, target_transform=None):
 
         super(Net, self).__init__()
 
-        self.mame_network = mame_network
+        self.stc_network = stc_network
         self.predictor = predictor
         self.target_transform = target_transform
 
@@ -25,15 +25,15 @@ class Net(nn.Module):
         loss_dict = {}
         tb_dict = {}
 
-        x, mame_loss_dict, mame_tb_dict = self.mame_network(*inputs)
+        x, stc_loss_dict, stc_tb_dict = self.stc_network(*inputs)
 
         # classifier
         out, predictor_loss_dict = self.predictor(x, targets, lambda_)
 
-        loss_dict.update(mame_loss_dict)
+        loss_dict.update(stc_loss_dict)
         loss_dict.update(predictor_loss_dict)
 
-        tb_dict.update(mame_tb_dict)
+        tb_dict.update(stc_tb_dict)
 
         if self.target_transform is not None:
             out = self.target_transform(out)
