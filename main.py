@@ -425,7 +425,7 @@ class LightningVideoClassifier(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             self.train_ds,
-            batch_size=self.hparams.batch_size,
+            batch_size=self.hparams.batch_per_gpu * self.trainer.gpus,
             shuffle=True,
             pin_memory=True,
             num_workers=self.hparams.num_workers,
@@ -434,7 +434,7 @@ class LightningVideoClassifier(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             self.val_ds,
-            batch_size=self.hparams.batch_size,
+            batch_size=self.hparams.batch_per_gpu * self.trainer.gpus,
             shuffle=False,
             pin_memory=True,
             num_workers=self.hparams.num_workers,
@@ -443,19 +443,12 @@ class LightningVideoClassifier(pl.LightningModule):
     def test_dataloader(self):
         return DataLoader(
             self.test_ds,
-            batch_size=self.hparams.batch_size,
+            batch_size=self.hparams.batch_per_gpu * self.trainer.gpus,
             shuffle=False,
             pin_memory=True,
             num_workers=self.hparams.num_workers,
             collate_fn=collate_fn_multipositon_prediction,  # collate function is applied only for testing
         )
-        # return DataLoader(
-        #     self.val_ds,
-        #     batch_size=self.hparams.batch_size,
-        #     shuffle=False,
-        #     pin_memory=True,
-        #     num_workers=self.hparams.num_workers,
-        # )
 
     # learning rate warm-up
     def optimizer_step(
@@ -546,15 +539,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--test_mode", action="store_true")
-    parser.add_argument("--batch_size", type=int, default=96)
+    parser.add_argument("--batch_per_gpu", type=int, default=8)
     parser.add_argument("--sample_size", type=int, default=112)
     parser.add_argument("--sample_duration", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=16)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=4e-3)
     parser.add_argument("--mixup", action="store_true")
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--squad", type=str, default="2,3,3")
+    parser.add_argument("--freeze_backbone", action="store_true")
+    parser.add_argument("--squad", type=str)
     hparams = parser.parse_args()
 
     # update dataset config (detection_file, annotation_file, data_root)
@@ -575,7 +568,7 @@ if __name__ == "__main__":
         monitor="val_acc", patience=10, verbose=True, mode="max"
     )
     trainer = pl.Trainer(
-        gpus=1 if hparams.debug else torch.cuda.device_count(),
+        gpus=torch.cuda.device_count(),
         distributed_backend="dp",
         callbacks=[tb_logger],
         early_stop_callback=es_callback,

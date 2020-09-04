@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class STC(nn.Module):
+class pSGM(nn.Module):
     def __init__(
         self,
         in_channels,
@@ -12,7 +12,7 @@ class STC(nn.Module):
         sub_sample=True,
         bn_layer=True,
     ):
-        super(STC, self).__init__()
+        super(pSGM, self).__init__()
 
         assert dimension in [1, 2, 3]
 

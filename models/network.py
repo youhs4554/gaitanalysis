@@ -9,18 +9,9 @@ import math
 import random
 from .i3res import inflated_resnet
 from .deformable_conv3d import DeformConv3DWrapper
-from .STC import STC
+from .pSGM import pSGM
 
 __all__ = ["STCNet"]
-
-
-class LayerConfig(object):
-    # TODO. will be managed in cfg file (.json/.yaml)
-    dims = {
-        "VideoResNet": [64, 64, 128, 256, 512],
-        "I3ResNet": [64, 256, 512, 1024, 2048],
-    }
-    STC_squad = {"layer2": 2, "layer3": 3, "layer4": 3}
 
 
 class STCNet(nn.Module):
@@ -29,50 +20,49 @@ class STCNet(nn.Module):
         "I3ResNet": [64, 256, 512, 1024, 2048],
     }
 
-    def __init__(self, backbone, n_outputs=None, STC_squad="2,3,3"):
+    def __init__(
+        self, backbone, n_outputs=None, STC_squad=None, freeze_backbone=False
+    ):
         super().__init__()
 
         # detach fc/avgpool
         del backbone.fc
         del backbone.avgpool
 
-        freeze_layers(
-            [backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3]
-        )
+        if freeze_backbone:
+            print(
+                "-" * 80
+                + "\n"
+                + "Freezing backbone; layers [stem, layer1, layer2, layer3] are in the ICE-AGE!\n"
+                + "-" * 80
+            )
+            freeze_layers(
+                [backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3]
+            )
         count = 0
         for name, m in backbone.named_modules():
-            # if m.__class__.__name__.find("BatchNorm") != -1:
-            #     count += 1
-            #     if count > 2:
-            #         # freeze bn layers of backbone except first layer
-            #         m.eval()
-
-            #         m.weight.requires_grad = False
-            #         m.bias.requires_grad = False
-
             if name.endswith("bn3"):
-                # init gamma/bias of last bn layers with 0 to use pre-trained models
+                # init gamma of last bn layers with 0 to use pre-trained models
                 # at the beginnning of training
-                m.weight.data.fill_(1.0)
-                m.bias.data.fill_(0.0)
+                m.weight.data.fill_(0.0)
 
-        # str -> tuple
-        STC_squad = dict(zip(["layer2", "layer3", "layer4"], eval(STC_squad)))
+        # parse STC squad
+        STC_squad = dict(
+            zip(["layer2", "layer3", "layer4"], eval(STC_squad))
+        )
+
         self.layers = nn.ModuleDict()
-        # n of STC block
-        pos = ord("a")
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
             zip(backbone.named_children(), self.dims[backbone.__class__.__name__])
         ):
+            layer_name = name
+            layer_seq = [ backbone_layer ]
             if name in STC_squad and STC_squad[name] > 0:
-                layer_seq = [
-                    (f"backbone_{name}", backbone_layer),
-                    (f"block_{chr(pos)}", STC_Block(feats_dim, layers=STC_squad[name])),
-                ]
-                self.layers[f"STC_{chr(pos)}"] = nn.Sequential(OrderedDict(layer_seq))
-                pos += 1
-            else:
-                self.layers[f"backbone_{name}"] = backbone_layer
+                layer_name = f"STC_{name}"
+                layer_seq.append(
+                    STC_Block(feats_dim, layers=STC_squad[name])
+                )
+            self.layers[layer_name] = nn.Sequential(*layer_seq)
 
     def forward(self, video, mask):
         loss_dict = defaultdict(float)
@@ -113,18 +103,7 @@ class STC_Block(nn.Module):
     def __init__(self, feats_dim, layers=1):
         super().__init__()
         self.mask_layer = nn.Conv3d(feats_dim, 1, kernel_size=1)
-        self.STC_modules = nn.ModuleList([STCModule(feats_dim) for _ in range(layers)])
-
-    #     self._initialize_weights()
-
-    # def _initialize_weights(self):
-    #     module_list = [ self.mask_layer ] + list(self.STC_modules.modules())
-    #     for m in module_list:
-    #         if isinstance(m, nn.Conv3d):
-    #             nn.init.kaiming_normal_(m.weight, mode='fan_out',
-    #                                     nonlinearity='relu')
-    #             if m.bias is not None:
-    #                 nn.init.constant_(m.bias, 0)
+        self.stcm_stack = nn.ModuleList([STCM(feats_dim) for _ in range(layers)])
 
     def forward(self, x):
 
@@ -133,7 +112,7 @@ class STC_Block(nn.Module):
 
         identity = x
 
-        for module in self.STC_modules:
+        for module in self.stcm_stack:
             x = module(x, mask_pred)
 
         x += identity
@@ -142,17 +121,17 @@ class STC_Block(nn.Module):
         return x, mask_pred
 
 
-class STCModule(nn.Module):
+class STCM(nn.Module):
     def __init__(self, feats_dim=256):
 
-        super(STCModule, self).__init__()
+        super(STCM, self).__init__()
         self.inter = inter = feats_dim // 4
 
         self.enc = nn.Conv3d(feats_dim, inter, kernel_size=1)
         self.dec = nn.Conv3d(inter, feats_dim, kernel_size=1)
 
-        # STC : Mask Augmented Motion Encoding module
-        self.STC = STC(in_channels=inter)
+        # p-SGM : pseudo-Semantics Guided Moudle
+        self.psgm = pSGM(in_channels=inter)
 
     def forward(self, x, mask_pred):
         # x : 3d features from a prev layer(or block)
@@ -162,7 +141,7 @@ class STCModule(nn.Module):
         mask_pred = mask_pred.repeat(1, self.inter, 1, 1, 1)
 
         x = self.enc(x)
-        x = self.STC(x, mask_pred)
+        x = self.psgm(x, mask_pred)
         x = self.dec(x)
 
         x += identity

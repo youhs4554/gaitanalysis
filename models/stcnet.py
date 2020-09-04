@@ -19,9 +19,15 @@ class STC(Net):
         backbone_dims=[64, 64, 128, 256, 512],
         target_transform=None,
         STC_squad="2,3,3",
+        freeze_backbone=False,
     ):
 
-        stc_network = STCNet(backbone, n_outputs=n_outputs, STC_squad=STC_squad)
+        stc_network = STCNet(
+            backbone,
+            n_outputs=n_outputs,
+            STC_squad=STC_squad,
+            freeze_backbone=freeze_backbone,
+        )
         predictor = DefaultPredictor(
             n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=task
         )
@@ -40,10 +46,17 @@ class ConcatenatedSTC(Net):
         task="regression",
         backbone_dims=[64, 64, 128, 256, 512],
         target_transform=None,
+        STC_squad="2,3,3",
+        freeze_backbone=False,
     ):
         assert task == "regression", "This module is for only regression task"
 
-        stc_network = STCNet(backbone, n_outputs=n_outputs, STC_squad=STC_squad)
+        stc_network = STCNet(
+            backbone,
+            n_outputs=n_outputs,
+            STC_squad=STC_squad,
+            freeze_backbone=freeze_backbone,
+        )
         predictor = DefaultPredictor(
             n_inputs=2 * backbone_dims[-1], n_outputs=n_outputs, task=task
         )
@@ -99,6 +112,8 @@ def stcnet(
         task=opt.task,
         backbone_dims=backbone_dims,
         target_transform=target_transform,
+        STC_squad=opt.squad,
+        freeze_backbone=opt.freeze_backbone,
     )
 
     if load_pretrained:
@@ -123,5 +138,7 @@ def concatenated_stcnet(
         task=opt.task,
         backbone_dims=backbone_dims,
         target_transform=target_transform,
+        STC_squad=opt.squad,
+        freeze_backbone=opt.freeze_backbone,
     )
     return net
