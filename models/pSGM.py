@@ -112,7 +112,7 @@ class pSGM(nn.Module):
         phi = self.phi(x).view(batch_size, self.inter_channels, -1)
 
         f = torch.matmul(theta, phi)
-        f_div_C = F.softmax(f, dim=-1)  # (b, t*h*w, t*h*w)
+        f_div_C = F.softmax(f, dim=1)  # (b, t*h*w, t*h*w)
 
         y = torch.matmul(f_div_C, g_x)  # (b, t*h*w, inter)
         y = y.permute(0, 2, 1).contiguous()  # (b, inter, t*h*w)

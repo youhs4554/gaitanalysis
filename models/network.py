@@ -39,12 +39,6 @@ class STCNet(nn.Module):
             freeze_layers(
                 [backbone.stem, backbone.layer1, backbone.layer2, backbone.layer3]
             )
-        count = 0
-        for name, m in backbone.named_modules():
-            if name.endswith("bn3"):
-                # init gamma of last bn layers with 0 to use pre-trained models
-                # at the beginnning of training
-                m.weight.data.fill_(0.0)
 
         # parse STC squad
         STC_squad = dict(
@@ -52,17 +46,21 @@ class STCNet(nn.Module):
         )
 
         self.layers = nn.ModuleDict()
+        
+        # n of STC block
+        pos = ord("a")
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
             zip(backbone.named_children(), self.dims[backbone.__class__.__name__])
         ):
-            layer_name = name
-            layer_seq = [ backbone_layer ]
             if name in STC_squad and STC_squad[name] > 0:
-                layer_name = f"STC_{name}"
-                layer_seq.append(
-                    STC_Block(feats_dim, layers=STC_squad[name])
-                )
-            self.layers[layer_name] = nn.Sequential(*layer_seq)
+                layer_seq = [
+                    (f"backbone_{name}", backbone_layer),
+                    (f"block_{chr(pos)}", STC_Block(feats_dim, layers=STC_squad[name])),
+                ]
+                self.layers[f"STC_{chr(pos)}"] = nn.Sequential(OrderedDict(layer_seq))
+                pos += 1
+            else:
+                self.layers[f"backbone_{name}"] = backbone_layer
 
     def forward(self, video, mask):
         loss_dict = defaultdict(float)

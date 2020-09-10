@@ -469,7 +469,8 @@ class LightningVideoClassifier(pl.LightningModule):
             for pg in optimizer.param_groups:
                 pg["lr"] = lr_scale * lr
         else:
-            self.schedulers[optimizer_idx].step(epoch=current_epoch - 5)
+            # self.schedulers[optimizer_idx].step(epoch=current_epoch - 5)
+            self.schedulers[optimizer_idx].step()
 
         # update params
         optimizer.step()
@@ -485,8 +486,14 @@ class LightningVideoClassifier(pl.LightningModule):
         )
 
         self.schedulers = [
-            torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer, lambda epoch: (0.94) ** ((epoch + 1) // 2)
+            # torch.optim.lr_scheduler.LambdaLR(
+            #     self.optimizer, lambda epoch: (0.94) ** ((epoch + 1) // 2)
+            # )
+            # torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=4, gamma=0.1),
+            torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer,
+                T_max=len(self.train_dataloader()) * self.trainer.max_epochs,
+                eta_min=self.hparams.learning_rate * (1 / 16),
             )
         ]
 
@@ -558,7 +565,7 @@ if __name__ == "__main__":
 
     # init logger
     base_logger = pl.loggers.TensorBoardLogger(
-        "lightning_logs/TRAIN",
+        "lightning_logs_tmp/TRAIN",
         name=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}_squad={hparams.squad}@fold-{hparams.fold}",
         # version=f"{hparams.model_arch}_{hparams.backbone}_duration={hparams.sample_duration}_mixup={hparams.mixup}_{hparams.dataset}_stream={hparams.stream}@fold-{hparams.fold}",
     )
@@ -571,7 +578,7 @@ if __name__ == "__main__":
         gpus=torch.cuda.device_count(),
         distributed_backend="dp",
         callbacks=[tb_logger],
-        early_stop_callback=es_callback,
+        # early_stop_callback=es_callback,
         max_epochs=50,
         checkpoint_callback=checkpoint_callback,
         logger=base_logger,
