@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON=/opt/conda/envs/torch/bin/python
 
 URFD_DETECTION_ROOT="../../preprocess/data/URFD"
 MULTICAM_DETECTION_ROOT="../../preprocess/data/MulticamFD"

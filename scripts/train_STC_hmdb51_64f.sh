@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON=/opt/conda/envs/torch/bin/python
 
 
 # backbone = r2plus1d_34 (sample_duration = 64, squad = best)

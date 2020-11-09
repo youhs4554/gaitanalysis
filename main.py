@@ -1,13 +1,15 @@
-import torch
-import pytorch_lightning as pl
 import argparse
-from pytorch_lightning.callbacks import LearningRateLogger, ModelCheckpoint
-from pytorch_lightning.callbacks.base import Callback
 
+import pytorch_lightning as pl
+import torch
+from pytorch_lightning.callbacks import LearningRateLogger, ModelCheckpoint
+from torchvision import transforms
+
+from datasets.utils import get_classification_dataloaders
+from models.video_classifier import LightningVideoClassifier
 from utils.callbacks import CustomTensorBoard_Logger
 from utils.transforms import (
     Compose,
-    RandomResizedCrop3D,
     RandomHorizontalFlip3D,
     MultiScaleCornerCrop,
     MultiScaleCornerCrop3D,
@@ -16,15 +18,7 @@ from utils.transforms import (
     Normalize3D,
     TemporalRandomCrop,
     TemporalSlidingWindow,
-    denormalize,
 )
-import numpy as np
-import random
-import glob
-from torchvision import transforms
-
-from datasets.utils import get_classification_dataloaders
-from models.video_classifier import LightningVideoClassifier
 
 if __name__ == "__main__":
 

@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON=/opt/conda/envs/torch/bin/python
 
 GAIT_DETECTION_ROOT="../../preprocess/data/Gaitparams_PD"
 

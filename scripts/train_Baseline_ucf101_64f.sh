@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON=/opt/conda/envs/torch/bin/python
 
 # sample duration = 64
 for fold in {1..3}; do
