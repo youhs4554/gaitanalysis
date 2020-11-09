@@ -352,7 +352,7 @@ class MultiScaleCornerCrop(object):
         scales,
         size,
         interpolation=Image.BILINEAR,
-        crop_positions=["c", "tl", "tr", "bl", "br"],
+        crop_positions=["c", "tc", "bc", "tl", "tr", "bl", "br"],
     ):
         self.scales = scales
         self.size = size
@@ -367,14 +367,25 @@ class MultiScaleCornerCrop(object):
         image_width = img.size[0]
         image_height = img.size[1]
 
+        center_x = image_width // 2
+        center_y = image_height // 2
+        box_half = crop_size // 2
+
         if self.crop_position == "c":
-            center_x = image_width // 2
-            center_y = image_height // 2
-            box_half = crop_size // 2
             x1 = center_x - box_half
             y1 = center_y - box_half
             x2 = center_x + box_half
             y2 = center_y + box_half
+        elif self.crop_position == "tc":
+            x1 = center_x - box_half
+            y1 = 0
+            x2 = center_x + box_half
+            y2 = crop_size
+        elif self.crop_position == "bc":
+            x1 = center_x - box_half
+            y1 = image_height - crop_size
+            x2 = center_x + box_half
+            y2 = image_height
         elif self.crop_position == "tl":
             x1 = 0
             y1 = 0
@@ -592,7 +603,7 @@ class TemporalSlidingWindow(object):
 
     def __init__(self, size):
         self.size = size
-    
+
     def __call__(self, frame_indices):
         """
         Args:
@@ -601,6 +612,7 @@ class TemporalSlidingWindow(object):
             list: Cropped frame indices.
         """
         from torchvision.datasets.video_utils import unfold
+
         if len(frame_indices) < self.size:
             # duplicated sampling (non-random)
             # if frame_indices is given as list(range(13)), and size as 64
@@ -671,20 +683,21 @@ class TemporalUniformSampling(object):
             res.append(current_chunk)
         return res
 
+
 class DuplicatedSampling(object):
     def __init__(self, size):
         self.size = size
 
-    def compute_duplications(self, VectorSize, Sum): 
-        c = int(Sum/VectorSize)
+    def compute_duplications(self, VectorSize, Sum):
+        c = int(Sum / VectorSize)
         smallest_c = copy.copy(c)
         while True:
-            residual = Sum-c*(VectorSize-1)
-            if residual-(VectorSize-1) < smallest_c:
+            residual = Sum - c * (VectorSize - 1)
+            if residual - (VectorSize - 1) < smallest_c:
                 break
             c += 1
-        x = [ c for _ in range(1, VectorSize)] 
-        x.append(Sum-sum(x)) 
+        x = [c for _ in range(1, VectorSize)]
+        x.append(Sum - sum(x))
         return x
 
     def __call__(self, frame_indices):
@@ -700,14 +713,13 @@ class DuplicatedSampling(object):
 class RandomDuplicatedSampling(object):
     def __init__(self, size):
         self.size = size
-    
+
     def random_compute_duplications(self, VectorSize, Sum):
         x = [random.randint(0, Sum) for _ in range(1, VectorSize)]
         x.extend([0, Sum])
         x.sort()
-        return [x[i+1] - x[i] for i in range(VectorSize)]
+        return [x[i + 1] - x[i] for i in range(VectorSize)]
 
-    
     def __call__(self, frame_indices):
         dups = self.random_compute_duplications(len(frame_indices), self.size)
         res = []
@@ -715,6 +727,7 @@ class RandomDuplicatedSampling(object):
             n = dups[ix]
             res.extend([e] * n)
         return res
+
 
 class TemporalRandomCrop(object):
     """Temporally crop the given frame indices at a random location.
@@ -764,16 +777,11 @@ def denormalize(vid, mean, std):
     return vid * std + mean
 
 
-class Resize3D(object):
-    def __init__(self, size, interpolation=Image.BILINEAR, to_tensor=False):
-        if isinstance(size, int):
-            size = (size, size)
-        self.size = size
-        self.interpolation = interpolation
-        self.to_tensor = to_tensor
+class MultiScaleCornerCrop3D(object):
+    def __init__(self, transform2D):
+        self.transform2D = transform2D
 
     def __call__(self, vid):
-        # vid : (T,H,W,C)
         out = []
         for pic in vid:
             if isinstance(pic, torch.Tensor):
@@ -785,13 +793,49 @@ class Resize3D(object):
             elif isinstance(pic, np.ndarray):
                 pic = Image.fromarray(pic)
 
-            resized = tf_func.resize(pic, self.size, self.interpolation)
-            if self.to_tensor:
-                resized = tf_func.to_tensor(resized)
-
-            out.append(resized)
+            crop = self.transform2D(pic)
+            out.append(crop)
 
         return out
+
+    def randomize_parameters(self):
+        self.transform2D.randomize_parameters()
+
+
+import numbers
+
+
+class Resize3D(object):
+    def __init__(self, size, keep_ratio=True, interpolation_mode="bilinear"):
+        if isinstance(size, tuple):
+            assert len(size) == 2, "size should be tuple (height, width)"
+        self.size = size
+        self.keep_ratio = keep_ratio
+        self.interpolation_mode = interpolation_mode
+
+    def __call__(self, clip):
+        size, scale = None, None
+        if isinstance(self.size, numbers.Number):
+            if self.keep_ratio:
+                scale = self.size / min(clip.shape[-2:])
+            else:
+                size = (int(self.size), int(self.size))
+        else:
+            if self.keep_ratio:
+                scale = min(
+                    self.size[0] / clip.shape[-2], self.size[1] / clip.shape[-1]
+                )
+            else:
+                size = self.size
+        clip = nn.functional.interpolate(
+            clip,
+            size=size,
+            scale_factor=scale,
+            mode=self.interpolation_mode,
+            align_corners=False,
+        )
+
+        return list(clip)
 
     def randomize_parameters(self):
         pass

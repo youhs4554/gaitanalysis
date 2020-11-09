@@ -5,10 +5,7 @@ from .default_predictor import DefaultPredictor
 from .utils import freeze_layers, generate_backbone
 
 
-__all__ = [
-    'FineTunedConvNet',
-    'fine_tuned_convnet',
-]
+__all__ = ["FineTunedConvNet", "fine_tuned_convnet"]
 
 
 class FineTunedConvNet(nn.Module):
@@ -24,6 +21,9 @@ class FineTunedConvNet(nn.Module):
         feats = self.backbone(images)
         out, predictor_loss_dict = self.predictor(feats, targets, lambda_)
 
+        if targets is None:
+            return out, feats
+
         if self.target_transform is not None:
             out = self.target_transform(out)
 
@@ -32,8 +32,8 @@ class FineTunedConvNet(nn.Module):
 
 def fine_tuned_convnet(opt, backbone, backbone_dims, n_outputs, target_transform=None):
     predictor = DefaultPredictor(
-        n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=opt.task)
-    baseline = FineTunedConvNet(
-        backbone, predictor, target_transform=target_transform)
+        n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=opt.task
+    )
+    baseline = FineTunedConvNet(backbone, predictor, target_transform=target_transform)
 
     return baseline

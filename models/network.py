@@ -20,9 +20,7 @@ class STCNet(nn.Module):
         "I3ResNet": [64, 256, 512, 1024, 2048],
     }
 
-    def __init__(
-        self, backbone, n_outputs=None, STC_squad=None, freeze_backbone=False
-    ):
+    def __init__(self, backbone, n_outputs=None, STC_squad=None, freeze_backbone=False):
         super().__init__()
 
         # detach fc/avgpool
@@ -41,12 +39,10 @@ class STCNet(nn.Module):
             )
 
         # parse STC squad
-        STC_squad = dict(
-            zip(["layer2", "layer3", "layer4"], eval(STC_squad))
-        )
+        STC_squad = dict(zip(["layer2", "layer3", "layer4"], eval(STC_squad)))
 
         self.layers = nn.ModuleDict()
-        
+
         # n of STC block
         pos = ord("a")
         for ix, ((name, backbone_layer), feats_dim) in enumerate(
@@ -65,6 +61,7 @@ class STCNet(nn.Module):
     def forward(self, video, mask):
         loss_dict = defaultdict(float)
         tb_dict = defaultdict(float)
+        feats_dict = dict()
 
         x = video
         for name, layer in self.layers.items():
@@ -93,8 +90,10 @@ class STCNet(nn.Module):
                 tb_dict[
                     f"mask_prediction_status_at_{probe_name}"
                 ] = mask_predictions_status
+            
+            feats_dict[name] = x
 
-        return x, loss_dict, tb_dict
+        return x, feats_dict, loss_dict, tb_dict
 
 
 class STC_Block(nn.Module):

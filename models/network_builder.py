@@ -25,10 +25,13 @@ class Net(nn.Module):
         loss_dict = {}
         tb_dict = {}
 
-        x, stc_loss_dict, stc_tb_dict = self.stc_network(*inputs)
+        x, feats_dict, stc_loss_dict, stc_tb_dict = self.stc_network(*inputs)
 
         # classifier
         out, predictor_loss_dict = self.predictor(x, targets, lambda_)
+
+        if targets is None:
+            return out, feats_dict
 
         loss_dict.update(stc_loss_dict)
         loss_dict.update(predictor_loss_dict)

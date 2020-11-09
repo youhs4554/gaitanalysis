@@ -7,12 +7,20 @@ import torch
 import torchvision
 from PIL import Image
 import pandas as pd
+import glob
 from utils.transforms import Resize3D
+from .ucf101 import UCF101
 
 
-__all__ = [
-    "FallDataset"
-]
+__all__ = ["FallDataset", "CesleaFDD6"]
+
+
+class CesleaFDD6(UCF101):
+    def __init__(self, *args, **kwargs):
+        """
+            Follow same API of UCF101
+        """
+        super().__init__(*args, **kwargs)
 
 
 class FallDataset(VisionDataset):
@@ -49,14 +57,32 @@ class FallDataset(VisionDataset):
         label (int): class of the video clip (fall / adl); ADL - Activities of Daily Living
     """
 
-    def __init__(self, root, annotation_path, detection_file_path, frames_per_clip, step_between_clips=1,
-                 frame_rate=None, fold=1, train=True, multiple_clip=False, clip_gen=False,
-                 spatial_transform=None, temporal_transform=None, norm_method=None, img_size=112,
-                 _precomputed_metadata=None, num_workers=1, _video_width=0,
-                 _video_height=0, _video_min_dimension=0, _audio_samples=0):
+    def __init__(
+        self,
+        root,
+        annotation_path,
+        detection_file_path,
+        frames_per_clip,
+        step_between_clips=1,
+        frame_rate=None,
+        fold=1,
+        train=True,
+        multiple_clip=False,
+        clip_gen=False,
+        spatial_transform=None,
+        temporal_transform=None,
+        norm_method=None,
+        img_size=112,
+        _precomputed_metadata=None,
+        num_workers=1,
+        _video_width=0,
+        _video_height=0,
+        _video_min_dimension=0,
+        _audio_samples=0,
+    ):
         super(FallDataset, self).__init__(root)
 
-        extensions = ('avi',)
+        extensions = ("avi",)
         self.fold = fold
         self.train = train
         self.multiple_clip = multiple_clip
@@ -66,19 +92,19 @@ class FallDataset(VisionDataset):
         self.detection_data = pd.read_pickle(detection_file_path)
 
         # eval string values
-        self.detection_data.idx = self.detection_data.idx.map(
-            lambda x: eval(x))
+        self.detection_data.idx = self.detection_data.idx.map(lambda x: eval(x))
         self.detection_data.pos = self.detection_data.pos.map(
-            lambda x: [int(e) for e in eval(x)])
+            lambda x: [int(e) for e in eval(x)]
+        )
 
         classes = list(sorted(list_dir(root)))
         class_to_idx = {classes[i]: i for i in range(len(classes))}
         self.samples = make_dataset(
-            self.root, class_to_idx, extensions, is_valid_file=None)
+            self.root, class_to_idx, extensions, is_valid_file=None
+        )
         self.classes = classes
         video_list = [x[0] for x in self.samples]
-        self.indices = self._select_fold(
-            video_list, annotation_path, fold, train)
+        self.indices = self._select_fold(video_list, annotation_path, fold, train)
 
         self.dataset_size = len(self.indices)
         if clip_gen:
@@ -122,8 +148,11 @@ class FallDataset(VisionDataset):
             data = [x[0] for x in data]
             selected_files.extend(data)
         selected_files = set(selected_files)
-        indices = [i for i in range(len(video_list)) if video_list[i][len(
-            self.root) + 1:] in selected_files]
+        indices = [
+            i
+            for i in range(len(video_list))
+            if video_list[i][len(self.root) + 1 :] in selected_files
+        ]
         return indices
 
     def fetch_video_data(self, video_idx):
@@ -136,10 +165,11 @@ class FallDataset(VisionDataset):
     def fetch_clip_data(self, clip_idx):
         try:
             clip, audio, info, video_idx, clip_pts = self.video_clips.get_clip(
-                clip_idx)  # clip_pts-'frame index'
+                clip_idx
+            )  # clip_pts-'frame index'
         except Exception as e:
             print(e)
-            #import ipdb
+            # import ipdb
             # ipdb.set_trace()
         video_path, label = self.samples[self.indices[video_idx]]
 
@@ -154,7 +184,7 @@ class FallDataset(VisionDataset):
         else:
             video, label, clip_pts, video_path = self.fetch_video_data(idx)
 
-        video_name = os.path.basename(video_path).rstrip('.avi')
+        video_name = os.path.basename(video_path).rstrip(".avi")
 
         if self.temporal_transform is not None:
             clip_pts = self.temporal_transform(clip_pts)
@@ -179,6 +209,7 @@ class FallDataset(VisionDataset):
                 masks[t, ymin:ymax, xmin:xmax] = 255
         except:
             import ipdb
+
             ipdb.set_trace()
 
         # smart indexing, retrieve a subVideoClip
@@ -186,20 +217,21 @@ class FallDataset(VisionDataset):
         masks = masks[clip_pts]
 
         # reize frames
-        video = Resize3D(size=self.img_size,
-                         interpolation=Image.BILINEAR)(video)
-        masks = Resize3D(size=self.img_size,
-                         interpolation=Image.NEAREST)(masks)
+        video = Resize3D(size=self.img_size, interpolation=Image.BILINEAR)(video)
+        masks = Resize3D(size=self.img_size, interpolation=Image.NEAREST)(masks)
 
         if self.spatial_transform is not None:
             try:
                 video = self.apply_spatial_transform(
-                    video, randomize=True, normalize=True)
+                    video, randomize=True, normalize=True
+                )
             except:
                 import ipdb
+
                 ipdb.set_trace()
             masks = self.apply_spatial_transform(
-                masks, randomize=False, normalize=False)
+                masks, randomize=False, normalize=False
+            )
 
         permute_axis = (0, 4, 1, 2, 3) if self.multiple_clip else (3, 0, 1, 2)
 
@@ -208,8 +240,9 @@ class FallDataset(VisionDataset):
         masks = masks.permute(*permute_axis)
 
         masks = masks[:, :1] if self.multiple_clip else masks[:1]
-        valid_len = video.size(
-            0)*video.size(2) if self.multiple_clip else video.size(1)
+        valid_len = (
+            video.size(0) * video.size(2) if self.multiple_clip else video.size(1)
+        )
 
         # conver label to tensor
         label = torch.tensor(label).long()

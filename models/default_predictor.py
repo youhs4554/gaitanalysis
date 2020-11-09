@@ -10,8 +10,7 @@ __all__ = ["DefaultPredictor"]
 class DefaultPredictor(nn.Module):
     def __init__(self, n_inputs, n_outputs, task="regression"):
         super(DefaultPredictor, self).__init__()
-        self.classifier = nn.Sequential(nn.Dropout(0.5), nn.Linear(n_inputs, n_outputs))
-
+        self.classifier = nn.Linear(n_inputs, n_outputs)
         self.task = task
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
@@ -19,7 +18,7 @@ class DefaultPredictor(nn.Module):
         if task == "regression":
             self.criterion = nn.SmoothL1Loss()
         elif task == "classification":
-            self.criterion = LabelSmoothLoss(smoothing=0.1)
+            self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, *args, **kwargs):
         x, targets, lambda_ = args

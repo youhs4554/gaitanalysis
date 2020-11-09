@@ -28,7 +28,7 @@ class UCF101(Dataset):
         sample_rate=5,
         input_size=(16, 128, 171),
         train=True,
-        hard_augmentation=True,
+        hard_augmentation=False,
         fold=1,
         temporal_transform=None,
         spatial_transform=None,
@@ -177,16 +177,14 @@ class UCF101(Dataset):
             else self.fetch_video(idx)
         )
 
-        video = video.permute(0, 3, 1, 2)
+        video = video.permute(0, 3, 1, 2).float()
+        video = (video - video.min()) / (video.max() - video.min())
+        video = Resize3D(size=self.img_size, keep_ratio=False)(video)
 
-        video = Resize3D(
-            size=self.img_size, interpolation=Image.BILINEAR, to_tensor=True
-        )(video)
         query = os.path.splitext(video_path[len(self.root.rstrip("/")) + 1 :])[0]
         query = [
             os.path.join(query, "thumb{:04d}.txt".format(i + 1)) for i in clip_pts
         ]  # starts from *0001.txt
-
         detection_res = self.detection_data.loc[query].fillna(
             0.0
         )  # zero-fill for non-detected frame

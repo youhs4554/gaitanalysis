@@ -6,7 +6,7 @@ from pytorch_lightning import Callback
 import torch
 
 
-class TensorBoard_Logger(Callback):
+class CustomTensorBoard_Logger(Callback):
     def __init__(self, base_logger):
         super().__init__()
         self.base_logger = base_logger
@@ -38,14 +38,6 @@ class TensorBoard_Logger(Callback):
                 {"acc": logs["acc" if name == "train" else "val_acc"]},
                 trainer.global_step,
             )
-            if name == "train":
-                tagname = f"lr-{pl_module.optimizer.__class__.__name__}"
-                self._write_logs(
-                    tagname,
-                    "",
-                    {tagname: torch.tensor(pl_module.optimizer.param_groups[0]["lr"])},
-                    trainer.global_step,
-                )
 
     def on_batch_end(self, trainer, pl_module):
         self.write_logs(trainer, pl_module, name="train")
