@@ -1,3 +1,4 @@
+import ipdb
 from datasets import get_data_loader
 from models import generate_network
 import sklearn.metrics
@@ -7,7 +8,6 @@ import json
 import utils.engine
 import torch.optim as optim
 import torch.nn as nn
-import pytorch_warmup as warmup  # for LR warmup
 import argparse
 import torch
 import numpy as np
@@ -51,6 +51,8 @@ if not os.path.exists(args.cfg_file):
 
 with open(args.cfg_file, 'r') as f:
     opt.__dict__ = json.load(f)
+
+opt.cfg_file = os.path.splitext(os.path.basename(args.cfg_file))[0]
 
 
 def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
@@ -102,20 +104,20 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     # Define NeuralNetwork Wrapper Class
     net = utils.engine.VideoClassifier(model, optimizer,
                                        n_folds=opt.n_folds,
+                                       fold=fold,
                                        lr_scheduler=lr_scheduler,
                                        warmup_scheduler=warmup_scheduler)
 
     net.train(train_loader, test_loader,
               n_epochs=opt.n_iter, validation_freq=len(train_loader),
               multiple_clip=opt.multiple_clip, metrics=metrics,
-              save_dir=os.path.join(opt.ckpt_dir, opt.model_indicator))
+              save_dir=os.path.join(opt.ckpt_dir, opt.cfg_file))
 
 # TODO. Refactoring model trainer, pytorch-lightning!!!!
 # https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09
 
 
 for fold in range(1, opt.n_folds+1):
-    fold = 1
     # LOO cross-validation loop
     train_one_fold(fold, metrics={
         'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
@@ -128,4 +130,3 @@ for fold in range(1, opt.n_folds+1):
         'precision': (lambda y_true, y_pred: sklearn.metrics.precision_score(y_true, y_pred, pos_label=1), False)
 
     })
-    break

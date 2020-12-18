@@ -19,10 +19,18 @@ class FineTunedConvNet(nn.Module):
         self.predictor = predictor
         self.target_transform = target_transform
 
-    def forward(self, *inputs, targets=None):
+    def forward(self, *inputs, targets=None, enable_tsn=False):
         images, *_ = inputs  # ignore masks
+        batch_size, nclips, *cdhw = images.size()
+
+        if enable_tsn:
+            images = images.view(-1, *cdhw)
+
         feats = self.backbone(images)
-        out, predictor_loss_dict = self.predictor(feats, targets, None)
+
+        # model output
+        out, predictor_loss_dict = self.predictor(
+            feats, targets, enable_tsn, batch_size)
 
         if self.target_transform is not None:
             out = self.target_transform(out)

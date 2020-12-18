@@ -11,7 +11,7 @@ from manifest.target_columns import BASIC_GAIT_PARAMS
 
 def generate_network(opt, n_outputs=2, target_transform=None):
     # define backbone
-    backbone, backbone_dims = generate_backbone(opt.backbone)
+    backbone, backbone_dims = generate_backbone(opt, pretrained=True)
 
     if opt.model_arch == 'DefaultAGNet':
         # def default_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
@@ -33,9 +33,10 @@ def generate_network(opt, n_outputs=2, target_transform=None):
     else:
         raise ValueError('Arch {} is not supported'.format(opt.model_arch))
 
-    # Enable GPU model & data parallelism
-    if opt.multi_gpu:
-        net = nn.DataParallel(net)
+    # Enable GPU model & data parallelism if multi-gpu system
+    net = (
+        nn.DataParallel(net) if torch.cuda.device_count() > 1 else net
+    )
 
     if torch.cuda.is_available():
         net = net.cuda()

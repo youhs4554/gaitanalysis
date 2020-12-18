@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/opt/conda/envs/torch/bin/python",
+    "python.pythonPath": "/root/anaconda3/envs/radiomics/bin/python",
     "python.formatting.provider": "autopep8",
     "docker.host":"tcp://localhost:23750",
 }

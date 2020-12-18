@@ -41,13 +41,34 @@ def get_inflated_resnet(net_2d, net_3d):
     return net_3d
 
 
-def generate_backbone(type, pretrained=True):
+def generate_backbone(opt, pretrained=True):
     net = None
-    if type in ['mc3_18', 'r2plus1d_18', 'r3d_18']:
-        net_init_func = getattr(torchvision.models.video, type)
+    if opt.backbone in ['mc3_18', 'r2plus1d_18', 'r3d_18']:
+        net_init_func = getattr(torchvision.models.video, opt.backbone)
         net = net_init_func(pretrained=pretrained)
         dims = [64, 64, 128, 256, 512]
-    elif type == 'inflated':
+    elif "r2plus1d_34" in opt.backbone:
+        TORCH_R2PLUS1D = "moabitcoin/ig65m-pytorch"
+        MODELS = {
+            # Model name followed by the number of output classes.
+            "r2plus1d_34_32_ig65m": 359,
+            "r2plus1d_34_32_kinetics": 400,
+            "r2plus1d_34_8_ig65m": 487,
+            "r2plus1d_34_8_kinetics": 400,
+        }
+        pretrained_data = opt.backbone.split("_")[-1]
+        assert pretrained_data in [
+            "ig65m", "kinetics"], "Not supported pretrained data {}, Should be 'ig65m' or 'kinetics'".format(pretrained_data)
+        duration = "8" if opt.sample_duration <= 16 else "32"
+        model_name = f"r2plus1d_34_{duration}_{pretrained_data}"
+        net = torch.hub.load(
+            TORCH_R2PLUS1D,
+            model_name,
+            num_classes=MODELS[model_name],
+            pretrained=pretrained,
+        )
+        dims = [64, 64, 128, 256, 512]
+    elif opt.backbone == 'inflated':
         resnet_2d = torchvision.models.resnet18(pretrained)
         resnet_3d = torchvision.models.video.r3d_18(pretrained)
         # inflate 2d weights to

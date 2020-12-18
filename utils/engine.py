@@ -1,3 +1,4 @@
+from datetime import datetime
 import torch
 import os
 import collections
@@ -102,17 +103,20 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     best_model_wts = None
 
     model.train()
+    enable_tsn = train_loader.dataset.dataset.num_samples > 1
     for batch in train_loader:
         if torch.cuda.is_available():
             batch = [item.cuda()
                      if isinstance(item, torch.Tensor) else item
                      for item in batch]
 
-        images, masks, targets, vids, valid_lengths = batch
+        images, masks, targets = batch
+
         # if len(targets.cpu().unique()) == 1:
         #     print('Continue highly imbalance batch...')
         #     continue
-        out, loss_dict = model(images, masks, targets=targets)
+        out, loss_dict = model(
+            images, masks, targets=targets, enable_tsn=enable_tsn)
 
         loss_dict = {k: loss_dict[k].mean() for k in loss_dict}
         losses = sum(loss for loss in loss_dict.values())
@@ -159,8 +163,8 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
 
             main_valid_scores = {
                 level: valid_score_val_group[level][level+'_'+main_metric] for level in levels}
-            level_main = 'video' if multiple_clip else 'clip'
-            cur_val_score = main_valid_scores[level_main]
+            # level_main = 'video' if multiple_clip else 'clip'
+            cur_val_score = main_valid_scores["clip"]
             if cur_val_score >= best_val_score:
                 best_val_score = cur_val_score
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -235,7 +239,7 @@ def create_dir(cb):
 
 
 class NeuralNetworks(object):
-    def __init__(self, model, optimizer, n_folds=1,
+    def __init__(self, model, optimizer, n_folds=1, fold=1,
                  lr_scheduler=None, warmup_scheduler=None, default_metrics_callbacks=None, task='classification'):
 
         self.model = model
@@ -243,16 +247,19 @@ class NeuralNetworks(object):
         self.lr_scheduler = lr_scheduler
         self.warmup_scheduler = warmup_scheduler
         self.n_folds = n_folds  # default : 1, if bigger than 1, cross-validate
+        self.fold = fold
         self.task = task
 
     @create_dir
     def train(self, train_loader, valid_loader, n_epochs, validation_freq=10, multiple_clip=False, metrics=None, save_dir=''):
 
-        fold = train_loader.dataset.fold
+        fold = self.fold
 
         model_path = os.path.join(
             save_dir, 'model_fold-{}.pth'.format(fold))
         env_name = os.path.basename(save_dir) + "-fold-{}".format(fold)
+        env_name = env_name + "_" + \
+            datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
 
         # visdom plot interface
         plotter = VisdomPlotter(env_name=env_name)
@@ -359,10 +366,10 @@ class VideoClassifier(NeuralNetworks):
         'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
     }
 
-    def __init__(self, model, optimizer, n_folds=1,
+    def __init__(self, model, optimizer, n_folds=1, fold=1,
                  lr_scheduler=None, warmup_scheduler=None):
         super(VideoClassifier, self).__init__(
-            model, optimizer, n_folds, lr_scheduler, warmup_scheduler, task='classification')
+            model, optimizer, n_folds, fold, lr_scheduler, warmup_scheduler, task='classification')
 
     @property
     def default_metrics_callbacks(self):
@@ -376,8 +383,8 @@ class VideoRegressor(NeuralNetworks):
         'msle': (lambda y_true, y_pred: sklearn.metrics.mean_squared_log_error(y_true, y_pred), False),
     }
 
-    def __init__(self, model, optimizer, n_folds=1,
+    def __init__(self, model, optimizer, n_folds=1, fold=1,
                  lr_scheduler=None, warmup_scheduler=None):
 
         super(VideoRegressor, self).__init__(
-            model, optimizer, n_folds, lr_scheduler, warmup_scheduler, task='regression')
+            model, optimizer, n_folds, fold, lr_scheduler, warmup_scheduler, task='regression')

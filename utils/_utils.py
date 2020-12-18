@@ -120,7 +120,7 @@ class ScoreMeter(AverageMeter):
             else:
                 s = self.metric_func(targets.detach().cpu().numpy(),
                                      out.detach().cpu().numpy())
-        
+
         super().update(val=s)
 
 

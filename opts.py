@@ -136,11 +136,6 @@ def parse_opts():
         help='Sampling frequency of video frame ( 1 frame / \delta )',
     )
     parser.add_argument(
-        '--multi_gpu',
-        action='store_true',
-        help='If true, enable multi GPU system.')
-    parser.set_defaults(multi_gpu=False)
-    parser.add_argument(
         '--multiple_clip',
         action='store_true',
         help='If true, enable multiple_clip.')
