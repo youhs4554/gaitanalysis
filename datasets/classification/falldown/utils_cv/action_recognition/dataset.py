@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
+import random
 import torch.nn.functional as F
 import os
 import copy
@@ -16,6 +17,7 @@ from numpy.random import randint
 import torch
 from torch.utils.data import Dataset, Subset, DataLoader
 from torchvision.transforms import Compose
+import tqdm
 
 from .references import transforms_video as transforms
 from .references.functional_video import denormalize
@@ -370,6 +372,8 @@ class VideoDataset:
         test.dataset.transforms = self.test_transforms
         test.dataset.random_shift = False
         test.dataset.temporal_jitter = False
+        test.dataset.samples = self.generate_test_clips(test)
+        test.indices = torch.randperm(len(test.dataset.samples))
 
         return train, test
 
@@ -395,6 +399,42 @@ class VideoDataset:
 
     def __len__(self) -> int:
         return len(self.video_records)
+
+    def generate_test_clips(self, test_ds):
+        n_videos = len(test_ds)
+        self.transforms = test_ds.dataset.transforms
+
+        # To eliminate `race conditions` among processes
+        # https://stackoverflow.com/questions/38883288/python-multiprocessing-using-a-lock-or-manager-list-for-pool-workers-accessing-a
+
+        from multiprocessing import Manager
+        manager = Manager()
+        _clips = manager.list()
+        _masks = manager.list()
+        _labels = manager.list()
+
+        def worker(ix):
+            with lock:
+                clip, mask, label = test_ds.__getitem__(ix)
+                _clips.extend([e for e in clip])
+                _masks.extend([e for e in mask])
+                _labels.extend([label] * clip.size(0))
+
+        import multiprocessing
+        from multiprocessing.dummy import Pool as ThreadPool
+        from concurrent.futures import ThreadPoolExecutor
+
+        def init(l):
+            global lock
+            lock = l
+
+        l = multiprocessing.Lock()
+        with tqdm.tqdm(total=n_videos) as pbar:
+            with ThreadPoolExecutor(16, initializer=init, initargs=(l,)) as pool:
+                for _ in tqdm.tqdm(pool.map(worker, range(n_videos))):
+                    pbar.update()
+
+        return list(zip(_clips, _masks, _labels))
 
     def _sample_indices(self, record: VideoRecord) -> List[int]:
         """

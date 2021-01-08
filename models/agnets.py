@@ -10,9 +10,11 @@ import copy
 
 __all__ = [
     'DefaultAGNet',
+    'TripletAGNet',
     'RegionalAGNet',
     'ConcatenatedAGNet',
     'default_agnet',
+    'triplet_agnet',
     'regional_agnet',
     'concatenated_agnet'
 ]
@@ -31,6 +33,19 @@ class DefaultAGNet(GeneralizedAGNet):
                                            predictor, target_transform=target_transform)
 
 
+class TripletAGNet(GeneralizedAGNet):
+    def __init__(self,
+                 backbone, n_outputs=2, task='classification',
+                 backbone_dims=[64, 64, 128, 256, 512], target_transform=None):
+
+        guider = GuideNet(backbone, backbone_dims)
+        predictor = TripletPredictor(
+            n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=task)
+
+        super(TripletAGNet, self).__init__(guider,
+                                           predictor, target_transform=target_transform)
+
+
 class RegionalAGNet(GeneralizedAGNet):
     def __init__(self,
                  backbone, n_outputs=2, task='classification',
@@ -44,7 +59,7 @@ class RegionalAGNet(GeneralizedAGNet):
             n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=task)
 
         super(RegionalAGNet, self).__init__(guider,
-                                           predictor, target_transform=target_transform)
+                                            predictor, target_transform=target_transform)
 
 
 class ConcatenatedAGNet(GeneralizedAGNet):
@@ -88,6 +103,17 @@ class ConcatenatedAGNet(GeneralizedAGNet):
 
 def default_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
     net = DefaultAGNet(backbone, n_outputs=n_outputs, task=opt.task,
+                       backbone_dims=backbone_dims, target_transform=target_transform)
+
+    if load_pretrained_agnet:
+        load_pretrained_ckpt(net, opt.pretrained_path)
+        freeze_layers(layers=net.children())
+
+    return net
+
+
+def triplet_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
+    net = TripletAGNet(backbone, n_outputs=n_outputs, task=opt.task,
                        backbone_dims=backbone_dims, target_transform=target_transform)
 
     if load_pretrained_agnet:

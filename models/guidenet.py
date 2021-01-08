@@ -1,7 +1,9 @@
 
+from scipy.sparse.construct import identity
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.nn.modules.loss import BCELoss
 from .losses import MultiScaled_BCELoss, MultiScaled_DiceLoss, BinaryDiceLoss
 from .utils import init_mask_layer, freeze_layers
 from collections import OrderedDict
@@ -9,6 +11,45 @@ from collections import OrderedDict
 __all__ = [
     'GuideNet'
 ]
+
+
+def conv_1x1x1(inplanes, planes):
+    return nn.Conv3d(inplanes, planes, kernel_size=1, bias=False)
+
+
+def conv_3x3x3(inplanes, planes):
+    return nn.Conv3d(inplanes, planes, kernel_size=3, padding=1, bias=False)
+
+
+class BottleneckConvBlock(nn.Module):
+    def __init__(self, feature_dim=512):
+        super().__init__()
+        self.conv1 = conv_1x1x1(feature_dim, feature_dim//4)
+        self.bn1 = nn.BatchNorm3d(feature_dim//4)
+        self.conv2 = conv_3x3x3(feature_dim//4, feature_dim//4)
+        self.bn2 = nn.BatchNorm3d(feature_dim//4)
+        self.conv3 = conv_1x1x1(feature_dim//4, feature_dim)
+        self.bn3 = nn.BatchNorm3d(feature_dim)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+
+        identity = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
 
 
 class GuideNet(nn.Module):
@@ -25,99 +66,62 @@ class GuideNet(nn.Module):
         self.backbone_layer = nn.Sequential(
             OrderedDict(dict(backbone.named_children())))
 
-        # # freeze backbone layers
-        # print('freezing backbone layers...')
-        # freeze_layers(self.backbone_layer.children())
-        # _ = ''
-        # print('After freezing, # of trainable params of a backbone layers : {}'.format(
-        #     len([_ for p in self.backbone_layer.parameters() if p.requires_grad])
-        # ))
-
-        # self.upconv = nn.Sequential(
-        #     nn.ConvTranspose3d(feature_dim, feature_dim, 2, 2, 0),
-        #     nn.ReLU(inplace=True))
-
+        # mask prediction layer
         self.mask_layer = nn.Sequential(
-            nn.Conv3d(feature_dim, 1, kernel_size=1, bias=False),
+            nn.Conv3d(feature_dim, 1, kernel_size=1),
             nn.Sigmoid()
         )
-        self.perturb_layer = nn.Sequential(
-            nn.Conv3d(feature_dim, 1, kernel_size=1, bias=False),
-            nn.Sigmoid()
-        )
-        self.refined_mask_layer = nn.Sequential(
-            nn.Conv3d(1, 1, kernel_size=1, bias=False),
-            nn.Sigmoid()
-        )
-        # self.conv_1x1 = nn.Sequential(
-        #     nn.Conv3d(1+feature_dim, feature_dim, 1),
-        #     nn.ReLU(inplace=True),
-        # )
 
+        # mask perturbation layer (applied on target masks)
+        # with depth-wise separable convs
+        self.perturb_layer = nn.Sequential(
+            nn.Conv3d(feature_dim, feature_dim,
+                      kernel_size=3, padding=1, groups=feature_dim),
+            nn.ReLU(),
+            nn.Conv3d(feature_dim, 1, kernel_size=1),
+            nn.ReLU()
+        )
+
+        # dual-path ways which are weighted by refined masks
         self.path1 = nn.Sequential(
             nn.Conv3d(feature_dim, feature_dim,
-                      kernel_size=3, padding=1, bias=False),
-            nn.ReLU(inplace=True)
+                      kernel_size=3, padding=1),
+            nn.ReLU()
         )
         self.path2 = nn.Sequential(
             nn.Conv3d(feature_dim, feature_dim,
-                      kernel_size=3, padding=1, bias=False),
-            nn.ReLU(inplace=True)
+                      kernel_size=3, padding=1),
+            nn.ReLU()
         )
-
         self.criterion = BinaryDiceLoss()
-        # self.criterion = nn.BCELoss()
 
     def forward(self, images, masks):
         # return (feats, guide_loss)
-        x = self.backbone_layer(images)   # (N,512,2,7,7)
-
+        feats = self.backbone_layer(images)   # (N,512,2,7,7)
         # # upconv features
         # x = self.upconv(x)    # (N,512,16,112,112)
 
         detector_supervised_masks_pred = self.mask_layer(
-            x)  # (N,1,16,112,112)
+            feats)  # (N,1,16,112,112)
 
-        eta = self.perturb_layer(x)
+        l = self.path1(feats)  # left
+        r = self.path2(feats)  # right
 
-        # shake detector_supervised_masks by `eta`
-        perturbed_masks_pred = self.refined_mask_layer(
-            detector_supervised_masks_pred + eta)  # (N,1,16,112,112)
-
-        l = self.path1(x)  # left
-        r = self.path2(x)  # right
-
-        out = perturbed_masks_pred * l + (1-perturbed_masks_pred) * r
-
-        # matching_loss = - \
-        #     torch.log(perturbed_masks_pred.tanh() *
-        #               x.softmax(1).tanh()).mean()
-        matching_loss = 1-(perturbed_masks_pred.tanh() *
-                           x.softmax(1).tanh()).mean()
-
-        # out = perturbed_masks_pred * x
-        # # TODO. concat instead of multiplication...
-        # out = torch.cat((x, perturbed_masks_pred), dim=1)
-        # out = self.conv_1x1(out)
+        out = detector_supervised_masks_pred * l + \
+            (1-detector_supervised_masks_pred) * r
 
         if masks is None:
             return out, 0.0
 
-        shapes = perturbed_masks_pred.size()[2:]
-        masks = F.interpolate(masks, size=shapes, mode='nearest')
+        shapes = out.size()[2:]
+        masks = F.interpolate(masks, size=shapes)
 
-        # detector_guide_loss = self.criterion(
-        #     detector_supervised_masks_pred, masks)
-
-        # detector_guide_loss = (((detector_supervised_masks_pred > 0.5).float(
-        # ) == masks).float() * detector_guide_loss).sum() / masks.sum()
-
-        # # ((masks.tanh() * detector_supervised_masks_pred.tanh()) * detector_guide_loss)
-
+        # shake target masks
+        eta = self.perturb_layer(feats)
+        modified_masks = masks + eta
         loss_dict = {
             'detector_guide_loss': self.criterion(
-                detector_supervised_masks_pred, masks),
-            'matching_loss': matching_loss
+                detector_supervised_masks_pred, modified_masks),
         }
 
-        return out, masks, loss_dict
+        return out, modified_masks, loss_dict

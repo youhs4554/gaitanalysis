@@ -274,19 +274,29 @@ def get_data_loader(opt, fold):
             sampler = get_balanced_sampler(
                 train_ds, batch_size=opt.batch_size) if opt.balanced_batch else None
 
-    if sampler is None:
-        sampler = torch.utils.data.sampler.RandomSampler(train_ds)
-
     # Construct train/test dataloader for selected fold
     train_loader = torch.utils.data.DataLoader(train_ds, pin_memory=True,
                                                batch_size=opt.batch_size * torch.cuda.device_count(),
                                                sampler=sampler,
                                                # collate_fn=collate_fn_zeropadding,
+                                               shuffle=(sampler is None),
                                                num_workers=opt.n_threads)
     test_loader = torch.utils.data.DataLoader(test_ds, pin_memory=True,
                                               batch_size=opt.batch_size * torch.cuda.device_count(), shuffle=False,
                                               collate_fn=collate_fn,
                                               num_workers=opt.n_threads)
+
+    # test_sample = test_ds[0]
+    # print(test_sample[0].mean())
+
+    # _test_loader = iter(test_loader)
+    # test_batch = next(_test_loader)
+    # print(test_batch[0].data.mean())
+
+    # for ix, batch in enumerate(test_loader, start=1):
+    #     print(ix, ": ", batch[0].mean())
+    # import ipdb
+    # ipdb.set_trace()
 
     print(
         f'train : {len(train_ds)}, test : {len(test_ds)}')

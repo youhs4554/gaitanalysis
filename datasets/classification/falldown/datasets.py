@@ -2,6 +2,7 @@
 from numpy.random import randint
 import warnings
 import matplotlib.pyplot as plt
+import tqdm
 from .transforms import *
 from PIL import Image, ImageDraw
 import decord
@@ -154,6 +155,9 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
                 detection_res = detection_res[np.newaxis, :]
             person_detection_res = detection_res[np.where(
                 detection_res[:, 0] == 0)]
+            # if len(person_detection_res):
+            #     # select most significant person
+            #     person_detection_res = person_detection_res[[0], :]
             # mask_frame from detection result
             m = generate_maskImg(person_detection_res, w, h)
             mask_frames.append(m)
@@ -173,9 +177,6 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
 
         return SyncCompose(tfms)
 
-    def __len__(self) -> int:
-        return len(self.video_records)
-
     def _sample_indices(self, record: VideoRecord) -> List[int]:
         """
         Create a list of frame-wise offsets into a video record. Depending on
@@ -190,25 +191,25 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
         """
         if record.num_frames > self.presample_length:
             if self.random_shift:
-                # # Random sample
-                # offsets = np.sort(
-                #     randint(
-                #         record.num_frames - self.presample_length + 1,
-                #         size=self.num_samples,
-                #     )
-                # )
+                # Random sample
+                offsets = np.sort(
+                    randint(
+                        record.num_frames - self.presample_length + 1,
+                        size=self.num_samples,
+                    )
+                )
 
-                # TSN
-                average_duration = (
-                    record.num_frames - self.presample_length + 1) // self.num_samples
-                if average_duration > 0:
-                    offsets = np.multiply(list(range(
-                        self.num_samples)), average_duration) + randint(average_duration, size=self.num_samples)
-                elif record.num_frames > self.num_samples:
-                    offsets = np.sort(
-                        randint(record.num_frames - self.presample_length + 1, size=self.num_samples))
-                else:
-                    offsets = np.zeros((self.num_samples,))
+                # # TSN
+                # average_duration = (
+                #     record.num_frames - self.presample_length + 1) // self.num_samples
+                # if average_duration > 0:
+                #     offsets = np.multiply(list(range(
+                #         self.num_samples)), average_duration) + randint(average_duration, size=self.num_samples)
+                # elif record.num_frames > self.num_samples:
+                #     offsets = np.sort(
+                #         randint(record.num_frames - self.presample_length + 1, size=self.num_samples))
+                # else:
+                #     offsets = np.zeros((self.num_samples,))
 
             else:
                 # # Uniform sample
@@ -223,12 +224,20 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
                 #     ]
                 # )
 
-                # sliding window (winsize == sample_length)
-                n_windows = int((record.num_frames -
-                                 self.presample_length + 1) / self.sample_length + 1)
+                # # sliding window (winsize == sample_length)
+                # n_windows = int((record.num_frames -
+                #                  self.presample_length + 1) / self.sample_length + 1)
+                # offsets = np.array(
+                #     [
+                #         i * self.sample_length for i in range(n_windows)
+                #     ]
+                # )
+
+                # sliding window (winsize == sample_step)
+                n_windows = record.num_frames-self.sample_length+1
                 offsets = np.array(
                     [
-                        i * self.sample_length for i in range(n_windows)
+                        i * self.sample_step for i in range(n_windows)
                     ]
                 )
 
@@ -241,7 +250,7 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
 
         return offsets
 
-    def __getitem__(
+    def sample_clip_from_video(
         self, idx: int
     ) -> Union[
         Tuple[torch.tensor, torch.tensor], Tuple[torch.tensor, torch.tensor, int]
@@ -297,6 +306,14 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
             res += [rgb_stack, mask_stack, torch.tensor(record.label)]
 
         return tuple(res)
+
+    def __getitem__(self, idx: int) -> Union[
+        Tuple[torch.tensor, torch.tensor], Tuple[torch.tensor, torch.tensor, int]
+    ]:
+        if getattr(self, "samples", None) is not None:
+            return self.samples[idx]
+        else:
+            return self.sample_clip_from_video(idx)
 
     def show_batch(self, train_or_test: str = "train", rows: int = 2) -> None:
         """Plot first few samples in the datasets"""

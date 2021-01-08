@@ -1,8 +1,12 @@
 from datetime import datetime
+from matplotlib.pyplot import winter
+import numpy as np
+import pandas as pd
 import torch
 import os
 import collections
 import sklearn.metrics
+from torch.nn.modules import loss
 from .visualization import VisdomPlotter
 from models.utils import load_pretrained_ckpt
 from ._utils import (Logger, AverageMeter, ScoreMeter,
@@ -102,6 +106,9 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     best_val_score = -1.0
     best_model_wts = None
 
+    out_history = []
+    target_history = []
+
     model.train()
     enable_tsn = train_loader.dataset.dataset.num_samples > 1
     for batch in train_loader:
@@ -118,18 +125,25 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
         out, loss_dict = model(
             images, masks, targets=targets, enable_tsn=enable_tsn)
 
+        out_history.append(out.detach().cpu())
+        target_history.append(targets.detach().cpu())
+
         loss_dict = {k: loss_dict[k].mean() for k in loss_dict}
         losses = sum(loss for loss in loss_dict.values())
 
         # backprop on multi-task loss
-        optimizer.zero_grad()
         losses.backward()
         optimizer.step()
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.CosineAnnealingLR):
-            if epoch >= n_epochs * 0.75:
-                lr_scheduler.step()
-        epoch_step += 1
+        optimizer.zero_grad()
 
+        if warmup_scheduler is not None:
+            if warmup_scheduler.get_lr()[0] < warmup_scheduler.base_lrs[0]:
+                warmup_scheduler.step()
+            else:
+                if lr_scheduler is not None:
+                    lr_scheduler.step()
+
+        epoch_step += 1
         # set global_step for logging
         train_logger.global_step = epoch * len(train_loader) + epoch_step
         valid_logger.global_step = epoch * len(train_loader) + epoch_step
@@ -138,23 +152,16 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
         batch_loss = loss_dict[task].item()
         loss_meter.update(batch_loss)
 
-        for i in range(len(score_meters)):
-            sm = score_meters[i]
-            sm.update(out, targets)
-            score_meters[i] = sm
-
         if epoch_step % validation_freq == 0:
             running_loss = loss_meter.avg
-            running_scores = {sm.metric_name: sm.avg for sm in score_meters}
 
             print(
-                '[Train] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\t Loss : {running_loss:.4f}\t {main_metric} : {running_main_score}'.format(
+                '[Train] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\t Loss : {running_loss:.4f}'.format(
                     fold=fold, n_folds=n_folds,
                     epoch=epoch, n_epochs=n_epochs,
                     epoch_step=epoch_step,
                     n_steps=len(train_loader),
-                    running_loss=running_loss, main_metric=main_metric,
-                    running_main_score=running_scores['clip_'+main_metric],
+                    running_loss=running_loss
                 ))
 
             # evaluate with validation dataset
@@ -193,6 +200,14 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
 
             print(log_str)
 
+            out_history_cat = torch.cat(out_history)
+            target_history_cat = torch.cat(target_history)
+            for i in range(len(score_meters)):
+                sm = score_meters[i]
+                sm.update(out_history_cat, target_history_cat)
+                score_meters[i] = sm
+
+            running_scores = {sm.metric_name: sm.avg for sm in score_meters}
             # update visdom window
             train_logger.write(**{
                 'clip_loss': running_loss,
@@ -210,15 +225,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             valid_logger.write(**eval_log)
 
     if lr_scheduler is not None:
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            lr_scheduler.step(best_val_score)
-        elif isinstance(lr_scheduler, torch.optim.lr_scheduler.CosineAnnealingLR):
-            pass
-        else:
-            lr_scheduler.step(epoch)
-
-    if warmup_scheduler is not None:
-        warmup_scheduler.dampen()
+        lr_scheduler.step()
 
     # load best_wts
     model.load_state_dict(best_model_wts)
@@ -269,8 +276,9 @@ class NeuralNetworks(object):
         valid_logger = Logger(plotter, phase='valid')
 
         # early-stopping
-        es = EarlyStopping(mode='max', patience=20,
-                           percentage=True, min_delta=0.01)
+        # es = EarlyStopping(mode='max', patience=20,
+        #                    percentage=True, min_delta=0.01)
+        es = None
 
         best_score = -1.0
         for epoch in range(n_epochs):
@@ -280,10 +288,11 @@ class NeuralNetworks(object):
                                                           lr_scheduler=self.lr_scheduler, warmup_scheduler=self.warmup_scheduler,
                                                           metrics=self.get_metrics(metrics), train_logger=train_logger, valid_logger=valid_logger,
                                                           task=self.task, multiple_clip=multiple_clip)
-            # early stop criterion is met, we can stop now
-            if es.step(torch.tensor(validation_score)):
-                print("\nEarly stop the training loop...\n")
-                break
+            if es is not None:
+                # early stop criterion is met, we can stop now
+                if es.step(torch.tensor(validation_score)):
+                    print("\nEarly stop the training loop...\n")
+                    break
 
             if validation_score >= best_score:
                 # save-best model
@@ -297,6 +306,51 @@ class NeuralNetworks(object):
                 best_score = validation_score
                 print(
                     f"@@ EPOCH : {epoch} Best `{list(metrics)[0]}` has been updated (value: {best_score:.5f}). Save best model at {model_path}")
+        plotter.viz.save([plotter.env])
+
+        # read json file
+        import json
+        env_file = os.path.join(
+            os.environ["HOME"], ".visdom", plotter.env + ".json")
+        logs = json.load(open(env_file))["jsons"]
+
+        lr_history = []
+        train_history = []
+        valid_history = []
+        for win_title, win_id in plotter.plots.items():
+            log_data = logs[win_id]["content"]["data"]
+
+            if len(log_data) > 1:
+                train_logs, valid_logs = log_data
+                train_history.append(
+                    [win_title, train_logs["x"], train_logs["y"]])
+                valid_history.append(
+                    [win_title, valid_logs["x"], valid_logs["y"]])
+            else:
+                if win_title == "lr":
+                    lr_history.append(
+                        [win_title, log_data[0]["x"], log_data[0]["y"]])
+                else:
+                    valid_history.append(
+                        [win_title, log_data[0]["x"], log_data[0]["y"]])
+
+        def history_to_dataframe(history):
+            history = np.array(history)
+            titles = history[:, 0].repeat(2).tolist()
+            history = history[:, 1:].tolist()
+            history = pd.DataFrame(
+                np.array(list(zip(*history))).transpose((2, 1, 0)).reshape(-1, len(history)*2), columns=[titles, ["x", "y"]*len(history)])
+
+            return history
+
+        train_history_df = history_to_dataframe(train_history)
+        valid_history_df = history_to_dataframe(valid_history)
+        lr_history_df = history_to_dataframe(lr_history)
+
+        with pd.ExcelWriter(env_file.replace(".json", ".xlsx")) as writer:
+            train_history_df.to_excel(writer, sheet_name='train_history')
+            valid_history_df.to_excel(writer, sheet_name='valid_history')
+            lr_history_df.to_excel(writer, sheet_name='lr_history')
 
     def test(self, test_loader, metrics=None, multiple_clip=False, pretrained_path=''):
         trained_model = load_pretrained_ckpt(

@@ -36,9 +36,18 @@ class TripletPredictor(nn.Module):
         self.n_outputs = n_outputs
         self.criterion = nn.CrossEntropyLoss()
 
-    def forward(self, x, targets):
+    def forward(self, *inputs):
+        x, targets, enable_tsn, batch_size = inputs
         device = x.device
+
+        x = x.mean((2, 3, 4))  # spatio-temporal average pooling
+
         out = self.classifier(x)
+        if enable_tsn:
+            # consensus
+            out = out.view(
+                batch_size, -1, out.size(-1)).mean(1)
+
         if targets is None:
             return out, 0.0
 

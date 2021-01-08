@@ -9,10 +9,14 @@ from sklearn.metrics import f1_score
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, weight=None,
+    def __init__(self, alpha=None,
                  gamma=2., reduction='mean'):
         nn.Module.__init__(self)
-        self.weight = weight
+        self.weight = None
+        if alpha is not None:
+            self.weight = torch.tensor([alpha, 1-alpha])
+            if torch.cuda.is_available():
+                self.weight = self.weight.cuda()
         self.gamma = gamma
         self.reduction = reduction
 

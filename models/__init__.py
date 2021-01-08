@@ -1,3 +1,5 @@
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -16,6 +18,10 @@ def generate_network(opt, n_outputs=2, target_transform=None):
     if opt.model_arch == 'DefaultAGNet':
         # def default_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
         net = default_agnet(
+            opt, backbone, backbone_dims, n_outputs, target_transform)
+    elif opt.model_arch == 'TripletAGNet':
+        # def default_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):
+        net = triplet_agnet(
             opt, backbone, backbone_dims, n_outputs, target_transform)
     elif opt.model_arch == 'RegionalAGNet':
         # def regional_agnet(opt, backbone, backbone_dims, n_outputs, load_pretrained_agnet=False, target_transform=None):

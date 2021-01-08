@@ -125,7 +125,7 @@ class ScoreMeter(AverageMeter):
 
 
 def predict_single_clip(model, batch, task):
-    images, masks, targets, vids, valid_lengths = batch
+    images, masks, targets = batch
     out, loss_dict = model(images, masks, targets=targets)
 
     # average for all GPUs

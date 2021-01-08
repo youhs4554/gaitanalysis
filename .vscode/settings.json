@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/root/anaconda3/envs/radiomics/bin/python",
+    "python.pythonPath": "/root/anaconda3/envs/cv/bin/python",
     "python.formatting.provider": "autopep8",
     "docker.host":"tcp://localhost:23750",
 }

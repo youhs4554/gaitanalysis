@@ -94,7 +94,7 @@ class SyncResizeVideo(ResizeVideo):
         self.clip_resize = ResizeVideo(*args, **kwargs)
 
         # use nearest interpolation for mask
-        kwargs["interpolation_mode"] = "nearest"
+        # kwargs["interpolation_mode"] = "nearest"
         self.mask_resize = ResizeVideo(*args, **kwargs)
 
     def __call__(self, clip, mask):
@@ -161,7 +161,8 @@ class SyncRandomResizedCropVideo(RandomResizedCropVideo):
             F.resized_crop(clip, i, j, h, w, self.size,
                            self.interpolation_mode),
             F.resized_crop(mask, i, j, h, w, self.size,
-                           interpolation_mode="nearest"),
+                           self.interpolation_mode),
+            #    interpolation_mode="nearest"),
         ]
 
 

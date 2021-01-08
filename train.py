@@ -1,4 +1,4 @@
-import ipdb
+from datasets.classification.falldown.utils_cv.detection.references.utils import warmup_lr_scheduler
 from datasets import get_data_loader
 from models import generate_network
 import sklearn.metrics
@@ -21,10 +21,11 @@ def set_seed(seed):
     :return:
     """
     torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
     torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+    torch.manual_seed(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
@@ -43,6 +44,7 @@ paser = argparse.ArgumentParser()
 paser.add_argument("--cfg_file",
                    default="",
                    help="path to configuration file")
+paser.add_argument("--fold", type=int)
 args = paser.parse_args()
 
 if not os.path.exists(args.cfg_file):
@@ -56,9 +58,6 @@ opt.cfg_file = os.path.splitext(os.path.basename(args.cfg_file))[0]
 
 
 def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
-    # for reproductivity
-    set_seed(0)
-
     # Load data
     train_loader, test_loader, target_transform, n_outputs = get_data_loader(
         opt, fold=fold)
@@ -72,33 +71,26 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
 
     # Define optimizer & schedulers
     params = [p for p in model.parameters() if p.requires_grad]
-    from ranger import Ranger  # this is from ranger.py
-    optimizer = Ranger(params, lr=opt.learning_rate,
-                       weight_decay=opt.weight_decay, k=10)
 
-    torch.nn.utils.clip_grad_norm_(params, opt.max_gradnorm)
-
-    # optimizer = optim.SGD(params, lr=opt.learning_rate,
-    #                       momentum=0.9,
-    #                       weight_decay=opt.weight_decay)
-
-    # lr_scheduler = optim.lr_scheduler.MultiStepLR(
-    #     optimizer, milestones=[opt.n_iter*0.25, opt.n_iter*0.75], gamma=1.0)
-    # lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
-    #                                                     T_max=int(len(train_loader)*opt.n_iter*0.25))
-
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'max',
-        factor=0.1,
-        patience=5, verbose=True)
+    if opt.backbone == "r2plus1d_18":
+        from ranger import Ranger  # this is from ranger.py
+        optimizer = Ranger(params, lr=opt.learning_rate,
+                           weight_decay=opt.weight_decay)
+    else:
+        optimizer = optim.SGD(params, lr=opt.learning_rate,
+                              momentum=0.9,
+                              weight_decay=opt.weight_decay)
 
     # lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    #     optimizer, T_max=10, eta_min=1e-5)
+    #     optimizer, T_max=len(train_loader)*opt.n_iter, eta_min=1e-8)
+    lr_scheduler = optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[int(opt.n_iter*0.5), int(opt.n_iter*0.75)], gamma=0.1
+    )
 
-    # lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-    #     optimizer, T_0=10, T_mult=2, eta_min=1e-5)
-
-    # lr_scheduler = None
+    # warmup_factor = 1. / 1000
+    # warmup_iters = min(1000, 5*len(train_loader))
+    # warmup_scheduler = warmup_lr_scheduler(
+    #     optimizer, warmup_iters, warmup_factor)
     warmup_scheduler = None
 
     # Define NeuralNetwork Wrapper Class
@@ -113,13 +105,13 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
               multiple_clip=opt.multiple_clip, metrics=metrics,
               save_dir=os.path.join(opt.ckpt_dir, opt.cfg_file))
 
-# TODO. Refactoring model trainer, pytorch-lightning!!!!
-# https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09
 
+if __name__ == "__main__":
+    # for reproducibility
+    set_seed(0)
 
-for fold in range(1, opt.n_folds+1):
     # LOO cross-validation loop
-    train_one_fold(fold, metrics={
+    train_one_fold(args.fold, metrics={
         'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
         'accuray': (lambda y_true, y_pred: sklearn.metrics.accuracy_score(y_true, y_pred), False),
         'roc_auc': (lambda y_true, y_score: sklearn.metrics.roc_auc_score(y_true, y_score), True),
