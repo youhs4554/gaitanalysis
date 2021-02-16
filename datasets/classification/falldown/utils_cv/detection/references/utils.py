@@ -36,7 +36,8 @@ class SmoothedValue(object):
         """
         if not is_dist_avail_and_initialized():
             return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
+        t = torch.tensor([self.count, self.total],
+                         dtype=torch.float64, device='cuda')
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
@@ -103,9 +104,11 @@ def all_gather(data):
     # gathering tensors of different shapes
     tensor_list = []
     for _ in size_list:
-        tensor_list.append(torch.empty((max_size,), dtype=torch.uint8, device="cuda"))
+        tensor_list.append(torch.empty(
+            (max_size,), dtype=torch.uint8, device="cuda"))
     if local_size != max_size:
-        padding = torch.empty(size=(max_size - local_size,), dtype=torch.uint8, device="cuda")
+        padding = torch.empty(size=(max_size - local_size,),
+                              dtype=torch.uint8, device="cuda")
         tensor = torch.cat((tensor, padding), dim=0)
     dist.all_gather(tensor_list, tensor)
 
@@ -238,9 +241,11 @@ def collate_fn(batch):
     return tuple(zip(*batch))
 
 
-def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
+def warmup_lr_scheduler(optimizer, warmup_iters=1000, warmup_factor=1. / 1000, anneal_strategy="linear"):
 
     def f(x):
+        if anneal_strategy == "flat":
+            return 1
         if x >= warmup_iters:
             return 1
         alpha = float(x) / warmup_iters

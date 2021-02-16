@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import partial
 from matplotlib.pyplot import winter
 import numpy as np
 import pandas as pd
@@ -7,10 +8,11 @@ import os
 import collections
 import sklearn.metrics
 from torch.nn.modules import loss
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from .visualization import VisdomPlotter
 from models.utils import load_pretrained_ckpt
 from ._utils import (Logger, AverageMeter, ScoreMeter,
-                     predict_single_clip, predict_multiple_clip, EarlyStopping)
+                     predict_single_clip, predict_multiple_clip, EarlyStopping, update_losses, get_running_losses)
 import copy
 
 
@@ -18,12 +20,14 @@ import copy
 def evaluate(model, data_loader, metrics, task, multiple_clip=False):
     model.eval()
 
+    print()
     print("Start Evaluation...")
 
     levels = ['video', 'clip'] if multiple_clip else ['clip']
 
     loss_meter_group = {
-        level: AverageMeter(window_size=len(data_loader)) for level in levels
+        level: collections.defaultdict(
+            partial(AverageMeter, window_size=len(data_loader))) for level in levels
     }
 
     score_meters_group = {
@@ -45,14 +49,14 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
                 model, batch, task)
         else:
             out_dict = predict_single_clip(
-                model, batch, task)
+                model, batch)
 
         for level in out_dict:
-            loss_meter = loss_meter_group[level]
-            out, loss, targets = out_dict[level]
+            loss_meters = loss_meter_group[level]
+            out, loss_dict, targets = out_dict[level]
 
-            loss_meter.update(loss.item())
-            loss_meter_group[level] = loss_meter
+            # update loss_meters
+            update_losses(loss_dict, loss_meters)
 
             out_history[level].append(out.detach().cpu())
             target_history[level].append(targets.detach().cpu())
@@ -68,7 +72,8 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
             score_meters[i] = sm
         score_meters_group[level] = score_meters
 
-    loss_val_group = {level: loss_meter_group[level].avg for level in levels}
+    loss_val_group = {level: get_running_losses(
+        loss_meter_group[level]) for level in levels}
     score_val_group = {level: {
         sm.metric_name: sm.avg for sm in score_meters_group[level]} for level in levels}
 
@@ -97,11 +102,13 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     epoch_step = 0
 
     # initialize running_vars
-    loss_meter = AverageMeter(window_size=validation_freq)
+    loss_meters = collections.defaultdict(
+        partial(AverageMeter, window_size=validation_freq))
     score_meters = [ScoreMeter('clip'+'_'+metric_name, metric_func, need_score, task=task, window_size=validation_freq)
                     for metric_name, (metric_func, need_score) in metrics.items()]
 
     print("Start Training...")
+    print()
 
     best_val_score = -1.0
     best_model_wts = None
@@ -137,7 +144,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
         optimizer.zero_grad()
 
         if warmup_scheduler is not None:
-            if warmup_scheduler.get_lr()[0] < warmup_scheduler.base_lrs[0]:
+            if epoch <= int(n_epochs * 0.75):
                 warmup_scheduler.step()
             else:
                 if lr_scheduler is not None:
@@ -148,20 +155,20 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
         train_logger.global_step = epoch * len(train_loader) + epoch_step
         valid_logger.global_step = epoch * len(train_loader) + epoch_step
 
-        # monitors only main-task loss
-        batch_loss = loss_dict[task].item()
-        loss_meter.update(batch_loss)
-
+        # update losses
+        update_losses(loss_dict, loss_meters)
         if epoch_step % validation_freq == 0:
-            running_loss = loss_meter.avg
+            running_loss = get_running_losses(loss_meters)
+            running_loss_log = "*"*5 + " Multi-task Losses " + "*"*5 + "\n" + \
+                "\n".join([f"- {k}: {v:.4f}" for k, v in running_loss.items()])
 
             print(
-                '[Train] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\t Loss : {running_loss:.4f}'.format(
+                '[Train] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\n{running_loss_log}'.format(
                     fold=fold, n_folds=n_folds,
                     epoch=epoch, n_epochs=n_epochs,
                     epoch_step=epoch_step,
                     n_steps=len(train_loader),
-                    running_loss=running_loss
+                    running_loss_log=running_loss_log
                 ))
 
             # evaluate with validation dataset
@@ -179,23 +186,38 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             valid_clip_loss = valid_loss_val_group['clip']
             valid_clip_scores = valid_score_val_group['clip']
 
-            log_str = "[Valid] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\n[clip] Loss : {valid_clip_loss:.4f}\t {main_metric} : {valid_clip_score}\n".format(
+            valid_clip_loss_log = "*"*5 + " Multi-task Losses " + "*"*5 + "\n" + \
+                "\n".join([f"- {k}: {v:.4f}" for k,
+                           v in valid_clip_loss.items()])
+            valid_clip_score_log = "*"*5 + " Scores " + "*"*5 + "\n" + "{main_metric} : {valid_clip_score}\n".format(
+                valid_clip_loss_log=valid_clip_loss_log, valid_clip_score=valid_clip_scores[
+                    'clip_'+main_metric],
+                main_metric=main_metric
+            )
+
+            log_str = "[Valid] FOLD:[{fold}/{n_folds}] EP:[{epoch}/{n_epochs}]\tSTEPS:[{epoch_step}/{n_steps}]\n{valid_clip_loss_log}\n{valid_clip_score_log}\n".format(
                 fold=fold, n_folds=n_folds,
                 epoch=epoch, n_epochs=n_epochs,
                 epoch_step=epoch_step,
                 n_steps=len(train_loader),
-                valid_clip_loss=valid_clip_loss, valid_clip_score=valid_clip_scores[
-                    'clip_'+main_metric],
-                main_metric=main_metric)
+                valid_clip_loss_log=valid_clip_loss_log,
+                valid_clip_score_log=valid_clip_score_log)
 
             if multiple_clip:
                 valid_video_loss = valid_loss_val_group['video']
                 valid_video_scores = valid_score_val_group['video']
+                valid_video_loss_log = "*"*5 + " Multi-task Losses " + "*"*5 + "\n" + \
+                    "\n".join([f"- {k}: {v:.4f}" for k,
+                               v in valid_video_loss.items()])
 
-                log_str += "[video] Loss : {valid_video_loss:.4f}\t {main_metric} : {valid_video_score}\t ".format(
-                    valid_video_loss=valid_video_loss, valid_video_score=valid_video_scores[
+                valid_video_score_log = "*"*5 + " Scores " + "*"*5 + "\n" + "{main_metric} : {valid_video_score}\n".format(
+                    valid_video_loss_log=valid_video_loss_log, valid_video_score=valid_video_scores[
                         'video_'+main_metric],
                     main_metric=main_metric
+                )
+
+                log_str += "[video] {valid_video_loss_log}\n {valid_video_score_log}\t ".format(
+                    valid_video_loss_log=valid_video_loss_log, valid_video_score_log=valid_video_score_log
                 )
 
             print(log_str)
@@ -210,22 +232,26 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             running_scores = {sm.metric_name: sm.avg for sm in score_meters}
             # update visdom window
             train_logger.write(**{
-                'clip_loss': running_loss,
                 'lr': optimizer.param_groups[0]['lr'],
+                **{'clip_' + k: v for k,
+                   v in running_loss.items()},
                 **running_scores
             })
 
             eval_log = {}
             for level in levels:
                 eval_log.update({
-                    level+'_loss': valid_loss_val_group[level],
+                    **{level+'_' + k: v for k, v in valid_loss_val_group[level].items()},
                     **valid_score_val_group[level]
                 })
 
             valid_logger.write(**eval_log)
 
     if lr_scheduler is not None:
-        lr_scheduler.step()
+        if isinstance(lr_scheduler, CosineAnnealingLR):
+            pass
+        else:
+            lr_scheduler.step()
 
     # load best_wts
     model.load_state_dict(best_model_wts)
@@ -296,11 +322,7 @@ class NeuralNetworks(object):
 
             if validation_score >= best_score:
                 # save-best model
-                states = {
-                    'epoch': epoch,
-                    'state_dict': new_model.state_dict(),
-                }
-                torch.save(states, model_path)
+                torch.save(new_model, model_path)
 
                 # update best_score
                 best_score = validation_score

@@ -217,6 +217,12 @@ def parse_opts():
         help='Service port for gaitanalysis.'
     )
     parser.add_argument(
+        '--finetuned_backbone',
+        default="",
+        type=str,
+        help='path to finetuned backbone model'
+    )
+    parser.add_argument(
         '--load_pretrained',
         action='store_true',
         help='If true, you can use pretrained feature arrray as input.')

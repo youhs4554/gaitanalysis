@@ -1,4 +1,5 @@
 import copy
+from inspect import signature
 import torch
 from .utils_cv.action_recognition.references import functional_video as F
 from .utils_cv.action_recognition.references.transforms_video import *
@@ -11,6 +12,18 @@ import random
 # "NormalizeVideo"              [ok],
 # "ToTensorVideo"               [ok],
 # "RandomHorizontalFlipVideo"   [ok],
+
+
+def get_sync_transforms(transforms):
+    tfms = []
+    for t in transforms.transforms:
+        sig = signature(t.__init__)
+        params = sig.parameters.keys()
+        params = {p: getattr(t, p) for p in params}
+        sync_t = eval("Sync" + t.__class__.__name__)(**params)
+        tfms.append(sync_t)
+
+    return SyncCompose(tfms)
 
 
 class DuplicatedSampling(object):

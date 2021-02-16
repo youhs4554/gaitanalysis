@@ -7,28 +7,20 @@ from sklearn.metrics import f1_score
 ##### Calssification losses #######
 
 
-class FocalLoss(nn.Module):
-
-    def __init__(self, alpha=None,
-                 gamma=2., reduction='mean'):
-        nn.Module.__init__(self)
-        self.weight = None
-        if alpha is not None:
-            self.weight = torch.tensor([alpha, 1-alpha])
-            if torch.cuda.is_available():
-                self.weight = self.weight.cuda()
+class FocalLoss(nn.modules.loss._WeightedLoss):
+    def __init__(self, weight=None, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__(weight, reduction=reduction)
         self.gamma = gamma
-        self.reduction = reduction
+        # weight parameter will act as the alpha parameter to balance class weights
+        self.weight = weight
 
-    def forward(self, input_tensor, target_tensor):
-        log_prob = F.log_softmax(input_tensor, dim=-1)
-        prob = torch.exp(log_prob)
-        return F.nll_loss(
-            ((1 - prob) ** self.gamma) * log_prob,
-            target_tensor,
-            weight=self.weight,
-            reduction=self.reduction
-        )
+    def forward(self, input, target):
+
+        ce_loss = F.cross_entropy(
+            input, target, reduction=self.reduction, weight=self.weight)
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1 - pt) ** self.gamma * ce_loss).mean()
+        return focal_loss
 
 
 class F1_Loss(nn.Module):

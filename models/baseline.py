@@ -15,7 +15,7 @@ class FineTunedConvNet(nn.Module):
     def __init__(self, backbone, predictor, target_transform=None):
         super(FineTunedConvNet, self).__init__()
 
-        self.backbone = nn.Sequential(*list(backbone.children())[:-2])
+        self.backbone = backbone
         self.predictor = predictor
         self.target_transform = target_transform
 
@@ -38,9 +38,9 @@ class FineTunedConvNet(nn.Module):
         return out, predictor_loss_dict
 
 
-def fine_tuned_convnet(opt, backbone, backbone_dims, n_outputs, target_transform=None):
+def fine_tuned_convnet(opt, backbone, inplanes, n_outputs, target_transform=None):
     predictor = DefaultPredictor(
-        n_inputs=backbone_dims[-1], n_outputs=n_outputs, task=opt.task)
+        n_inputs=inplanes, n_outputs=n_outputs, task=opt.task, class_weight=opt.class_weight)
     baseline = FineTunedConvNet(
         backbone, predictor, target_transform=target_transform)
 

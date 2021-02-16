@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
+from datasets.classification.falldown.transforms import get_sync_transforms
 import random
 import torch.nn.functional as F
 import os
@@ -18,6 +19,7 @@ import torch
 from torch.utils.data import Dataset, Subset, DataLoader
 from torchvision.transforms import Compose
 import tqdm
+from imblearn.over_sampling import RandomOverSampler
 
 from .references import transforms_video as transforms
 from .references.functional_video import denormalize
@@ -359,6 +361,16 @@ class VideoDataset:
         Return
             A training and testing dataset in that order
         """
+        # # oversampling!!!
+        # ros = RandomOverSampler(random_state=42)
+        # labels = [rec.label for ix, rec in enumerate(
+        #     self.video_records) if ix in train_range]
+        # train_range, labels = ros.fit_resample(
+        #     np.array(train_range)[:, None], labels)
+
+        # # ndarray -> list
+        # train_range = train_range.ravel().tolist()
+
         # create train subset
         train = copy.deepcopy(Subset(self, train_range))
         train.dataset.transforms = self.train_transforms
@@ -366,6 +378,8 @@ class VideoDataset:
             self.temporal_jitter_step if self.temporal_jitter else self.sample_step
         )
         train.dataset.presample_length = self.sample_length * self.sample_step
+        train.dataset.labels = [rec.label for ix, rec in enumerate(
+            self.video_records) if ix in train_range]
 
         # create test subset
         test = copy.deepcopy(Subset(self, test_range))
@@ -402,7 +416,7 @@ class VideoDataset:
 
     def generate_test_clips(self, test_ds):
         n_videos = len(test_ds)
-        self.transforms = test_ds.dataset.transforms
+        self.transforms = get_sync_transforms(self.test_transforms)
 
         # To eliminate `race conditions` among processes
         # https://stackoverflow.com/questions/38883288/python-multiprocessing-using-a-lock-or-manager-list-for-pool-workers-accessing-a

@@ -262,6 +262,20 @@ def get_data_loader(opt, fold):
                                                           batch_size=opt.batch_size, tsn=False)
         train_ds = dataset.train_ds
         test_ds = dataset.test_ds
+
+        if opt.use_class_weight:
+            cnts = collections.Counter(train_ds.dataset.labels)
+
+            pos = cnts[1]
+            neg = cnts[0]
+
+            total = len(train_ds)
+            weight_for_0 = (1 / neg)*(total)/2.0
+            weight_for_1 = (1 / pos)*(total)/2.0
+            class_weight = [weight_for_0, weight_for_1]
+            class_weight = torch.FloatTensor(class_weight)
+            opt.class_weight = class_weight
+
         # # train : TSN sampling, test : sliding-window sampling
         # train_ds.dataset.num_samples = 3
         # test_ds.dataset.num_samples = 1
@@ -270,9 +284,8 @@ def get_data_loader(opt, fold):
 
         if opt.multiple_clip:
             collate_fn = collate_fn_multipositon_prediction
-        if opt.balanced_batch:
-            sampler = get_balanced_sampler(
-                train_ds, batch_size=opt.batch_size) if opt.balanced_batch else None
+        sampler = get_balanced_sampler(
+            train_ds, batch_size=opt.batch_size) if opt.balanced_batch else None
 
     # Construct train/test dataloader for selected fold
     train_loader = torch.utils.data.DataLoader(train_ds, pin_memory=True,

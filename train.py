@@ -1,3 +1,5 @@
+from collections import Counter
+import ipdb
 from datasets.classification.falldown.utils_cv.detection.references.utils import warmup_lr_scheduler
 from datasets import get_data_loader
 from models import generate_network
@@ -25,7 +27,6 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
     np.random.seed(seed)  # Numpy module.
     random.seed(seed)  # Python random module.
-    torch.manual_seed(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
@@ -57,6 +58,15 @@ with open(args.cfg_file, 'r') as f:
 opt.cfg_file = os.path.splitext(os.path.basename(args.cfg_file))[0]
 
 
+if opt.model_arch == "FT-AGNet":
+    config_name = f"FineTunedConvNet_{opt.dataset}@{opt.backbone}_cv"
+    opt.finetuned_backbone = os.path.join(
+        opt.ckpt_dir, config_name,
+        'model_fold-{}.pth'.format(args.fold)
+    )
+    assert os.path.exists(opt.finetuned_backbone)
+
+
 def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     # Load data
     train_loader, test_loader, target_transform, n_outputs = get_data_loader(
@@ -72,25 +82,21 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     # Define optimizer & schedulers
     params = [p for p in model.parameters() if p.requires_grad]
 
-    if opt.backbone == "r2plus1d_18":
-        from ranger import Ranger  # this is from ranger.py
-        optimizer = Ranger(params, lr=opt.learning_rate,
-                           weight_decay=opt.weight_decay)
-    else:
-        optimizer = optim.SGD(params, lr=opt.learning_rate,
-                              momentum=0.9,
-                              weight_decay=opt.weight_decay)
+    lr = opt.learning_rate  # * torch.cuda.device_count()
 
+    # from ranger import Ranger  # this is from ranger.py
+    # optimizer = Ranger(params, lr=lr, weight_decay=opt.weight_decay, k=10)
+    optimizer = optim.Adam(params, lr=lr, weight_decay=opt.weight_decay)
+
+    lr_scheduler = None
     # lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    #     optimizer, T_max=len(train_loader)*opt.n_iter, eta_min=1e-8)
-    lr_scheduler = optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[int(opt.n_iter*0.5), int(opt.n_iter*0.75)], gamma=0.1
-    )
+    #     optimizer, T_max=len(train_loader)*(int(opt.n_iter*0.25)-1), eta_min=1e-8)
+    # lr_scheduler = optim.lr_scheduler.MultiStepLR(
+    #     optimizer, milestones=[int(opt.n_iter*0.75)], gamma=0.1
+    # )
 
-    # warmup_factor = 1. / 1000
-    # warmup_iters = min(1000, 5*len(train_loader))
     # warmup_scheduler = warmup_lr_scheduler(
-    #     optimizer, warmup_iters, warmup_factor)
+    #     optimizer, anneal_strategy="flat")
     warmup_scheduler = None
 
     # Define NeuralNetwork Wrapper Class

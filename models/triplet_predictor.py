@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 import random
@@ -7,34 +8,57 @@ __all__ = [
 ]
 
 
-class TripletPredictor(nn.Module):
-    def __init__(self, n_inputs, n_outputs, task):
-        super(TripletPredictor, self).__init__()
-        self.classifier = nn.Sequential(
-            nn.Linear(n_inputs, 256),
+class TrainableDistanceEstimator(nn.Module):
+    def __init__(self, inplanes, midplanes=256) -> None:
+        super().__init__()
+        self.distance_func = nn.Sequential(
+            nn.Linear(inplanes, midplanes),
             nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(256, n_outputs)
+            nn.Linear(midplanes, midplanes),
+            nn.ReLU(True),
+            nn.Linear(midplanes, 2),
+            nn.Softmax(1)
         )
+
+    def forward(self, x):
+        out = self.distance_func(x)
+
+        # we asssume one output node represents dissimilarity between inputs
+        out = out[:, [0]]
+
+        return out
+
+
+class TripletPredictor(nn.Module):
+    def __init__(self, n_inputs, n_outputs, task='regression', class_weight=None, include_classifier=True):
+        super(TripletPredictor, self).__init__()
+        if include_classifier:
+            self.classifier_1 = nn.Linear(n_inputs, n_outputs)
+            nn.init.xavier_uniform_(self.classifier_1.weight)
+            if n_outputs == 2 and class_weight is not None:
+                if self.classifier_1.bias is not None:
+                    print(
+                        "#################### init bias for imb dataset #########################")
+                    w0, w1 = class_weight.tolist()
+                    nn.init.constant(self.classifier_1.bias, np.log(w1/w0))
+        else:
+            self.classifier_1 = nn.Identity()
+
         # discriminates same/differet class
         self.D = nn.Sequential(
             nn.Linear(2*n_inputs, 256),
             nn.ReLU(True),
-            nn.Dropout(0.5),
             nn.Linear(256, 1),
             nn.Sigmoid()
         )
-        # embedding func. to discriminate more stable group (i.e. not falling class)
-        self.f = nn.Sequential(
-            nn.Linear(n_inputs, 256),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(256, 256)
-        )
+        # trainable distance function
+        self.g = TrainableDistanceEstimator(2*n_inputs, 256)
         self.task = task
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
-        self.criterion = nn.CrossEntropyLoss()
+        self.class_weight = class_weight
+        self.include_classifier = include_classifier
+        self.criterion = nn.CrossEntropyLoss(weight=class_weight)
 
     def forward(self, *inputs):
         x, targets, enable_tsn, batch_size = inputs
@@ -42,7 +66,7 @@ class TripletPredictor(nn.Module):
 
         x = x.mean((2, 3, 4))  # spatio-temporal average pooling
 
-        out = self.classifier(x)
+        out = self.classifier_1(x)
         if enable_tsn:
             # consensus
             out = out.view(
@@ -51,8 +75,9 @@ class TripletPredictor(nn.Module):
         if targets is None:
             return out, 0.0
 
+        # for dummy return vals
         D_loss = torch.tensor(0.0)
-        pairwise_loss = torch.tensor(0.0)
+        triplet_loss = torch.tensor(0.0)
 
         if self.training:
             # anchor : random sel, sample until anchor tgt count is bigger than 1.
@@ -107,19 +132,18 @@ class TripletPredictor(nn.Module):
                 bce(self.D(neg_pairs), neg_labels) +\
                 bce(self.D(third_pairs), neg_labels)
 
-            stable_group_embedding = self.f(neg_vec)
-            unstable_group_embedding = self.f(pos_vec)
+            d_anc__pos = self.g(pos_pairs)
+            d_anc__neg = self.g(neg_pairs)
 
-            margin = abs(stable_group_embedding.mean() -
-                         unstable_group_embedding.mean())
-            pairwise_loss = torch.max(torch.tensor(
-                0.0, device=device),
-                torch.dist(unstable_group_embedding, stable_group_embedding)-margin)
+            # adaptive margin
+            margin = 1.0 * (d_anc__pos.mean()-d_anc__neg.mean())
+            triplet_loss = torch.max(torch.tensor(
+                0.0, device=device), d_anc__pos-d_anc__neg + margin).mean()
 
         loss_dict = {
-            self.task: self.criterion(out, targets),
-            'discriminator': 0.1 * D_loss,
-            'pairwise_loss': pairwise_loss
+            self.task + "_loss": self.criterion(out, targets),
+            'discriminator_loss': D_loss,
+            'triplet_loss': triplet_loss
         }
 
         return out, loss_dict

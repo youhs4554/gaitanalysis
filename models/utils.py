@@ -1,3 +1,4 @@
+from typing import OrderedDict
 import torch
 import torch.nn as nn
 import torchvision.models
@@ -41,6 +42,21 @@ def get_inflated_resnet(net_2d, net_3d):
     return net_3d
 
 
+class BackboneHelper(nn.Module):
+    def __init__(self, backbone):
+        super().__init__()
+        self.backbone = backbone
+
+    def forward(self, x):
+        res = []
+        out = x
+        for name, child in self.backbone.named_children():
+            out = child(out)
+            if name in ["layer2", "layer3", "layer4"]:
+                res.append(out)
+        return res
+
+
 def generate_backbone(opt, pretrained=True):
     net = None
     if opt.backbone in ['mc3_18', 'r2plus1d_18', 'r3d_18']:
@@ -59,7 +75,8 @@ def generate_backbone(opt, pretrained=True):
         pretrained_data = opt.backbone.split("_")[-1]
         assert pretrained_data in [
             "ig65m", "kinetics"], "Not supported pretrained data {}, Should be 'ig65m' or 'kinetics'".format(pretrained_data)
-        duration = "8" if opt.sample_duration <= 16 else "32"
+        # duration = "8" if opt.sample_duration <= 16 else "32"
+        duration = "32"  # fix!!
         model_name = f"r2plus1d_34_{duration}_{pretrained_data}"
         net = torch.hub.load(
             TORCH_R2PLUS1D,
@@ -79,7 +96,14 @@ def generate_backbone(opt, pretrained=True):
     if net is None:
         raise ValueError('invalid backbone Type')
 
-    return net, dims
+    # detach last 2 layers (avgpool & fc)
+    net = nn.Sequential(OrderedDict(list(net.named_children())[:-2]))
+
+    # # freeze backbone
+    # freeze_layers(net.children())
+    # net.eval()
+
+    return net
 
 
 def freeze_layers(layers):

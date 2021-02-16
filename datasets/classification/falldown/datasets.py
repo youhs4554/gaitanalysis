@@ -1,4 +1,5 @@
 # %%
+import math
 from numpy.random import randint
 import warnings
 import matplotlib.pyplot as plt
@@ -165,18 +166,6 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
         mask_frames = np.array(mask_frames)
         return mask_frames
 
-    def get_sync_transforms(self):
-        tfms = []
-        for i in range(len(self.transforms.transforms)):
-            t = self.transforms.transforms[i]
-            sig = signature(t.__init__)
-            params = sig.parameters.keys()
-            params = {p: getattr(t, p) for p in params}
-            sync_t = eval("Sync" + t.__class__.__name__)(**params)
-            tfms.append(sync_t)
-
-        return SyncCompose(tfms)
-
     def _sample_indices(self, record: VideoRecord) -> List[int]:
         """
         Create a list of frame-wise offsets into a video record. Depending on
@@ -234,7 +223,8 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
                 # )
 
                 # sliding window (winsize == sample_step)
-                n_windows = record.num_frames-self.sample_length+1
+                n_windows = math.floor((record.num_frames-self.sample_length) /
+                                       self.sample_step+1)
                 offsets = np.array(
                     [
                         i * self.sample_step for i in range(n_windows)
@@ -276,7 +266,7 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
             ]
         )
 
-        sync_transforms = self.get_sync_transforms()
+        sync_transforms = get_sync_transforms(self.transforms)
 
         res = []
         if self.random_shift and clips.shape[0] == 1:

@@ -1,6 +1,16 @@
+import copy
 import torch
 import torch.nn as nn
 import collections
+
+
+def update_losses(loss_dict, loss_meters):
+    for k in loss_dict:
+        loss_meters[k].update(loss_dict[k].item())
+
+
+def get_running_losses(loss_meters):
+    return {k: v.avg for k, v in loss_meters.items()}
 
 
 class EarlyStopping(object):
@@ -124,7 +134,7 @@ class ScoreMeter(AverageMeter):
         super().update(val=s)
 
 
-def predict_single_clip(model, batch, task):
+def predict_single_clip(model, batch):
     images, masks, targets = batch
     out, loss_dict = model(images, masks, targets=targets)
 
@@ -132,9 +142,8 @@ def predict_single_clip(model, batch, task):
     loss_dict = {k: loss_dict[k].mean() for k in loss_dict}
 
     d = {}
-    loss = loss_dict[task]
 
-    d['clip'] = out, loss, targets
+    d['clip'] = out, loss_dict, targets
 
     return d
 
@@ -155,13 +164,16 @@ def predict_multiple_clip(model, batch, task):
 
     d = {}
     video_level_out = out.view(video_level_targets.size(0), -1, 2).mean(1)
+    clip_level_out = out
+
     video_level_loss = model.predictor.criterion(
         video_level_out, video_level_targets)
 
-    clip_level_out = out
-    clip_level_loss = clip_level_loss_dict[task]
+    video_level_loss_dict = copy.deepcopy(clip_level_loss_dict)
+    video_level_loss_dict["video_level_{}_loss".format(
+        task)] = video_level_loss
 
-    d['video'] = video_level_out, video_level_loss, video_level_targets
-    d['clip'] = clip_level_out, clip_level_loss, clip_level_targets
+    d['video'] = video_level_out, video_level_loss_dict, video_level_targets
+    d['clip'] = clip_level_out, clip_level_loss_dict, clip_level_targets
 
     return d
