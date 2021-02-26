@@ -69,7 +69,7 @@ if opt.model_arch == "FT-AGNet":
 
 def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     # Load data
-    train_loader, test_loader, target_transform, n_outputs = get_data_loader(
+    train_loader, test_ds, target_transform, n_outputs = get_data_loader(
         opt, fold=fold)
 
     if opt.model_arch == 'RegionalAGNet':
@@ -106,7 +106,7 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
                                        lr_scheduler=lr_scheduler,
                                        warmup_scheduler=warmup_scheduler)
 
-    net.train(train_loader, test_loader,
+    net.train(train_loader, test_ds,
               n_epochs=opt.n_iter, validation_freq=len(train_loader),
               multiple_clip=opt.multiple_clip, metrics=metrics,
               save_dir=os.path.join(opt.ckpt_dir, opt.cfg_file))
@@ -118,10 +118,10 @@ if __name__ == "__main__":
 
     # LOO cross-validation loop
     train_one_fold(args.fold, metrics={
-        'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
-        'accuray': (lambda y_true, y_pred: sklearn.metrics.accuracy_score(y_true, y_pred), False),
         'roc_auc': (lambda y_true, y_score: sklearn.metrics.roc_auc_score(y_true, y_score), True),
+        'f1-score': (lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred), False),
         'ap': (lambda y_true, y_score: sklearn.metrics.average_precision_score(y_true, y_score), True),
+        'accuray': (lambda y_true, y_pred: sklearn.metrics.accuracy_score(y_true, y_pred), False),
         # custom callbacks
         'sensitivity': (lambda y_true, y_pred: sklearn.metrics.recall_score(y_true, y_pred, pos_label=1), False),
         'specificity': (lambda y_true, y_pred: sklearn.metrics.recall_score(y_true, y_pred, pos_label=0), False),

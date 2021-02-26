@@ -1,5 +1,6 @@
 {
     "python.pythonPath": "/root/anaconda3/envs/cv/bin/python",
     "python.formatting.provider": "autopep8",
-    "docker.host":"tcp://localhost:23750",
+    "docker.host": "tcp://localhost:23750",
+    "python.languageServer": "Pylance",
 }

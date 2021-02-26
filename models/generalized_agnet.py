@@ -45,7 +45,7 @@ class GeneralizedAGNet(nn.Module):
 
     def forward(self, *inputs, targets=None, return_intermediate_feats=False, enable_tsn=False):
         images, masks = inputs
-        batch_size, nclips, *cdhw = images.size()
+        batch_size, *cdhw = images.size()
 
         if enable_tsn:
             images = images.view(-1, *cdhw)

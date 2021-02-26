@@ -1,5 +1,7 @@
 from datetime import datetime
 from functools import partial
+import pickle
+import time
 from matplotlib.pyplot import winter
 import numpy as np
 import pandas as pd
@@ -38,22 +40,35 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
     out_history = collections.defaultdict(list)
     target_history = collections.defaultdict(list)
 
+    ret = dict(
+        infer_times=[],
+        video_probs=[],
+        video_trues=[],
+        clip_probs=[],
+        clip_trues=[],
+    )
+
     for batch in data_loader:
         if torch.cuda.is_available():
             batch = [item.cuda()
                      if isinstance(item, torch.Tensor) else item
                      for item in batch]
-
+        start_time = time.time()
         if multiple_clip:
             out_dict = predict_multiple_clip(
                 model, batch, task)
         else:
             out_dict = predict_single_clip(
                 model, batch)
+        infer_time = time.time() - start_time
+        ret["infer_times"].append(infer_time)
 
         for level in out_dict:
             loss_meters = loss_meter_group[level]
             out, loss_dict, targets = out_dict[level]
+            ret[f"{level}_probs"].append(out.softmax(1).detach().cpu().numpy())
+            ret[f"{level}_trues"].append(
+                targets.view(-1, 1).detach().cpu().numpy())
 
             # update loss_meters
             update_losses(loss_dict, loss_meters)
@@ -77,7 +92,11 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
     score_val_group = {level: {
         sm.metric_name: sm.avg for sm in score_meters_group[level]} for level in levels}
 
-    return loss_val_group, score_val_group, levels
+    ret["loss_val_group"] = loss_val_group
+    ret["score_val_group"] = score_val_group
+    ret["levels"] = levels
+
+    return ret
 
 
 def train_one_epoch(model, optimizer, train_loader, valid_loader,
@@ -112,6 +131,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
 
     best_val_score = -1.0
     best_model_wts = None
+    best_prediction_results = None
 
     out_history = []
     target_history = []
@@ -171,9 +191,13 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
                     running_loss_log=running_loss_log
                 ))
 
-            # evaluate with validation dataset
-            valid_loss_val_group, valid_score_val_group, levels = evaluate(
+            ret = evaluate(
                 model, valid_loader, metrics=metrics, task=task, multiple_clip=multiple_clip)
+
+            # evaluate with validation dataset
+            valid_loss_val_group = ret["loss_val_group"]
+            valid_score_val_group = ret["score_val_group"]
+            levels = ret["levels"]
 
             main_valid_scores = {
                 level: valid_score_val_group[level][level+'_'+main_metric] for level in levels}
@@ -182,6 +206,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             if cur_val_score >= best_val_score:
                 best_val_score = cur_val_score
                 best_model_wts = copy.deepcopy(model.state_dict())
+                best_prediction_results = ret
 
             valid_clip_loss = valid_loss_val_group['clip']
             valid_clip_scores = valid_score_val_group['clip']
@@ -256,7 +281,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     # load best_wts
     model.load_state_dict(best_model_wts)
 
-    return best_val_score, model
+    return best_val_score, model, best_prediction_results
 
 
 def create_dir(cb):
@@ -309,11 +334,11 @@ class NeuralNetworks(object):
         best_score = -1.0
         for epoch in range(n_epochs):
             # validation_score is  `evaluate(...)[list(metrics)[0]]`
-            validation_score, new_model = train_one_epoch(self.model, self.optimizer, train_loader, valid_loader,
-                                                          fold, self.n_folds, epoch, n_epochs, validation_freq,
-                                                          lr_scheduler=self.lr_scheduler, warmup_scheduler=self.warmup_scheduler,
-                                                          metrics=self.get_metrics(metrics), train_logger=train_logger, valid_logger=valid_logger,
-                                                          task=self.task, multiple_clip=multiple_clip)
+            validation_score, new_model, prediction_results = train_one_epoch(self.model, self.optimizer, train_loader, valid_loader,
+                                                                              fold, self.n_folds, epoch, n_epochs, validation_freq,
+                                                                              lr_scheduler=self.lr_scheduler, warmup_scheduler=self.warmup_scheduler,
+                                                                              metrics=self.get_metrics(metrics), train_logger=train_logger, valid_logger=valid_logger,
+                                                                              task=self.task, multiple_clip=multiple_clip)
             if es is not None:
                 # early stop criterion is met, we can stop now
                 if es.step(torch.tensor(validation_score)):
@@ -323,6 +348,12 @@ class NeuralNetworks(object):
             if validation_score >= best_score:
                 # save-best model
                 torch.save(new_model, model_path)
+
+                # save best prediction results
+                prediction_file_path = os.path.join(
+                    save_dir, 'prediction_fold-{}.pkl'.format(fold))
+                pickle.dump(prediction_results, open(
+                    prediction_file_path, 'wb'))
 
                 # update best_score
                 best_score = validation_score

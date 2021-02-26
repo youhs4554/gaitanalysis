@@ -386,6 +386,7 @@ class VideoDataset:
         test.dataset.transforms = self.test_transforms
         test.dataset.random_shift = False
         test.dataset.temporal_jitter = False
+        test.dataset.sample_step = 5
         test.dataset.samples = self.generate_test_clips(test)
         test.indices = torch.randperm(len(test.dataset.samples))
 

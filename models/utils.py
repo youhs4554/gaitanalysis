@@ -15,11 +15,11 @@ def load_pretrained_ckpt(net, pretrained_path=''):
     print(f"Load pretrained model from {pretrained_path}...")
 
     # laod pre-trained model
-    pretrain = torch.load(pretrained_path,
-                          map_location=torch.device('cpu'))
-    net.load_state_dict(pretrain['state_dict'])
+    pretrain = torch.load(pretrained_path)
+    if isinstance(pretrain, nn.DataParallel):
+        pretrain = pretrain.module
 
-    return net
+    return pretrain
 
 
 def get_inflated_resnet(net_2d, net_3d):
@@ -75,8 +75,8 @@ def generate_backbone(opt, pretrained=True):
         pretrained_data = opt.backbone.split("_")[-1]
         assert pretrained_data in [
             "ig65m", "kinetics"], "Not supported pretrained data {}, Should be 'ig65m' or 'kinetics'".format(pretrained_data)
-        # duration = "8" if opt.sample_duration <= 16 else "32"
-        duration = "32"  # fix!!
+        duration = "8" if opt.sample_duration <= 16 else "32"
+        # duration = "32"  # fix!!
         model_name = f"r2plus1d_34_{duration}_{pretrained_data}"
         net = torch.hub.load(
             TORCH_R2PLUS1D,
