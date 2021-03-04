@@ -129,7 +129,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     print("Start Training...")
     print()
 
-    best_val_score = -1.0
+    best_val_loss = np.inf
     best_model_wts = None
     best_prediction_results = None
 
@@ -199,12 +199,11 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             valid_score_val_group = ret["score_val_group"]
             levels = ret["levels"]
 
-            main_valid_scores = {
-                level: valid_score_val_group[level][level+'_'+main_metric] for level in levels}
-            # level_main = 'video' if multiple_clip else 'clip'
-            cur_val_score = main_valid_scores["clip"]
-            if cur_val_score >= best_val_score:
-                best_val_score = cur_val_score
+            cur_val_loss = 0.0
+            for l in levels:
+                cur_val_loss += sum(valid_loss_val_group[l].values())
+            if cur_val_loss < best_val_loss:
+                best_val_loss = cur_val_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_prediction_results = ret
 
@@ -255,9 +254,11 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
                 score_meters[i] = sm
 
             running_scores = {sm.metric_name: sm.avg for sm in score_meters}
+
             # update visdom window
             train_logger.write(**{
                 'lr': optimizer.param_groups[0]['lr'],
+                "total_loss": sum(loss for loss in running_loss.values()),
                 **{'clip_' + k: v for k,
                    v in running_loss.items()},
                 **running_scores
@@ -270,7 +271,10 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
                     **valid_score_val_group[level]
                 })
 
-            valid_logger.write(**eval_log)
+            valid_logger.write(**{
+                "total_loss": cur_val_loss,
+                **eval_log
+            })
 
     if lr_scheduler is not None:
         if isinstance(lr_scheduler, CosineAnnealingLR):
@@ -281,7 +285,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
     # load best_wts
     model.load_state_dict(best_model_wts)
 
-    return best_val_score, model, best_prediction_results
+    return best_val_loss, model, best_prediction_results
 
 
 def create_dir(cb):
@@ -331,21 +335,21 @@ class NeuralNetworks(object):
         #                    percentage=True, min_delta=0.01)
         es = None
 
-        best_score = -1.0
+        best_loss = np.inf
         for epoch in range(n_epochs):
-            # validation_score is  `evaluate(...)[list(metrics)[0]]`
-            validation_score, new_model, prediction_results = train_one_epoch(self.model, self.optimizer, train_loader, valid_loader,
-                                                                              fold, self.n_folds, epoch, n_epochs, validation_freq,
-                                                                              lr_scheduler=self.lr_scheduler, warmup_scheduler=self.warmup_scheduler,
-                                                                              metrics=self.get_metrics(metrics), train_logger=train_logger, valid_logger=valid_logger,
-                                                                              task=self.task, multiple_clip=multiple_clip)
+            # val_loss is  `evaluate(...)[list(metrics)[0]]`
+            val_loss, new_model, prediction_results = train_one_epoch(self.model, self.optimizer, train_loader, valid_loader,
+                                                                      fold, self.n_folds, epoch, n_epochs, validation_freq,
+                                                                      lr_scheduler=self.lr_scheduler, warmup_scheduler=self.warmup_scheduler,
+                                                                      metrics=self.get_metrics(metrics), train_logger=train_logger, valid_logger=valid_logger,
+                                                                      task=self.task, multiple_clip=multiple_clip)
             if es is not None:
                 # early stop criterion is met, we can stop now
-                if es.step(torch.tensor(validation_score)):
+                if es.step(torch.tensor(val_loss)):
                     print("\nEarly stop the training loop...\n")
                     break
 
-            if validation_score >= best_score:
+            if val_loss < best_loss:
                 # save-best model
                 torch.save(new_model, model_path)
 
@@ -355,10 +359,10 @@ class NeuralNetworks(object):
                 pickle.dump(prediction_results, open(
                     prediction_file_path, 'wb'))
 
-                # update best_score
-                best_score = validation_score
+                # update best_loss
+                best_loss = val_loss
                 print(
-                    f"@@ EPOCH : {epoch} Best `{list(metrics)[0]}` has been updated (value: {best_score:.5f}). Save best model at {model_path}")
+                    f"@@ EPOCH : {epoch} Best model has been updated (loss: {best_loss:.5f}). Save best model at {model_path}")
         plotter.viz.save([plotter.env])
 
         # read json file

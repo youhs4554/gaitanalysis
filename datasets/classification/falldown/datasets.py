@@ -146,7 +146,7 @@ class ActivityRecogPlusSegmentationDataset(VideoDataset):
         mask_frames = []
         for ix in range(offset, offset + self.sample_length):
             ix = min(ix + 1, num_frames - 1)  # max clipping
-            detection_file = os.path.join(vid, f"thumb{ix:04d}.txt")
+            detection_file = os.path.join(vid, f"thumb{ix:05d}.txt")
             if open(detection_file).read() == "":
                 # empty detection file
                 detection_res = np.zeros((5,))

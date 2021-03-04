@@ -69,7 +69,7 @@ if opt.model_arch == "FT-AGNet":
 
 def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
     # Load data
-    train_loader, test_ds, target_transform, n_outputs = get_data_loader(
+    train_loader, test_loader, target_transform, n_outputs = get_data_loader(
         opt, fold=fold)
 
     if opt.model_arch == 'RegionalAGNet':
@@ -106,7 +106,7 @@ def train_one_fold(fold, metrics=['f1-score', 'accuracy', 'ap', 'roc_auc']):
                                        lr_scheduler=lr_scheduler,
                                        warmup_scheduler=warmup_scheduler)
 
-    net.train(train_loader, test_ds,
+    net.train(train_loader, test_loader,
               n_epochs=opt.n_iter, validation_freq=len(train_loader),
               multiple_clip=opt.multiple_clip, metrics=metrics,
               save_dir=os.path.join(opt.ckpt_dir, opt.cfg_file))
