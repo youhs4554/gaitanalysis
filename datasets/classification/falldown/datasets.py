@@ -338,6 +338,7 @@ def URFD(dataset_root, fold, sample_length, batch_size, tsn=False):
                                                 test_split_file=test_split_file,
                                                 video_ext="avi",
                                                 sample_length=sample_length,
+                                                test_sample_step=1,
                                                 batch_size=batch_size,
                                                 num_samples=3 if tsn else 1)
 
@@ -357,6 +358,7 @@ def MulticamFD(dataset_root, fold, sample_length, batch_size, tsn=False):
                                                 test_split_file=test_split_file,
                                                 video_ext="avi",
                                                 sample_length=sample_length,
+                                                test_sample_step=5,
                                                 batch_size=batch_size,
                                                 num_samples=3 if tsn else 1)
 

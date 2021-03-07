@@ -171,6 +171,7 @@ class VideoDataset:
         num_samples: int = 1,
         sample_length: int = 8,
         sample_step: int = 1,
+        test_sample_step: int = 1,
         temporal_jitter: bool = True,
         temporal_jitter_step: int = 2,
         random_shift: bool = True,
@@ -223,6 +224,7 @@ class VideoDataset:
         self.num_samples = num_samples
         self.sample_length = sample_length
         self.sample_step = sample_step
+        self.test_sample_step = test_sample_step
         self.presample_length = sample_length * sample_step
         self.temporal_jitter_step = temporal_jitter_step
         self.train_transforms = train_transforms
@@ -386,7 +388,7 @@ class VideoDataset:
         test.dataset.transforms = self.test_transforms
         test.dataset.random_shift = False
         test.dataset.temporal_jitter = False
-        test.dataset.sample_step = 5
+        test.dataset.sample_step = self.test_sample_step
         test.dataset.samples = self.generate_test_clips(test)
         test.indices = torch.randperm(len(test.dataset.samples))
 

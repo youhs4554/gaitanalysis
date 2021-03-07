@@ -48,6 +48,7 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
         clip_trues=[],
     )
 
+    tik = time.time()
     for batch in data_loader:
         if torch.cuda.is_available():
             batch = [item.cuda()
@@ -75,6 +76,9 @@ def evaluate(model, data_loader, metrics, task, multiple_clip=False):
 
             out_history[level].append(out.detach().cpu())
             target_history[level].append(targets.detach().cpu())
+
+    total_inferTimes = sum(ret["infer_times"])
+    print("actual inference time in {} [sec]".format(total_inferTimes))
 
     for level in levels:
         out_history_cat = torch.cat(out_history[level])
@@ -199,11 +203,13 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
             valid_score_val_group = ret["score_val_group"]
             levels = ret["levels"]
 
-            cur_val_loss = 0.0
+            total_val_loss = 0.0
+            classification_val_loss = 0.0
             for l in levels:
-                cur_val_loss += sum(valid_loss_val_group[l].values())
-            if cur_val_loss < best_val_loss:
-                best_val_loss = cur_val_loss
+                total_val_loss += sum(valid_loss_val_group[l].values())
+                classification_val_loss += valid_loss_val_group[l]["classification_loss"]
+            if classification_val_loss < best_val_loss:
+                best_val_loss = classification_val_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_prediction_results = ret
 
@@ -272,7 +278,7 @@ def train_one_epoch(model, optimizer, train_loader, valid_loader,
                 })
 
             valid_logger.write(**{
-                "total_loss": cur_val_loss,
+                "total_loss": total_val_loss,
                 **eval_log
             })
 
@@ -362,7 +368,7 @@ class NeuralNetworks(object):
                 # update best_loss
                 best_loss = val_loss
                 print(
-                    f"@@ EPOCH : {epoch} Best model has been updated (loss: {best_loss:.5f}). Save best model at {model_path}")
+                    f"@@ EPOCH : {epoch} Best model has been updated (classification_loss: {best_loss:.5f}). Save best model at {model_path}")
         plotter.viz.save([plotter.env])
 
         # read json file
@@ -410,9 +416,11 @@ class NeuralNetworks(object):
             lr_history_df.to_excel(writer, sheet_name='lr_history')
 
     def test(self, test_loader, metrics=None, multiple_clip=False, pretrained_path=''):
+        tik = time.time()
         trained_model = load_pretrained_ckpt(
             self.model, pretrained_path=pretrained_path)
-
+        print("weight loading completed in time {} [sec]!!".format(
+            time.time()-tik))
         return evaluate(trained_model, test_loader,
                         metrics=self.get_metrics(metrics),
                         task=self.task, multiple_clip=multiple_clip)
