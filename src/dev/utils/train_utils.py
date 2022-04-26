@@ -113,7 +113,7 @@ def train_epoch(step, epoch, split, data_loader, model, criterion1, criterion2, 
     running_seg_loss = 0.0
 
     # update plotter at every epoch
-    update_cycle = len(data_loader)
+    update_cycle = 5
 
     y_pred = []
     y_true = []

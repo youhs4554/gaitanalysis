@@ -202,7 +202,7 @@ class VisdomPlotter(object):
     """Plots to Visdom"""
 
     def __init__(self, env_name='main'):
-        self.viz = visdom.Visdom('133.186.162.37')
+        self.viz = visdom.Visdom('localhost')
         self.env = env_name
         self.plots = {}
 
