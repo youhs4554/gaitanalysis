@@ -34,14 +34,32 @@ git clone https://github.com/youhs4554/gaitanalysis.git
 cd src/dev
 ```
 
-3. Before training or testing, `visdom` should be activated for logging results
+3. Preprocess (YOLO detection file + target file generation)
+
+- Data samples are splited into 8(=default) chunks.
+- Based on the "device_yolo" flag, independent process will be generated.
+- If you want to run 8 parallel process, you can do it by executing 8 scripts which only "--device_yolo" flag is changed (0~7, it depends on your settings).
+
+```
+python generate_dataset.py --data_gen
+  --video_home=/data/GaitData/Video
+  --input_file=../../preprocess/data/person_detection_and_tracking_results_drop.pkl
+  --target_file=../../preprocess/data/targets_dataframe.pkl
+  --darknet_api_home=../../preprocess/darknet
+  --mode=preprocess__frame
+  --meta_home=/data/GaitData/MetaData_converted
+  --fps=24
+  --device_yolo=0
+```
+
+4. Before training or testing, `visdom` should be activated for logging results
 
 ```
 # run visdom server
 visdom
 ```
 
-4. Prepare gait video dataset </br>
+5. Prepare gait video dataset </br>
    (1) Locate the video frames at `/data/GaitData/RawFrames`. Subfolders need to be named as each video filename without its extention (such as `.avi`). </br> **Note**: Each video name should be anonymized. </br>
    (2) Prepare person detection results for each video frame in python pickle file format (`.pkl`). </br>
 
@@ -67,7 +85,7 @@ visdom
    379233_0_0      42.3     87.8                     57.0              1.366              1.386               57.793  ...            70.204978            71.789322              42.972182              43.650794            25.010001            23.328900
    ```
 
-5. Training model
+6. Training model
 
 - `5-fold` cross-validated R<sup>2</sup> scores (higher is better, max=1.0) per each gait variable are reported after finishing entire training process. And the results are saved in `logs/${model_name}/CV/results.json`
 
@@ -83,7 +101,7 @@ visdom
   ./scripts/finetune_agnet_for_CV.sh
   ```
 
-6. Testing
+7. Testing
 
 - The hold-out test R<sup>2</sup> scores per each gait variables are measured
 - Results are saved in `logs/${model_name}/test/results.json`

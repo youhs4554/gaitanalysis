@@ -160,31 +160,31 @@ class Worker(object):
         self.opt = opt
 
         if opt.data_gen:
-            # # input data part
-            # input_lines = ['']
+            # input data part
+            input_lines = ['']
 
-            # if not os.path.exists(opt.chunk_vid_home):
-            #     os.system(f'mkdir -p {opt.chunk_vid_home}')
-            #     all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
-            #                        not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
-            #     for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
-            #         with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
-            #             f.writelines(partial)
+            if not os.path.exists(opt.chunk_vid_home):
+                os.system(f'mkdir -p {opt.chunk_vid_home}')
+                all_video_files = [os.path.join(opt.video_home, v) + '\n' for v in os.listdir(opt.video_home) if
+                                   not v.startswith('vid') and os.path.exists(os.path.join(opt.meta_home, '{0}_cop_{1}_{2}_{3}_{4}.txt'.format(*os.path.splitext(v)[0].split('_'))))]
+                for ix, partial in enumerate(chunk(all_video_files, math.ceil(len(all_video_files)/opt.chunk_parts))):
+                    with open(f'{opt.chunk_vid_home}/vids-part{ix}.txt', 'w') as f:
+                        f.writelines(partial)
 
-            # with open(f'{opt.chunk_vid_home}/vids-part{opt.device_yolo}.txt') as f:
-            #     video_files = list(x.strip() for x in f.readlines())
+            with open(f'{opt.chunk_vid_home}/vids-part{opt.device_yolo}.txt') as f:
+                video_files = list(x.strip() for x in f.readlines())
 
-            # pbar = tqdm(video_files)
-            # for video in pbar:
-            #     pbar.set_description(
-            #         f"Processing ***** {os.path.basename(video)}")
-            #     self._run(video, localizer, interval_selector, input_lines)
+            pbar = tqdm(video_files)
+            for video in pbar:
+                pbar.set_description(
+                    f"Processing ***** {os.path.basename(video)}")
+                self._run(video, localizer, interval_selector, input_lines)
 
-            # prefix, ext = os.path.splitext(opt.input_file)
-            # input_file_path = prefix + '-' + str(opt.device_yolo) + ext
+            prefix, ext = os.path.splitext(opt.input_file)
+            input_file_path = prefix + '-' + str(opt.device_yolo) + ext
 
-            # pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
-            #              columns=['vids', 'idx', 'pos']).to_pickle(input_file_path)
+            pd.DataFrame([x.split('\t') for x in input_lines[0].strip().split('\n')],
+                         columns=['vids', 'idx', 'pos']).to_pickle(input_file_path)
 
             if opt.device_yolo == 0:
                 # for prevent safe file saving
